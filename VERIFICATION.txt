@@ -1,0 +1,442 @@
+TAP version 13
+# Subtest: Ransom gives the original owner first purchase and rounded proceeds to the captor
+ok 1 - Ransom gives the original owner first purchase and rounded proceeds to the captor
+  ---
+  duration_ms: 6.986868
+  type: 'test'
+  ...
+# Subtest: the captor may buy a declined Hostage and ownership transfers
+ok 2 - the captor may buy a declined Hostage and ownership transfers
+  ---
+  duration_ms: 1.928795
+  type: 'test'
+  ...
+# Subtest: Vassalization raises H and paid Execution lowers both H and D
+ok 3 - Vassalization raises H and paid Execution lowers both H and D
+  ---
+  duration_ms: 2.22137
+  type: 'test'
+  ...
+# Subtest: Quarter captures the defeated Vassal and No Quarter returns it to the deck
+ok 4 - Quarter captures the defeated Vassal and No Quarter returns it to the deck
+  ---
+  duration_ms: 8.265708
+  type: 'test'
+  ...
+# Subtest: a full Dungeon forces immediate battlefield execution
+ok 5 - a full Dungeon forces immediate battlefield execution
+  ---
+  duration_ms: 1.447601
+  type: 'test'
+  ...
+# Subtest: Stockpile applies one bonus slot to one suit rather than as generic capacity
+ok 6 - Stockpile applies one bonus slot to one suit rather than as generic capacity
+  ---
+  duration_ms: 2.938174
+  type: 'test'
+  ...
+# Subtest: save/load preserves an unresolved private Harvest offer exactly
+ok 7 - save/load preserves an unresolved private Harvest offer exactly
+  ---
+  duration_ms: 3.335224
+  type: 'test'
+  ...
+# Subtest: setup enforces Black-then-White Sovereign choice and starts Year 1
+ok 8 - setup enforces Black-then-White Sovereign choice and starts Year 1
+  ---
+  duration_ms: 6.485364
+  type: 'test'
+  ...
+# Subtest: Harvest resolves one Unit at a time and then opens Poker declarations
+ok 9 - Harvest resolves one Unit at a time and then opens Poker declarations
+  ---
+  duration_ms: 4.43636
+  type: 'test'
+  ...
+# Subtest: the color-lock failsafe sacrifices normal Harvest for one Black card
+ok 10 - the color-lock failsafe sacrifices normal Harvest for one Black card
+  ---
+  duration_ms: 1.39997
+  type: 'test'
+  ...
+# Subtest: tapped Counter value enters a persistent seasonal pool and dynamic Build costs increase
+ok 11 - tapped Counter value enters a persistent seasonal pool and dynamic Build costs increase
+  ---
+  duration_ms: 6.454257
+  type: 'test'
+  ...
+# Subtest: Upgrade preserves stable Unit identity and its Vassal
+ok 12 - Upgrade preserves stable Unit identity and its Vassal
+  ---
+  duration_ms: 1.725003
+  type: 'test'
+  ...
+# Subtest: Siege records all dice and ends immediately when a King is defeated
+ok 13 - Siege records all dice and ends immediately when a King is defeated
+  ---
+  duration_ms: 2.1673
+  type: 'test'
+  ...
+# Subtest: a full peaceful Year reaches Stockpile and rotates the button
+ok 14 - a full peaceful Year reaches Stockpile and rotates the button
+  ---
+  duration_ms: 22.534954
+  type: 'test'
+  ...
+# Subtest: opponent Court identities are removed by the projection layer
+ok 15 - opponent Court identities are removed by the projection layer
+  ---
+  duration_ms: 2.722734
+  type: 'test'
+  ...
+# Subtest: the HTTP server exposes room creation, joining, spectator views, and static assets
+ok 16 - the HTTP server exposes room creation, joining, spectator views, and static assets
+  ---
+  duration_ms: 124.280395
+  type: 'test'
+  ...
+# Subtest: four-player setup uses doubled decks, corner Kings, and Green-Black-Red-White Sovereign order
+ok 17 - four-player setup uses doubled decks, corner Kings, and Green-Black-Red-White Sovereign order
+  ---
+  duration_ms: 9.529676
+  type: 'test'
+  ...
+# Subtest: four-player Button order alternates direction and passes clockwise
+ok 18 - four-player Button order alternates direction and passes clockwise
+  ---
+  duration_ms: 6.447257
+  type: 'test'
+  ...
+# Subtest: all four players complete Harvest and Poker before Build begins
+ok 19 - all four players complete Harvest and Poker before Build begins
+  ---
+  duration_ms: 8.889956
+  type: 'test'
+  ...
+# Subtest: a peaceful four-player Year rotates the Button and replays exactly
+ok 20 - a peaceful four-player Year rotates the Button and replays exactly
+  ---
+  duration_ms: 58.192676
+  type: 'test'
+  ...
+# Subtest: defeat transfers Court and untapped Resources, resolves Hostages, and destroys Units and Vassals
+ok 21 - defeat transfers Court and untapped Resources, resolves Hostages, and destroys Units and Vassals
+  ---
+  duration_ms: 6.997084
+  type: 'test'
+  ...
+# Subtest: taking the Sovereign advances a victorious attacker and places the Card in Court
+ok 22 - taking the Sovereign advances a victorious attacker and places the Card in Court
+  ---
+  duration_ms: 2.814611
+  type: 'test'
+  ...
+# Subtest: when an attacking King falls, the captured Queen occupies its vacated origin and play continues with the next survivor
+ok 23 - when an attacking King falls, the captured Queen occupies its vacated origin and play continues with the next survivor
+  ---
+  duration_ms: 18.436041
+  type: 'test'
+  ...
+# Subtest: a captured Queen is permanently removed and its defeated player stops advising when it falls
+ok 24 - a captured Queen is permanently removed and its defeated player stops advising when it falls
+  ---
+  duration_ms: 3.00617
+  type: 'test'
+  ...
+# Subtest: the match completes only after conquest leaves a single surviving King
+ok 25 - the match completes only after conquest leaves a single surviving King
+  ---
+  duration_ms: 2.495166
+  type: 'test'
+  ...
+# Subtest: Resource displays sort by suit and descending effective value
+ok 26 - Resource displays sort by suit and descending effective value
+  ---
+  duration_ms: 6.532003
+  type: 'test'
+  ...
+# Subtest: recommended Stockpile fills King, Rook, and Queen bonus slots with the strongest legal cards
+ok 27 - recommended Stockpile fills King, Rook, and Queen bonus slots with the strongest legal cards
+  ---
+  duration_ms: 1.72331
+  type: 'test'
+  ...
+# Subtest: phase preflight counts untapped cards and rejects purposeless cycling
+ok 28 - phase preflight counts untapped cards and rejects purposeless cycling
+  ---
+  duration_ms: 2.334669
+  type: 'test'
+  ...
+# Subtest: unavailable player phases and prisonerless Ransom wait for acknowledgement
+ok 29 - unavailable player phases and prisonerless Ransom wait for acknowledgement
+  ---
+  duration_ms: 2.647083
+  type: 'test'
+  ...
+# Subtest: Execution is globally skipped when both Dungeons are empty
+ok 30 - Execution is globally skipped when both Dungeons are empty
+  ---
+  duration_ms: 2.271384
+  type: 'test'
+  ...
+# Subtest: Noble presentation uses the custom rank code and identity
+ok 31 - Noble presentation uses the custom rank code and identity
+  ---
+  duration_ms: 0.829972
+  type: 'test'
+  ...
+# Subtest: rooms support seats, an unlisted spectator view, and host-controlled start
+ok 32 - rooms support seats, an unlisted spectator view, and host-controlled start
+  ---
+  duration_ms: 8.49574
+  type: 'test'
+  ...
+# Subtest: a completed Sovereign choice publishes automatically and closes Undo
+ok 33 - a completed Sovereign choice publishes automatically and closes Undo
+  ---
+  duration_ms: 4.457532
+  type: 'test'
+  ...
+# Subtest: final setup publishes when the next phase has the same actor
+ok 34 - final setup publishes when the next phase has the same actor
+  ---
+  duration_ms: 10.160382
+  type: 'test'
+  ...
+# Subtest: Undo restores an unpublished Harvest offer without rerolling
+ok 35 - Undo restores an unpublished Harvest offer without rerolling
+  ---
+  duration_ms: 9.807649
+  type: 'test'
+  ...
+# Subtest: active rooms and unpublished Harvest Undo history survive restart
+ok 36 - active rooms and unpublished Harvest Undo history survive restart
+  ---
+  duration_ms: 8.431884
+  type: 'test'
+  ...
+# Subtest: board coordinates use the authoritative a1 dark convention
+ok 37 - board coordinates use the authoritative a1 dark convention
+  ---
+  duration_ms: 2.656216
+  type: 'test'
+  ...
+# Subtest: seeded randomness and shuffling are reproducible
+ok 38 - seeded randomness and shuffling are reproducible
+  ---
+  duration_ms: 0.649504
+  type: 'test'
+  ...
+# Subtest: movement models Dendarv movement rather than ordinary chess
+ok 39 - movement models Dendarv movement rather than ordinary chess
+  ---
+  duration_ms: 5.354614
+  type: 'test'
+  ...
+# Subtest: Poker qualification uses face values only
+ok 40 - Poker qualification uses face values only
+  ---
+  duration_ms: 0.917132
+  type: 'test'
+  ...
+# Subtest: fresh setup satisfies core invariants
+ok 41 - fresh setup satisfies core invariants
+  ---
+  duration_ms: 0.684857
+  type: 'test'
+  ...
+# Subtest: the standalone starts with constants in the header and the requested section order
+ok 42 - the standalone starts with constants in the header and the requested section order
+  ---
+  duration_ms: 14.17112
+  type: 'test'
+  ...
+# Subtest: Vassal controls render names and cost explanations without generic ranks
+ok 43 - Vassal controls render names and cost explanations without generic ranks
+  ---
+  duration_ms: 8.047314
+  type: 'test'
+  ...
+# Subtest: automatic explanations wait for the next legal action and require one click each
+ok 44 - automatic explanations wait for the next legal action and require one click each
+  ---
+  duration_ms: 7.505159
+  type: 'test'
+  ...
+# Subtest: Harvest uses status, Level and the two different coordinate tie-breaks
+ok 45 - Harvest uses status, Level and the two different coordinate tie-breaks
+  ---
+  duration_ms: 4.370643
+  type: 'test'
+  ...
+# Subtest: the fixed Harvest queue is frozen, saved and enforced by the server engine
+ok 46 - the fixed Harvest queue is frozen, saved and enforced by the server engine
+  ---
+  duration_ms: 3.959231
+  type: 'test'
+  ...
+# Subtest: automatic Harvest resolves single-card offers and stops at each meaningful choice
+ok 47 - automatic Harvest resolves single-card offers and stops at each meaningful choice
+  ---
+  duration_ms: 4.029236
+  type: 'test'
+  ...
+# Subtest: the chronicle freezes selected and rejected Counters and uses 1 for an Ace
+ok 48 - the chronicle freezes selected and rejected Counters and uses 1 for an Ace
+  ---
+  duration_ms: 4.403612
+  type: 'test'
+  ...
+# Subtest: Harvest previews explain one Counter even when both bonuses apply
+ok 49 - Harvest previews explain one Counter even when both bonuses apply
+  ---
+  duration_ms: 0.900818
+  type: 'test'
+  ...
+# Subtest: Recruit costs stay visible while private identities remain redacted until a committed result
+ok 50 - Recruit costs stay visible while private identities remain redacted until a committed result
+  ---
+  duration_ms: 3.603072
+  type: 'test'
+  ...
+# Subtest: a full Year records empty phases and Stockpiles, rotates player lines and replays exactly
+ok 51 - a full Year records empty phases and Stockpiles, rotates player lines and replays exactly
+  ---
+  duration_ms: 14.986531
+  type: 'test'
+  ...
+# Subtest: a completed online draft still requires Pass and does not reveal the opponent's Court
+ok 52 - a completed online draft still requires Pass and does not reveal the opponent's Court
+  ---
+  duration_ms: 4.835272
+  type: 'test'
+  ...
+# Subtest: WHITE uses its agreed coordinate keys after status and Level
+ok 53 - WHITE uses its agreed coordinate keys after status and Level
+  ---
+  duration_ms: 3.302716
+  type: 'test'
+  ...
+# Subtest: GREEN uses its agreed coordinate keys after status and Level
+ok 54 - GREEN uses its agreed coordinate keys after status and Level
+  ---
+  duration_ms: 0.476338
+  type: 'test'
+  ...
+# Subtest: BLACK uses its agreed coordinate keys after status and Level
+ok 55 - BLACK uses its agreed coordinate keys after status and Level
+  ---
+  duration_ms: 0.479522
+  type: 'test'
+  ...
+# Subtest: RED uses its agreed coordinate keys after status and Level
+ok 56 - RED uses its agreed coordinate keys after status and Level
+  ---
+  duration_ms: 0.353415
+  type: 'test'
+  ...
+# Subtest: each Harvest piece needs its own draw command, even if an old client asks to continue
+ok 57 - each Harvest piece needs its own draw command, even if an old client asks to continue
+  ---
+  duration_ms: 4.059531
+  type: 'test'
+  ...
+# Subtest: declining the Harvest failsafe does not draw for any piece
+ok 58 - declining the Harvest failsafe does not draw for any piece
+  ---
+  duration_ms: 0.84817
+  type: 'test'
+  ...
+# Subtest: Poker appears only for legal face-value hands and preserves optional overlapping declarations
+ok 59 - Poker appears only for legal face-value hands and preserves optional overlapping declarations
+  ---
+  duration_ms: 3.360722
+  type: 'test'
+  ...
+# Subtest: Poker availability respects the no-overlap rule and face values rather than Counters
+ok 60 - Poker availability respects the no-overlap rule and face values rather than Counters
+  ---
+  duration_ms: 0.522677
+  type: 'test'
+  ...
+# Subtest: unavailable whole seasons pass through every player and stop at a funded legal action
+ok 61 - unavailable whole seasons pass through every player and stop at a funded legal action
+  ---
+  duration_ms: 2.030301
+  type: 'test'
+  ...
+# Subtest: an empty pool does not skip an action fundable by untapped cards
+ok 62 - an empty pool does not skip an action fundable by untapped cards
+  ---
+  duration_ms: 1.228525
+  type: 'test'
+  ...
+# Subtest: Stockpile automatically retains all legal cards, preserves Counters, and advances the Year
+ok 63 - Stockpile automatically retains all legal cards, preserves Counters, and advances the Year
+  ---
+  duration_ms: 2.301629
+  type: 'test'
+  ...
+# Subtest: Stockpile keeps the player's decision for overflow and mandatory-spend cards
+ok 64 - Stockpile keeps the player's decision for overflow and mandatory-spend cards
+  ---
+  duration_ms: 1.294583
+  type: 'test'
+  ...
+# Subtest: an unaffordable Ransom response advances to a captor who can choose
+ok 65 - an unaffordable Ransom response advances to a captor who can choose
+  ---
+  duration_ms: 0.795411
+  type: 'test'
+  ...
+# Subtest: auto-passing publishes an exhausted turn and ends its Undo history on the server
+ok 66 - auto-passing publishes an exhausted turn and ends its Undo history on the server
+  ---
+  duration_ms: 6.872729
+  type: 'test'
+  ...
+# Subtest: complete Harvest offers are public while unrevealed Court identities stay private
+ok 67 - complete Harvest offers are public while unrevealed Court identities stay private
+  ---
+  duration_ms: 3.08326
+  type: 'test'
+  ...
+# Subtest: the shared realm panel shows pieces, Vassals and Dungeons without leaking another Court
+ok 68 - the shared realm panel shows pieces, Vassals and Dungeons without leaking another Court
+  ---
+  duration_ms: 2.204825
+  type: 'test'
+  ...
+# Subtest: v1.4 offers migrate without redrawing and migrated command histories replay exactly
+ok 69 - v1.4 offers migrate without redrawing and migrated command histories replay exactly
+  ---
+  duration_ms: 2.069424
+  type: 'test'
+  ...
+# Subtest: 2-player automatic Years replay deterministically
+ok 70 - 2-player automatic Years replay deterministically
+  ---
+  duration_ms: 11.775562
+  type: 'test'
+  ...
+# Subtest: 4-player automatic Years replay deterministically
+ok 71 - 4-player automatic Years replay deterministically
+  ---
+  duration_ms: 27.414392
+  type: 'test'
+  ...
+# Subtest: dispersing a defeated Court exposes counts without disclosing unrevealed identities
+ok 72 - dispersing a defeated Court exposes counts without disclosing unrevealed identities
+  ---
+  duration_ms: 1.064071
+  type: 'test'
+  ...
+1..72
+# tests 72
+# suites 0
+# pass 72
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 333.448144

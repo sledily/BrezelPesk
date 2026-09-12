@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#151815">
+    <meta name="application-name" content="BrezelPesk">
+    <meta name="application-version" content="1.5.0">
+    <meta name="description" content="Play Dendarv locally or online with guided Harvest, clear seasonal costs and a standardized game chronicle.">
+    <title>Dendarv: Age of Crusader Kings</title>
+    <link rel="stylesheet" href="./src/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <div class="labyrinth-mark" aria-hidden="true">D</div>
+          <div>
+            <p class="eyebrow">Age of Crusader Kings</p>
+            <h1>Dendarv</h1>
+          </div>
+        </div>
+        <div id="match-status" class="match-status" aria-live="polite"></div>
+        <nav class="file-actions" aria-label="Match files">
+          <button id="online-game" class="button primary">BrezelPesk</button>
+          <button id="new-game" class="button quiet">New</button>
+          <button id="undo-action" class="button quiet" disabled>Undo</button>
+          <button id="load-autosave" class="button quiet">Resume</button>
+          <button id="export-save" class="button quiet">Export save</button>
+          <button id="import-save" class="button quiet">Import</button>
+          <input id="import-file" type="file" accept="application/json,.json" hidden>
+        </nav>
+        <div id="turn-card" class="header-turn"></div>
+      </header>
+
+      <section id="online-strip" class="online-strip" aria-live="polite" hidden>
+        <div id="online-strip-text"></div>
+        <div class="online-strip-actions">
+          <button id="copy-room-link" class="button tiny">Copy spectator link</button>
+          <button id="leave-online" class="button tiny quiet">Return to local game</button>
+        </div>
+      </section>
+
+      <main class="game-layout">
+        <section class="board-column" aria-label="Game board">
+          <div class="board-frame">
+            <div id="board" class="board" role="grid" aria-label="Dendarv board"></div>
+          </div>
+          <div id="board-hint" class="board-hint">Select an action to see legal squares.</div>
+          <details class="board-vocabulary"><summary>Read the board and cards</summary>
+            <p>○ Holding: Harvests and defends. A Noble badge marks a Levy, which can also move and attack.</p>
+            <p>Vassal badges use Vz, Dx and Rx, with their suit symbols. The same titles identify the named Court cards below.</p>
+            <p>A filled marker shows a legal destination; a red ring shows a Siege target. A gold border marks your selection. A dashed outline marks the Harvesting piece.</p>
+            <p>Cards: * adds one Counter; a check marks a selection; a tilted card is tapped; ! means spend or return this Year.</p>
+          </details>
+        </section>
+
+        <section id="action-controls" class="panel action-panel" aria-label="Current action"></section>
+        <section id="resource-controls" class="panel" aria-label="Seasonal resource pool"></section>
+        <section id="player-summary" class="panel" aria-label="Players, Resources and Political order"></section>
+
+        <aside class="history-column">
+          <section class="panel chronicle-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Standard notation</p>
+                <h2>Chronicle</h2>
+              </div>
+              <div class="choice-grid"><button id="copy-log" class="button tiny quiet">Copy</button><button id="download-log" class="button tiny quiet">Download</button></div>
+            </div>
+            <p id="chronicle-visibility" class="chronicle-note"></p>
+            <pre id="history" class="chronicle-text" tabindex="0" aria-label="Game chronicle"></pre>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <div id="handoff" class="handoff" role="dialog" aria-modal="true" hidden>
+      <div class="handoff-card">
+        <p class="eyebrow">Hot-seat privacy</p>
+        <div id="handoff-seal" class="handoff-seal" aria-hidden="true"></div>
+        <h2 id="handoff-title">Pass the device</h2>
+        <p id="handoff-text"></p>
+        <button id="accept-handoff" class="button primary large">Reveal my view</button>
+      </div>
+    </div>
+
+    <div id="phase-notice" class="phase-notice" role="dialog" aria-modal="true" aria-labelledby="phase-notice-title" hidden>
+      <div class="phase-notice-card">
+        <p id="phase-notice-eyebrow" class="eyebrow"></p>
+        <h2 id="phase-notice-title"></h2>
+        <p id="phase-notice-text"></p>
+        <p id="phase-notice-reason" class="phase-notice-reason"></p>
+        <button id="dismiss-phase-notice" class="button primary full">Continue</button>
+      </div>
+    </div>
+
+    <dialog id="new-game-dialog" class="game-dialog">
+      <form method="dialog" id="new-game-form">
+        <p class="eyebrow">Begin a chronicle</p>
+        <h2>New local match</h2>
+        <label for="player-count">Players</label>
+        <select id="player-count" name="player-count">
+          <option value="4" selected>Four players · White, Green, Black, Red</option>
+          <option value="2">Two players · White and Black</option>
+        </select>
+        <p class="field-note">Four-player mode uses doubled decks, rotating phase order, and conquest after a King falls.</p>
+        <details class="setup-guide">
+          <summary>Four-player seating and colors</summary>
+          <p>White is the most experienced player. Green, the least experienced, sits to White's right. Black is the more successful of the remaining players—or the taller if tied—and Red takes the remaining seat to White's left. Counterclockwise order: White → Green → Black → Red.</p>
+        </details>
+        <label for="seed">Random seed</label>
+        <input id="seed" name="seed" value="Remy-and-Franny" autocomplete="off">
+        <p class="field-note">The same seed reproduces deck order and dice.</p>
+        <div class="dialog-actions">
+          <button value="cancel" class="button quiet">Cancel</button>
+          <button value="start" class="button primary">Start match</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="online-dialog" class="game-dialog online-dialog">
+      <form method="dialog" id="online-form">
+        <p class="eyebrow">BrezelPesk · Remote table</p>
+        <h2>Play or watch online</h2>
+        <section class="online-form-section">
+          <h3>Create a room</h3>
+          <label for="online-create-name">Your name</label>
+          <input id="online-create-name" maxlength="40" autocomplete="name">
+          <label for="online-create-count">Players</label>
+          <select id="online-create-count">
+            <option value="4" selected>Four players</option>
+            <option value="2">Two players</option>
+          </select>
+          <label for="online-create-seat">Your color</label>
+          <select id="online-create-seat"></select>
+          <label for="online-create-seed">Random seed <span class="optional">optional</span></label>
+          <input id="online-create-seed" autocomplete="off" placeholder="Generated automatically">
+          <button id="create-online-room" type="button" class="button primary full">Create room</button>
+        </section>
+        <div class="online-divider"><span>or</span></div>
+        <section class="online-form-section">
+          <h3>Open a room</h3>
+          <label for="online-room-code">Six-character room code</label>
+          <input id="online-room-code" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="ABC123">
+          <button id="open-online-room" type="button" class="button full">Open room</button>
+          <p class="field-note">Opening a room starts in spectator mode. If the match has not begun, you may claim any open player color.</p>
+        </section>
+        <div class="dialog-actions">
+          <button value="cancel" class="button quiet">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="online-lobby" class="online-lobby" role="dialog" aria-modal="true" hidden>
+      <div class="online-lobby-card">
+        <p class="eyebrow">Online room</p>
+        <h2 id="online-lobby-title"></h2>
+        <p id="online-lobby-status"></p>
+        <div id="online-seat-list" class="online-seat-list"></div>
+        <div id="online-join-controls" class="online-join-controls">
+          <label for="online-join-name">Your name</label>
+          <input id="online-join-name" maxlength="40" autocomplete="name">
+          <p class="field-note">Choose an open color below to take that seat.</p>
+        </div>
+        <div class="choice-grid online-lobby-actions">
+          <button id="start-online-match" class="button primary" hidden>Start match</button>
+          <button id="lobby-copy-link" class="button">Copy spectator link</button>
+          <button id="lobby-close" class="button quiet">Return to local game</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="./src/ui.js"></script>
+  </body>
+</html>
