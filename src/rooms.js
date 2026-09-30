@@ -90,6 +90,31 @@ function browserProjection(state, seat, revealComplete = false) {
   return view;
 }
 
+function undoSnapshot(base, result, metadata) {
+  const snapshot = { state: deepClone(base), ...metadata };
+  const logs = ["event_log", "command_log"];
+  // Ordinary actions usually append to these histories. Store exact prefix lengths,
+  // not another copy of the entire match record for every reversible action.
+  // If a handler rewrites an older entry, retain a full snapshot instead.
+  if (logs.every(key => JSON.stringify(base[key]) === JSON.stringify(result[key].slice(0, base[key].length)))) {
+    snapshot.history_prefix_lengths = Object.fromEntries(logs.map(key => [key, base[key].length]));
+    for (const key of logs) delete snapshot.state[key];
+  }
+  return snapshot;
+}
+
+function restoreUndoSnapshot(snapshot, current) {
+  const state = deepClone(snapshot.state);
+  for (const [key, length] of Object.entries(snapshot.history_prefix_lengths ?? {})) {
+    if (!["event_log", "command_log"].includes(key) || !Number.isSafeInteger(length)
+      || length < 0 || !Array.isArray(current?.[key]) || length > current[key].length) {
+      roomFail("INVALID_UNDO_HISTORY", "The saved Undo history needs administrator attention", 409);
+    }
+    state[key] = deepClone(current[key].slice(0, length));
+  }
+  return state;
+}
+
 export class RoomStore {
   constructor({ filePath = null, now = () => new Date(), codeFactory = null } = {}) {
     this.filePath = filePath;
@@ -270,8 +295,8 @@ export class RoomStore {
     if (!result.ok) roomFail(result.error.code, result.error.message, 409);
     const reversible = new Set(["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "MOBILIZE_UNIT", "VASSALIZE_NOBLE", "EXECUTE_HOSTAGE", "DECLARE_POKER"]);
     if (reversible.has(command.type) && JSON.stringify(base.rng_state) === JSON.stringify(result.state.rng_state)) {
-      room.draft_history.push({ state: deepClone(base), command: safeCommand,
-        owner: room.draft_owner, had_draft: Boolean(room.draft_state), turn_complete: room.draft_turn_complete });
+      room.draft_history.push(undoSnapshot(base, result.state, { command: safeCommand,
+        owner: room.draft_owner, had_draft: Boolean(room.draft_state), turn_complete: room.draft_turn_complete }));
     } else {
       room.draft_history = [];
     }
@@ -299,14 +324,15 @@ export class RoomStore {
     if (!seat || room.draft_owner !== seat) roomFail("NOTHING_TO_UNDO", "There is no unpublished action to undo", 409);
     const snapshot = room.draft_history.pop();
     if (!snapshot) roomFail("NOTHING_TO_UNDO", "There is no unpublished action to undo", 409);
+    const restored = restoreUndoSnapshot(snapshot, room.draft_state);
     if (snapshot.had_draft) {
-      room.draft_state = snapshot.state;
+      room.draft_state = restored;
       room.draft_owner = snapshot.owner;
       room.draft_turn_complete = snapshot.turn_complete;
     } else {
       // Keep a private revision even when Undo returns to the published position.
       // A stale command from before the action/Undo pair must not become valid again.
-      room.draft_state = snapshot.state;
+      room.draft_state = restored;
       room.draft_owner = seat;
       room.draft_turn_complete = false;
     }

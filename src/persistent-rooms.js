@@ -142,7 +142,7 @@ export class PersistentRooms {
       (result.view ?? result).viewer.saving_paused = false;
       return result;
     } catch (error) {
-      if (error instanceof RoomError) { if (error.code === 'STORAGE_CAPACITY') this.paused = true; throw error; }
+      if (error instanceof RoomError) { if (error.code === 'STORAGE_CAPACITY' && action !== 'create') this.paused = true; throw error; }
       this.paused = true;
       throw new RoomError('SAVE_UNAVAILABLE', 'Saving is unavailable. The request may have been saved; retry the same request after reconnecting.', 503);
     }

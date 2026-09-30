@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PersistentRooms } from '../src/persistent-rooms.js';
-import { FileRoomStorage, PostgresRoomStorage } from '../src/room-storage.js';
+import { allocatedBytes, FileRoomStorage, PostgresRoomStorage } from '../src/room-storage.js';
 import { dispatch } from '../src/engine.js';
 import { validateInvariants } from '../src/rules.js';
 import { RoomStore } from '../src/rooms.js';
@@ -236,4 +236,55 @@ test('an action followed by Undo cannot make a stale revision valid again',async
   await assert.rejects(()=>service.mutate('command',host.code,host.token,{command,expectedRevision:before.viewer.private_revision},id()),e=>e.code==='STALE_VIEW');
   await service.mutate('abandon',host.code,host.token,{confirmed:true,expectedRevision:undone.viewer.private_revision},id());
   await assert.rejects(()=>service.mutate('undo',host.code,host.token,{expectedRevision:undone.viewer.private_revision},id()),e=>e.code==='MATCH_NOT_ACTIVE');
+});
+
+test('compact Undo history survives restart and restores every exact state and log prefix',async t=>{
+  const db=await fileStore(t),{service,host}=await setup(db);
+  await db.transact(host.code,async data=>{forcePhase(data.room.committed_state,PHASE.BUILD);givePool(data.room.committed_state,PLAYER.WHITE,SUIT.CLOVERS,99);return {write:data};});
+  const before=[];
+  for(const square of ['b1','a2','b2']) {
+    const room=(await db.read(host.code)).room;
+    before.push(structuredClone(room.draft_state??room.committed_state));
+    const view=await service.view(host.code,host.token);
+    await service.mutate('command',host.code,host.token,{expectedRevision:view.viewer.private_revision,command:{type:'BUILD_UNIT',square}},id());
+  }
+  const history=(await db.read(host.code)).room.draft_history;
+  assert.equal(history.length,3);
+  assert.ok(history.every(s=>s.history_prefix_lengths && !s.state.event_log && !s.state.command_log));
+  const restartedDb=new FileRoomStorage(db.directory,db.limits);await restartedDb.init();
+  const restarted=new PersistentRooms(restartedDb);
+  for(const expected of before.reverse()) {
+    const view=await restarted.view(host.code,host.token);
+    await restarted.mutate('undo',host.code,host.token,{expectedRevision:view.viewer.private_revision},id());
+    assert.deepEqual((await restartedDb.read(host.code)).room.draft_state,expected);
+  }
+  assert.equal((await restarted.view(host.code,host.token)).viewer.can_undo,false);
+});
+
+test('full prior snapshots remain readable and damaged prefix references fail without changing state',async t=>{
+  const db=await fileStore(t),{service,host}=await setup(db);
+  await db.transact(host.code,async data=>{forcePhase(data.room.committed_state,PHASE.BUILD);givePool(data.room.committed_state,PLAYER.WHITE,SUIT.CLOVERS,2);return {write:data};});
+  const before=(await db.read(host.code)).room.committed_state;
+  const initial=await service.view(host.code,host.token);
+  const built=await service.mutate('command',host.code,host.token,{expectedRevision:initial.viewer.private_revision,command:{type:'BUILD_UNIT',square:'b1'}},id());
+  await db.transact(host.code,async data=>{data.room.draft_history[0].history_prefix_lengths.event_log=999999;return {write:data};});
+  const damaged=await db.read(host.code);
+  await assert.rejects(()=>service.mutate('undo',host.code,host.token,{expectedRevision:built.viewer.private_revision},id()),e=>e.code==='INVALID_UNDO_HISTORY');
+  assert.deepEqual(await db.read(host.code),damaged);
+  await db.transact(host.code,async data=>{data.room.draft_history[0].state=before;delete data.room.draft_history[0].history_prefix_lengths;return {write:data};});
+  await service.mutate('undo',host.code,host.token,{expectedRevision:built.viewer.private_revision},id());
+  assert.deepEqual((await db.read(host.code)).room.draft_state,before);
+});
+
+test('terminal archive work keeps its reserve until ready; full admission does not pause existing games',async t=>{
+  const terminal={room:{status:'ABANDONED'},archive:{status:'pending'}};
+  assert.equal(allocatedBytes(terminal,limits),limits.reserveBytes);
+  terminal.archive.status='ready';
+  assert.equal(allocatedBytes(terminal,limits),Buffer.byteLength(JSON.stringify(terminal)));
+  const db=await fileStore(t,{maxGames:1}),{service,host}=await setup(db);
+  await assert.rejects(()=>service.mutate('create',null,null,{playerName:'Over capacity',playerCount:2,credentials:credentials()},id()),e=>e.code==='STORAGE_CAPACITY');
+  const current=await service.view(host.code,host.token);
+  assert.equal(current.viewer.saving_paused,false);
+  const drawn=await service.mutate('command',host.code,host.token,{expectedRevision:current.viewer.private_revision,command:{type:'DRAW_HARVEST',unit_id:'U-W-001',deck:'BLACK'}},id());
+  assert.ok(drawn.game.harvest.offer_ids.length);
 });

@@ -35,13 +35,13 @@ These are conservative **development defaults, not a certified free-plan capacit
 
 | Environment variable | Default |
 | --- | ---: |
-| `DENDARV_MAX_GAMES` | 10 stored rooms, including terminal records |
+| `DENDARV_MAX_GAMES` | 5 stored rooms, including terminal records |
 | `DENDARV_STORAGE_BUDGET_BYTES` | 67,108,864 bytes (64 MiB logical budget) |
-| `DENDARV_GAME_RESERVE_BYTES` | 2,097,152 bytes reserved per unfinished room |
+| `DENDARV_GAME_RESERVE_BYTES` | 8,388,608 bytes reserved per unfinished/pending-archive room |
 
 Admission and writes are serialized transactionally across PostgreSQL clients. Stored JSON, receipts, Undo snapshots, archive copies and audit entries count toward allocation. A physical database guard stops writes before estimated size reaches four times the logical budget (256 MiB with defaults). This is an additional early stop, not a provider quota guarantee. Existing state is retained on capacity errors; the service never automatically deletes games or purchases an upgrade.
 
-PostgreSQL persists these limits. A conflicting environment configuration fails startup instead of silently changing the budget. Final limits require measured long-game growth, database overhead and current provider terms. Changing a limit requires deliberate review of the capacity row and corresponding environment values. No provider account or paid resource is created by this code.
+PostgreSQL persists these limits. A conflicting environment configuration fails startup instead of silently changing the budget. Four 20-year workloads are now measured; the larger reserve accounts for the observed peaks and additional growth. Final limits still require database/provider overhead and broader game coverage. Changing a limit requires deliberate review of the capacity row and corresponding environment values. No provider account or paid resource is created by this code. See [STORAGE_AND_RECOVERY.md](STORAGE_AND_RECOVERY.md) for exact measurements and the database restore procedure.
 
 ## Administration
 
@@ -60,10 +60,11 @@ Admin writes require the cookie, `X-Admin-CSRF`, a unique `requestId`, and `conf
 ```bash
 npm test
 npm run build:local
+npm run measure:storage
 ```
 
 `Dendarv_Play.html` is the generated, self-contained local game. Open it directly for hot-seat play. Rebuild it whenever browser modules change. Do not open the modular `index.html` using `file://`.
 
-The suite covers game rules, local UI startup, HTTP asset/privacy/admin boundaries, transactional failures, ambiguous commit reconciliation, concurrent capacity, recovery, pending Harvest and Quarter restart, publication, Undo and independent archives. SQL tests use embedded PostgreSQL through PGlite locally. Set `DENDARV_TEST_DATABASE_URL` to run the same adapter checks against a real PostgreSQL server; tests create and remove only their own temporary schema. The GitHub workflow supplies PostgreSQL 17.
+The suite covers game rules, local UI startup, HTTP asset/privacy/admin boundaries, transactional failures, ambiguous commit reconciliation, concurrent capacity, recovery, pending Harvest and Quarter restart, publication, compact Undo and independent archives. SQL tests use embedded PostgreSQL through PGlite locally. Set `DENDARV_TEST_DATABASE_URL` to run against a disposable PostgreSQL server; use a test role with permission to create databases, and matching `pg_dump`/`pg_restore` clients. Tests create/remove only their own temporary schemas and randomly named test databases. The GitHub workflow supplies PostgreSQL 17 and runs the clients in its service container. Never point these tests at production.
 
 See [V2_FOUNDATION.md](V2_FOUNDATION.md) for the review scope and release gates. Historical rules/design documents remain references, not claims that all V2 behavior is implemented.

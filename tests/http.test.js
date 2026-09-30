@@ -65,6 +65,9 @@ test("the HTTP server exposes room creation, joining, spectator views, and stati
     assert.equal((await fetch(origin+path)).status,404,path);
   }
   assert.equal((await fetch(origin+'/%ZZ')).status,400);
+  for (const path of ['/private-backup.dump','/scripts/storage-scenarios.mjs','/test-support/postgres-backup.js','/STORAGE_AND_RECOVERY.md']) {
+    assert.equal((await fetch(origin+path)).status,404,path);
+  }
   assert.equal((await fetch(origin+'/api/admin')).status,403);
   assert.equal((await fetch(origin+`/api/rooms/${created.code}/export`)).status,403);
   const repeat = await fetch(`${origin}/api/rooms`, {

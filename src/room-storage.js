@@ -2,7 +2,7 @@ import { mkdir, readFile, open, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { RoomError } from './rooms.js';
 
-export const defaultLimits = { maxGames: 10, totalBytes: 64 * 1024 * 1024, reserveBytes: 2 * 1024 * 1024 };
+export const defaultLimits = { maxGames: 5, totalBytes: 64 * 1024 * 1024, reserveBytes: 8 * 1024 * 1024 };
 export function validateLimits(limits) {
   for (const [key, value] of Object.entries(limits)) {
     if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`Invalid storage limit: ${key}`);
@@ -12,7 +12,9 @@ export function validateLimits(limits) {
 }
 export function allocatedBytes(data, limits) {
   const bytes = Buffer.byteLength(JSON.stringify(data));
-  return ['COMPLETE', 'ABANDONED'].includes(data.room.status) ? bytes : Math.max(bytes, limits.reserveBytes);
+  // Do not release a terminal game's reserve before the archive text is saved.
+  const archiveReady = ['COMPLETE', 'ABANDONED'].includes(data.room.status) && data.archive?.status === 'ready';
+  return archiveReady ? bytes : Math.max(bytes, limits.reserveBytes);
 }
 function checkCapacity(inventory, code, data, limits) {
   const others = inventory.filter(row => row.code !== code);
