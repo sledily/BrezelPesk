@@ -54,7 +54,7 @@ export function projectForPlayer(state, viewer, { revealComplete = state.status 
 }
 
 export function projectSpectator(state) {
-  return projectForPlayer(state, null);
+  return projectForPlayer(state, null, { revealComplete: false });
 }
 
 export function playerName(player) {

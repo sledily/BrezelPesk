@@ -78,7 +78,6 @@ const dom = {
   onlineCreateName: document.querySelector("#online-create-name"),
   onlineCreateCount: document.querySelector("#online-create-count"),
   onlineCreateSeat: document.querySelector("#online-create-seat"),
-  onlineCreateSeed: document.querySelector("#online-create-seed"),
   onlineRoomCode: document.querySelector("#online-room-code"),
   onlineStrip: document.querySelector("#online-strip"),
   onlineStripText: document.querySelector("#online-strip-text"),
@@ -1120,17 +1119,37 @@ function rememberOnlineLocation(code) {
 }
 
 function beginOnlinePolling() {
-  window.clearInterval(onlinePollTimer);
-  onlinePollTimer = window.setInterval(async () => {
-    if (!onlineClient || onlineRequestPending) return;
-    try {
-      const payload = await onlineClient.view();
-      applyOnlinePayload(payload);
-    } catch (error) {
-      if (error.code !== "SERVER_UNREACHABLE") showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
+  window.clearTimeout(onlinePollTimer);
+  let delay = 3000;
+  async function tick() {
+    if (!onlineClient) return;
+    const client = onlineClient;
+    if (!document.hidden && !onlineRequestPending && !client.busy) {
+      try {
+        const before = client.lastView;
+        const payload = await client.view();
+        if (onlineClient !== client) return;
+        delay = before === payload ? Math.min(delay * 1.5, 20000) : 3000;
+        applyOnlinePayload(payload);
+      } catch (error) {
+        delay = Math.min(delay * 2, 30000);
+        if (error.code !== "SERVER_UNREACHABLE") showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
+      }
     }
-  }, 1200);
+    onlinePollTimer = window.setTimeout(tick, delay);
+  }
+  onlinePollTimer = window.setTimeout(tick, 3000);
 }
+document.addEventListener?.("visibilitychange", async () => {
+  if (!document.hidden && onlineClient && !onlineRequestPending && !onlineClient.busy) {
+    const client = onlineClient;
+    try {
+      const payload = await client.view();
+      if (onlineClient === client) applyOnlinePayload(payload);
+    } catch (error) { if (onlineClient === client) showToast(error.message); }
+    if (onlineClient === client) beginOnlinePolling();
+  }
+});
 
 async function enterOnlineRoom(code, { spectate = false } = {}) {
   const candidate = new OnlineClient(code, { spectate });
@@ -1161,7 +1180,6 @@ async function createOnlineRoom() {
       playerCount: Number(dom.onlineCreateCount.value),
       playerName: playerNameValue,
       seat: dom.onlineCreateSeat.value,
-      seed: dom.onlineCreateSeed.value.trim(),
     });
     onlineClient = client;
     dismissedOnlineNotice = null;
@@ -1209,7 +1227,7 @@ async function startOnlineMatch() {
 }
 
 function leaveOnlineMode({ updateLocation = true, restoreLocal = false } = {}) {
-  window.clearInterval(onlinePollTimer);
+  window.clearTimeout(onlinePollTimer);
   onlinePollTimer = null;
   onlineClient = null;
   onlinePayload = null;
@@ -1256,6 +1274,26 @@ document.querySelector("#open-online-room").addEventListener("click", () => ente
 dom.onlineCreateCount.addEventListener("change", updateOnlineCreateSeats);
 dom.onlineRoomCode.addEventListener("input", () => { dom.onlineRoomCode.value = dom.onlineRoomCode.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
 dom.startOnlineMatch.addEventListener("click", startOnlineMatch);
+async function copyRecoveryCode() {
+  const code = onlineClient?.recoveryCode();
+  if (!code || onlinePayload?.viewer.role !== "PLAYER") return showToast("Recover or join a seat first.");
+  try { await navigator.clipboard.writeText(code); showToast("Private recovery code copied. Keep it somewhere safe.", true); }
+  catch { showToast("Clipboard access failed. Allow clipboard access and try again."); }
+}
+document.querySelector("#copy-recovery-code").addEventListener("click", copyRecoveryCode);
+document.querySelector("#lobby-copy-recovery").addEventListener("click", copyRecoveryCode);
+document.querySelector("#recover-online-seat").addEventListener("click", async () => {
+  if (onlineRequestPending) return;
+  const codeInput = document.querySelector("#online-recovery-code");
+  const candidate = new OnlineClient(dom.onlineRoomCode.value);
+  onlineRequestPending = true;
+  try {
+    const payload = await candidate.recover(codeInput.value);
+    codeInput.value = ""; onlineClient = candidate; dom.onlineDialog.close(); dom.handoff.hidden = true;
+    rememberOnlineLocation(candidate.code); applyOnlinePayload(payload, { resetSelection: true, force: true }); beginOnlinePolling();
+  } catch (error) { showToast(error.message); }
+  finally { onlineRequestPending = false; }
+});
 document.querySelector("#copy-room-link").addEventListener("click", copyOnlineRoomLink);
 document.querySelector("#lobby-copy-link").addEventListener("click", copyOnlineRoomLink);
 document.querySelector("#leave-online").addEventListener("click", () => leaveOnlineMode({ restoreLocal: true }));
@@ -1279,9 +1317,11 @@ document.querySelector("#load-autosave").addEventListener("click", () => {
     showToast(error.message);
   }
 });
-document.querySelector("#export-save").addEventListener("click", () => {
-  if (onlineClient) return showToast("Online matches are saved by the server and cannot be exported from a redacted player view.");
-  const blob = new Blob([serializeMatch(state)], { type: "application/json" });
+document.querySelector("#export-save").addEventListener("click", async () => {
+  let contents;
+  try { contents = onlineClient ? JSON.stringify(await onlineClient.export(), null, 2) : serializeMatch(state); }
+  catch (error) { return showToast(error.message); }
+  const blob = new Blob([contents], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -1313,14 +1353,17 @@ dom.importFile.addEventListener("change", async () => {
 });
 document.querySelector("#copy-log").addEventListener("click", async () => {
   try {
-    await navigator.clipboard.writeText(visibleChronicle());
+    await navigator.clipboard.writeText(onlineClient ? formatChronicle((await onlineClient.export()).state) : visibleChronicle());
     showToast("Standard chronicle copied.", true);
   } catch {
     showToast("Clipboard access is unavailable in this browser.");
   }
 });
-document.querySelector("#download-log").addEventListener("click", () => {
-  const blob = new Blob([visibleChronicle()], { type: "text/plain;charset=utf-8" });
+document.querySelector("#download-log").addEventListener("click", async () => {
+  let text;
+  try { text = onlineClient ? formatChronicle((await onlineClient.export()).state) : visibleChronicle(); }
+  catch (error) { return showToast(error.message); }
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;

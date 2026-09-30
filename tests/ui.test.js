@@ -9,7 +9,7 @@ import { forcePhase, giveResource, setUpMatch } from "./helpers.js";
 // A lightweight DOM host runs the real standalone UI. These are interaction
 // and rendered-content checks, not a replacement for a browser layout test.
 function loadUI() {
-  const html = readFileSync(new URL("../../Dendarv_Play.html", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../Dendarv_Play.html", import.meta.url), "utf8");
   const code = html.match(/<script>\s*([\s\S]*?)<\/script>/)[1];
   const elements = new Map();
   const contents = new Map();

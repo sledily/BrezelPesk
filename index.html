@@ -36,6 +36,7 @@
       <section id="online-strip" class="online-strip" aria-live="polite" hidden>
         <div id="online-strip-text"></div>
         <div class="online-strip-actions">
+          <button id="copy-recovery-code" class="button tiny">Copy recovery code</button>
           <button id="copy-room-link" class="button tiny">Copy spectator link</button>
           <button id="leave-online" class="button tiny quiet">Return to local game</button>
         </div>
@@ -134,8 +135,6 @@
           </select>
           <label for="online-create-seat">Your color</label>
           <select id="online-create-seat"></select>
-          <label for="online-create-seed">Random seed <span class="optional">optional</span></label>
-          <input id="online-create-seed" autocomplete="off" placeholder="Generated automatically">
           <button id="create-online-room" type="button" class="button primary full">Create room</button>
         </section>
         <div class="online-divider"><span>or</span></div>
@@ -144,6 +143,9 @@
           <label for="online-room-code">Six-character room code</label>
           <input id="online-room-code" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="ABC123">
           <button id="open-online-room" type="button" class="button full">Open room</button>
+          <label for="online-recovery-code">Private recovery code</label>
+          <input id="online-recovery-code" maxlength="128" autocomplete="off" type="password">
+          <button id="recover-online-seat" type="button" class="button full">Recover seat</button>
           <p class="field-note">Opening a room starts in spectator mode. If the match has not begun, you may claim any open player color.</p>
         </section>
         <div class="dialog-actions">
@@ -165,6 +167,7 @@
         </div>
         <div class="choice-grid online-lobby-actions">
           <button id="start-online-match" class="button primary" hidden>Start match</button>
+          <button id="lobby-copy-recovery" class="button">Copy recovery code</button>
           <button id="lobby-copy-link" class="button">Copy spectator link</button>
           <button id="lobby-close" class="button quiet">Return to local game</button>
         </div>

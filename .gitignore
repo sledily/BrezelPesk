@@ -1,0 +1,6 @@
+node_modules/
+.dendarv-data/
+.env
+.env.*
+!.env.example
+coverage/

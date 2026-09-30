@@ -607,6 +607,7 @@ select, input[type="text"], .game-dialog input {
       <section id="online-strip" class="online-strip" aria-live="polite" hidden>
         <div id="online-strip-text"></div>
         <div class="online-strip-actions">
+          <button id="copy-recovery-code" class="button tiny">Copy recovery code</button>
           <button id="copy-room-link" class="button tiny">Copy spectator link</button>
           <button id="leave-online" class="button tiny quiet">Return to local game</button>
         </div>
@@ -705,8 +706,6 @@ select, input[type="text"], .game-dialog input {
           </select>
           <label for="online-create-seat">Your color</label>
           <select id="online-create-seat"></select>
-          <label for="online-create-seed">Random seed <span class="optional">optional</span></label>
-          <input id="online-create-seed" autocomplete="off" placeholder="Generated automatically">
           <button id="create-online-room" type="button" class="button primary full">Create room</button>
         </section>
         <div class="online-divider"><span>or</span></div>
@@ -715,6 +714,9 @@ select, input[type="text"], .game-dialog input {
           <label for="online-room-code">Six-character room code</label>
           <input id="online-room-code" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="ABC123">
           <button id="open-online-room" type="button" class="button full">Open room</button>
+          <label for="online-recovery-code">Private recovery code</label>
+          <input id="online-recovery-code" maxlength="128" autocomplete="off" type="password">
+          <button id="recover-online-seat" type="button" class="button full">Recover seat</button>
           <p class="field-note">Opening a room starts in spectator mode. If the match has not begun, you may claim any open player color.</p>
         </section>
         <div class="dialog-actions">
@@ -736,6 +738,7 @@ select, input[type="text"], .game-dialog input {
         </div>
         <div class="choice-grid online-lobby-actions">
           <button id="start-online-match" class="button primary" hidden>Start match</button>
+          <button id="lobby-copy-recovery" class="button">Copy recovery code</button>
           <button id="lobby-copy-link" class="button">Copy spectator link</button>
           <button id="lobby-close" class="button quiet">Return to local game</button>
         </div>
@@ -2461,6 +2464,7 @@ function declarePoker(state, command) {
 }
 
 function finishPoker(state, command) {
+  if (state.v2_acted) delete state.v2_acted[opportunityKey(state, command.player)];
   requirePhase(state, PHASE.HARVEST);
   requireCondition(state.harvest?.stage === "POKER", "WRONG_HARVEST_STAGE", "Poker declarations have not begun");
   requireActor(state, command.player);
@@ -3037,6 +3041,7 @@ function acknowledgePhaseNotice(state, command) {
 }
 
 function passPhase(state, command) {
+  if (state.v2_acted) delete state.v2_acted[opportunityKey(state, command.player)];
   requireCondition(state.status === "ACTIVE", "WRONG_MATCH_STATUS", "The match is not active");
   requireCondition(![PHASE.HARVEST, PHASE.RANSOM, PHASE.STOCKPILE].includes(state.phase), "PASS_NOT_ALLOWED", "This phase has a specific completion decision");
   requireCondition(!state.pending_combat, "PENDING_DECISION", "Resolve the Quarter decision first");
@@ -3100,12 +3105,15 @@ function queueAutomaticNotice(state, reason, section = state.phase, player = sta
 
 // Settle all clerical transitions in the same transaction. This never draws for
 // the next piece, chooses among offered cards, or spends a player's resources.
+function opportunityKey(state, player = state.current_actor) { return `${state.year_number}:${state.phase}:${player}`; }
+
 function settleAutomaticPhases(state) {
   if (!state.rules.automatic_passes) return;
   state.phase_notice = null;
   for (let step = 0; step < 256 && state.status === "ACTIVE"; step++) {
     if (state.pending_combat || state.pending_conquest) return;
     const player = state.current_actor;
+    if (state.rules.explicit_action_pass && state.v2_acted?.[opportunityKey(state)]) return;
     if (state.phase === PHASE.HARVEST) {
       if (state.harvest.stage === "DRAW") return;
       if (availablePokerHands(state, player).length) return;
@@ -3213,11 +3221,20 @@ function dispatch(state, command) {
     }
     const handler = HANDLERS[command.type];
     requireCondition(Boolean(handler), "UNKNOWN_COMMAND", `Unknown command: ${command.type}`);
+    if (working.rules.explicit_action_pass && ["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "RECRUIT_NOBLE",
+      "MOBILIZE_UNIT", "LAY_SIEGE", "VASSALIZE_NOBLE", "EXECUTE_HOSTAGE", "DECLARE_POKER"].includes(command.type)) {
+      working.v2_acted ??= {}; working.v2_acted[opportunityKey(working, command.player)] = true;
+    }
     handler(working, command);
     if (!working.rules.automatic_passes && command.auto_harvest && ["DRAW_HARVEST", "KEEP_HARVEST_CARD", "RESOLVE_HARVEST_FAILSAFE"].includes(command.type)) {
       continueForcedHarvest(working, command.player);
     }
-    if (working.rules.automatic_passes) settleAutomaticPhases(working);
+    const ordinaryAction = ["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "RECRUIT_NOBLE",
+      "MOBILIZE_UNIT", "LAY_SIEGE", "VASSALIZE_NOBLE", "EXECUTE_HOSTAGE", "DECLARE_POKER"].includes(command.type);
+    const sameOpportunity = working.current_actor === state.current_actor && working.phase === state.phase;
+    if (working.rules.automatic_passes) {
+      if (!(working.rules.explicit_action_pass && ordinaryAction && sameOpportunity)) settleAutomaticPhases(working);
+    }
     else refreshPhaseNotice(working);
     working.command_log.push(deepClone(command));
     const invariantErrors = validateInvariants(working);
@@ -3378,7 +3395,7 @@ function projectForPlayer(state, viewer, { revealComplete = state.status === "CO
 }
 
 function projectSpectator(state) {
-  return projectForPlayer(state, null);
+  return projectForPlayer(state, null, { revealComplete: false });
 }
 
 function playerName(player) {
@@ -3530,136 +3547,95 @@ function title(value) {
 
 
 /* src/online.js */
-const ROOM_KEY_PREFIX = "dendarv.online.room.";
-const NAME_KEY = "dendarv.online.name";
-const SPECTATOR_KEY = "dendarv.online.spectator";
-
+const ROOM_KEY_PREFIX = 'dendarv.online.room.';
+const RECOVERY_PREFIX = 'dendarv.online.recovery.';
+const PENDING_PREFIX = 'dendarv.online.pending.';
+const NAME_KEY = 'dendarv.online.name';
+const SPECTATOR_KEY = 'dendarv.online.spectator';
 class OnlineError extends Error {
-  constructor(code, message, status = 0) {
-    super(message);
-    this.name = "OnlineError";
-    this.code = code;
-    this.status = status;
-  }
+  constructor(code,message,status=0){super(message);this.name='OnlineError';this.code=code;this.status=status;}
 }
-
-function normalizeCode(code) {
-  return String(code ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
-}
-
-function randomId() {
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
-}
-
-async function api(path, { method = "GET", token = null, body = null, spectatorId = null } = {}) {
-  const headers = { Accept: "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (spectatorId) headers["X-Dendarv-Spectator"] = spectatorId;
-  if (body !== null) headers["Content-Type"] = "application/json";
+function normalizeCode(code){return String(code??'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);}
+function randomId(){return Array.from(crypto.getRandomValues(new Uint8Array(32)),v=>v.toString(16).padStart(2,'0')).join('');}
+async function api(path,{method='GET',token=null,body=null,spectatorId=null,requestId=null,etag=null}={}){
+  const headers={Accept:'application/json'};
+  if(token)headers.Authorization=`Bearer ${token}`;
+  if(spectatorId)headers['X-Dendarv-Spectator']=spectatorId;
+  if(body!==null)headers['Content-Type']='application/json';
+  if(requestId)headers['Idempotency-Key']=requestId;
+  if(etag)headers['If-None-Match']=etag;
   let response;
-  try {
-    response = await fetch(path, {
-      method,
-      headers,
-      body: body === null ? undefined : JSON.stringify(body),
-      cache: "no-store",
-    });
-  } catch {
-    throw new OnlineError("SERVER_UNREACHABLE", "The Dendarv online server could not be reached");
-  }
+  try{response=await fetch(path,{method,headers,body:body===null?undefined:JSON.stringify(body),cache:'no-store'});}
+  catch{throw new OnlineError('SERVER_UNREACHABLE','The online server could not be reached. Your pending request will be retried safely.');}
+  if(response.status===304)return {unchanged:true,etag};
   let payload;
-  try {
-    payload = await response.json();
-  } catch {
-    throw new OnlineError("INVALID_SERVER_RESPONSE", "The online server returned an unreadable response", response.status);
-  }
-  if (!response.ok) {
-    throw new OnlineError(payload.error?.code ?? "ONLINE_ERROR", payload.error?.message ?? "The online request failed", response.status);
-  }
-  return payload;
+  try{payload=await response.json();}catch{throw new OnlineError('INVALID_SERVER_RESPONSE','The online response was unreadable. Retry safely.',response.status);}
+  if(!response.ok)throw new OnlineError(payload.error?.code??'ONLINE_ERROR',payload.error?.message??'The online request failed',response.status);
+  return {payload,etag:response.headers.get('etag')};
 }
-
+async function durableRequest(key,path,options){
+  // Retain the SAME request and identity across connection loss and page reload.
+  const existing=localStorage.getItem(PENDING_PREFIX+key);
+  const pending=existing?JSON.parse(existing):{path,options:{...options,method:'POST',requestId:randomId()}};
+  if(!existing)localStorage.setItem(PENDING_PREFIX+key,JSON.stringify(pending));
+  try{
+    const {payload}=await api(pending.path,pending.options);
+    localStorage.removeItem(PENDING_PREFIX+key);return payload;
+  }catch(error){
+    if(error.status>=400&&error.status<500)localStorage.removeItem(PENDING_PREFIX+key);
+    throw error;
+  }
+}
 class OnlineClient {
-  constructor(code, { spectate = false } = {}) {
-    this.code = normalizeCode(code);
-    this.spectate = spectate;
-    this.token = spectate ? null : localStorage.getItem(`${ROOM_KEY_PREFIX}${this.code}`);
-    this.spectatorId = localStorage.getItem(SPECTATOR_KEY) ?? randomId();
-    localStorage.setItem(SPECTATOR_KEY, this.spectatorId);
+  constructor(code,{spectate=false}={}){
+    this.code=normalizeCode(code);this.spectate=spectate;
+    this.token=spectate?null:localStorage.getItem(ROOM_KEY_PREFIX+this.code);
+    this.spectatorId=localStorage.getItem(SPECTATOR_KEY)??randomId();
+    localStorage.setItem(SPECTATOR_KEY,this.spectatorId);this.lastView=null;this.etag=null;this.busy=false;
   }
-
-  static rememberedName() {
-    return localStorage.getItem(NAME_KEY) ?? "";
+  static rememberedName(){return localStorage.getItem(NAME_KEY)??'';}
+  static rememberName(name){localStorage.setItem(NAME_KEY,String(name??'').trim());}
+  accept(payload){
+    if(payload.token){
+      this.token=payload.token;this.spectate=false;
+      localStorage.setItem(ROOM_KEY_PREFIX+this.code,payload.token);
+      if(payload.recoveryCode)localStorage.setItem(RECOVERY_PREFIX+this.code,payload.recoveryCode);
+    }
+    this.lastView=payload.view??payload;this.etag=null;return this.lastView;
   }
-
-  static rememberName(name) {
-    localStorage.setItem(NAME_KEY, String(name ?? "").trim());
+  static async create({playerCount,playerName,seat}){
+    const payload=await durableRequest('create','/api/rooms',{body:{playerCount,playerName,seat,credentials:{token:randomId(),recoveryCode:randomId()}}});
+    const client=new OnlineClient(payload.code);OnlineClient.rememberName(playerName);
+    return {client,payload:client.accept(payload)};
   }
-
-  static async create({ playerCount, playerName, seat, seed }) {
-    const payload = await api("/api/rooms", {
-      method: "POST",
-      body: { playerCount, playerName, seat, seed },
-    });
-    const client = new OnlineClient(payload.code);
-    client.token = payload.token;
-    localStorage.setItem(`${ROOM_KEY_PREFIX}${payload.code}`, payload.token);
-    OnlineClient.rememberName(playerName);
-    return { client, payload: payload.view };
+  async mutate(action,body={}){
+    if(this.busy)throw new OnlineError('REQUEST_PENDING','Wait for the pending request');
+    this.busy=true;
+    try{return this.accept(await durableRequest(this.code,`/api/rooms/${this.code}/${action}`,{token:this.token,body:{...body,expectedRevision:this.lastView?.viewer.private_revision}}));}
+    finally{this.busy=false;}
   }
-
-  async join({ playerName, seat }) {
-    const payload = await api(`/api/rooms/${this.code}/join`, {
-      method: "POST",
-      body: { playerName, seat },
-    });
-    this.spectate = false;
-    this.token = payload.token;
-    localStorage.setItem(`${ROOM_KEY_PREFIX}${this.code}`, payload.token);
-    OnlineClient.rememberName(playerName);
-    return payload.view;
+  async join({playerName,seat}){OnlineClient.rememberName(playerName);return this.mutate('join',{playerName,seat,credentials:{token:randomId(),recoveryCode:randomId()}});}
+  async view(){
+    const pending=localStorage.getItem(PENDING_PREFIX+this.code);
+    if(pending&&!this.busy&&!this.spectate){
+      this.busy=true;
+      try{this.accept(await durableRequest(this.code,null,null));}finally{this.busy=false;}
+    }
+    const response=await api(`/api/rooms/${this.code}`,{token:this.token,spectatorId:this.token?null:this.spectatorId,etag:this.etag});
+    if(response.unchanged&&this.lastView)return this.lastView;
+    this.lastView=response.payload;this.etag=response.etag;return this.lastView;
   }
-
-  view() {
-    return api(`/api/rooms/${this.code}`, {
-      token: this.token,
-      spectatorId: this.token ? null : this.spectatorId,
-    });
-  }
-
-  start() {
-    return api(`/api/rooms/${this.code}/start`, { method: "POST", token: this.token });
-  }
-
-  command(command) {
-    return api(`/api/rooms/${this.code}/command`, {
-      method: "POST",
-      token: this.token,
-      body: { command },
-    });
-  }
-
-  undo() {
-    return api(`/api/rooms/${this.code}/undo`, { method: "POST", token: this.token });
-  }
-
-  pass() {
-    return api(`/api/rooms/${this.code}/pass`, { method: "POST", token: this.token });
-  }
+  recoveryCode(){return localStorage.getItem(RECOVERY_PREFIX+this.code);}
+  async recover(recoveryCode){return this.mutate('recover',{recoveryCode:String(recoveryCode).trim(),token:randomId()});}
+  start(){return this.mutate('start');}
+  command(command){return this.mutate('command',{command});}
+  undo(){return this.mutate('undo');}
+  pass(){return this.mutate('pass');}
+  abandon(){return this.mutate('abandon',{confirmed:true});}
+  async export(){return (await api(`/api/rooms/${this.code}/export`,{token:this.token})).payload;}
 }
-
-function roomCodeFromLocation() {
-  return normalizeCode(new URLSearchParams(location.search).get("room"));
-}
-
-function onlineShareUrl(code) {
-  const url = new URL(location.href);
-  url.search = "";
-  url.hash = "";
-  url.searchParams.set("room", normalizeCode(code));
-  return url.href;
-}
+function roomCodeFromLocation(){return normalizeCode(new URLSearchParams(location.search).get('room'));}
+function onlineShareUrl(code){const url=new URL(location.href);url.search='';url.hash='';url.searchParams.set('room',normalizeCode(code));return url.href;}
 
 
 /* src/presentation.js */
@@ -3798,7 +3774,6 @@ const dom = {
   onlineCreateName: document.querySelector("#online-create-name"),
   onlineCreateCount: document.querySelector("#online-create-count"),
   onlineCreateSeat: document.querySelector("#online-create-seat"),
-  onlineCreateSeed: document.querySelector("#online-create-seed"),
   onlineRoomCode: document.querySelector("#online-room-code"),
   onlineStrip: document.querySelector("#online-strip"),
   onlineStripText: document.querySelector("#online-strip-text"),
@@ -4840,17 +4815,37 @@ function rememberOnlineLocation(code) {
 }
 
 function beginOnlinePolling() {
-  window.clearInterval(onlinePollTimer);
-  onlinePollTimer = window.setInterval(async () => {
-    if (!onlineClient || onlineRequestPending) return;
-    try {
-      const payload = await onlineClient.view();
-      applyOnlinePayload(payload);
-    } catch (error) {
-      if (error.code !== "SERVER_UNREACHABLE") showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
+  window.clearTimeout(onlinePollTimer);
+  let delay = 3000;
+  async function tick() {
+    if (!onlineClient) return;
+    const client = onlineClient;
+    if (!document.hidden && !onlineRequestPending && !client.busy) {
+      try {
+        const before = client.lastView;
+        const payload = await client.view();
+        if (onlineClient !== client) return;
+        delay = before === payload ? Math.min(delay * 1.5, 20000) : 3000;
+        applyOnlinePayload(payload);
+      } catch (error) {
+        delay = Math.min(delay * 2, 30000);
+        if (error.code !== "SERVER_UNREACHABLE") showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
+      }
     }
-  }, 1200);
+    onlinePollTimer = window.setTimeout(tick, delay);
+  }
+  onlinePollTimer = window.setTimeout(tick, 3000);
 }
+document.addEventListener?.("visibilitychange", async () => {
+  if (!document.hidden && onlineClient && !onlineRequestPending && !onlineClient.busy) {
+    const client = onlineClient;
+    try {
+      const payload = await client.view();
+      if (onlineClient === client) applyOnlinePayload(payload);
+    } catch (error) { if (onlineClient === client) showToast(error.message); }
+    if (onlineClient === client) beginOnlinePolling();
+  }
+});
 
 async function enterOnlineRoom(code, { spectate = false } = {}) {
   const candidate = new OnlineClient(code, { spectate });
@@ -4881,7 +4876,6 @@ async function createOnlineRoom() {
       playerCount: Number(dom.onlineCreateCount.value),
       playerName: playerNameValue,
       seat: dom.onlineCreateSeat.value,
-      seed: dom.onlineCreateSeed.value.trim(),
     });
     onlineClient = client;
     dismissedOnlineNotice = null;
@@ -4929,7 +4923,7 @@ async function startOnlineMatch() {
 }
 
 function leaveOnlineMode({ updateLocation = true, restoreLocal = false } = {}) {
-  window.clearInterval(onlinePollTimer);
+  window.clearTimeout(onlinePollTimer);
   onlinePollTimer = null;
   onlineClient = null;
   onlinePayload = null;
@@ -4976,6 +4970,26 @@ document.querySelector("#open-online-room").addEventListener("click", () => ente
 dom.onlineCreateCount.addEventListener("change", updateOnlineCreateSeats);
 dom.onlineRoomCode.addEventListener("input", () => { dom.onlineRoomCode.value = dom.onlineRoomCode.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
 dom.startOnlineMatch.addEventListener("click", startOnlineMatch);
+async function copyRecoveryCode() {
+  const code = onlineClient?.recoveryCode();
+  if (!code || onlinePayload?.viewer.role !== "PLAYER") return showToast("Recover or join a seat first.");
+  try { await navigator.clipboard.writeText(code); showToast("Private recovery code copied. Keep it somewhere safe.", true); }
+  catch { showToast("Clipboard access failed. Allow clipboard access and try again."); }
+}
+document.querySelector("#copy-recovery-code").addEventListener("click", copyRecoveryCode);
+document.querySelector("#lobby-copy-recovery").addEventListener("click", copyRecoveryCode);
+document.querySelector("#recover-online-seat").addEventListener("click", async () => {
+  if (onlineRequestPending) return;
+  const codeInput = document.querySelector("#online-recovery-code");
+  const candidate = new OnlineClient(dom.onlineRoomCode.value);
+  onlineRequestPending = true;
+  try {
+    const payload = await candidate.recover(codeInput.value);
+    codeInput.value = ""; onlineClient = candidate; dom.onlineDialog.close(); dom.handoff.hidden = true;
+    rememberOnlineLocation(candidate.code); applyOnlinePayload(payload, { resetSelection: true, force: true }); beginOnlinePolling();
+  } catch (error) { showToast(error.message); }
+  finally { onlineRequestPending = false; }
+});
 document.querySelector("#copy-room-link").addEventListener("click", copyOnlineRoomLink);
 document.querySelector("#lobby-copy-link").addEventListener("click", copyOnlineRoomLink);
 document.querySelector("#leave-online").addEventListener("click", () => leaveOnlineMode({ restoreLocal: true }));
@@ -4999,9 +5013,11 @@ document.querySelector("#load-autosave").addEventListener("click", () => {
     showToast(error.message);
   }
 });
-document.querySelector("#export-save").addEventListener("click", () => {
-  if (onlineClient) return showToast("Online matches are saved by the server and cannot be exported from a redacted player view.");
-  const blob = new Blob([serializeMatch(state)], { type: "application/json" });
+document.querySelector("#export-save").addEventListener("click", async () => {
+  let contents;
+  try { contents = onlineClient ? JSON.stringify(await onlineClient.export(), null, 2) : serializeMatch(state); }
+  catch (error) { return showToast(error.message); }
+  const blob = new Blob([contents], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -5033,14 +5049,17 @@ dom.importFile.addEventListener("change", async () => {
 });
 document.querySelector("#copy-log").addEventListener("click", async () => {
   try {
-    await navigator.clipboard.writeText(visibleChronicle());
+    await navigator.clipboard.writeText(onlineClient ? formatChronicle((await onlineClient.export()).state) : visibleChronicle());
     showToast("Standard chronicle copied.", true);
   } catch {
     showToast("Clipboard access is unavailable in this browser.");
   }
 });
-document.querySelector("#download-log").addEventListener("click", () => {
-  const blob = new Blob([visibleChronicle()], { type: "text/plain;charset=utf-8" });
+document.querySelector("#download-log").addEventListener("click", async () => {
+  let text;
+  try { text = onlineClient ? formatChronicle((await onlineClient.export()).state) : visibleChronicle(); }
+  catch (error) { return showToast(error.message); }
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
