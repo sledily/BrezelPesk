@@ -43,6 +43,7 @@ test("the HTTP server exposes room creation, joining, spectator views, and stati
 
   const health = await fetch(`${origin}/api/health`).then((response) => response.json());
   assert.equal(health.ok, true);
+  assert.equal((await fetch(origin+'/src/tabletop.js')).status,200);
 
   const createdResponse = await fetch(`${origin}/api/rooms`, {
     method: "POST",

@@ -17,6 +17,7 @@ const sourceOrder = [
   "src/format.js",
   "src/online.js",
   "src/presentation.js",
+  "src/tabletop.js",
   "src/ui.js",
 ];
 

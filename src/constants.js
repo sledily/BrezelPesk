@@ -167,16 +167,16 @@ export const NOBLE_DISPLAY_CODE = Object.freeze({
 
 export const NOBLE_NAME = Object.freeze({
   [NOBLE_FACE.JACK]: Object.freeze({
-    [SUIT.CLOVERS]: "Margaret of Parma",
-    [SUIT.DIAMONDS]: "Colbert",
-    [SUIT.SPADES]: "La Malinche",
-    [SUIT.HEARTS]: "Catherine de Medici",
+    [SUIT.CLOVERS]: "Colbert",
+    [SUIT.DIAMONDS]: "Catherine De Medici",
+    [SUIT.SPADES]: "Barbarrosa Heyreddin",
+    [SUIT.HEARTS]: "La Malinche",
   }),
   [NOBLE_FACE.QUEEN]: Object.freeze({
     [SUIT.CLOVERS]: "Heinrich the Lion",
     [SUIT.DIAMONDS]: "Eleanor of Aquitaine",
-    [SUIT.SPADES]: "Frederick Barbarossa",
-    [SUIT.HEARTS]: "Pope Gregory",
+    [SUIT.SPADES]: "Jean d'Arc",
+    [SUIT.HEARTS]: "Innocent",
   }),
   [NOBLE_FACE.KING]: Object.freeze({
     [SUIT.CLOVERS]: "Boudica",

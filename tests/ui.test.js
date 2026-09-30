@@ -22,10 +22,11 @@ function loadUI() {
     }
     get innerHTML() { return contents.get(this.id) ?? ""; }
     addEventListener(type, callback) { this.listeners[type] = callback; }
+    setAttribute(name, value) { this[name] = value; }
     focus() { document.activeElement = this; }
     querySelectorAll() { return []; }
     showModal() { this.open = true; }
-    close() { this.open = false; }
+    close() { this.open = false; this.listeners.close?.(); }
   }
   for (const match of html.matchAll(/id="([^"]+)"/g)) elements.set(match[1], new Element(match[1]));
   for (const id of ["handoff", "phase-notice", "online-strip", "online-lobby"]) elements.get(id).hidden = true;
@@ -39,17 +40,17 @@ function loadUI() {
     window: { setTimeout() {}, clearTimeout() {}, setInterval() {}, clearInterval() {}, confirm() { return true; } },
     navigator: {}, crypto: { getRandomValues(array) { return array; } },
   });
-  const expose = 'globalThis.ui = { render, run, hideHandoff, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); } };';
+  const expose = 'globalThis.ui = { render, run, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); } };';
   new Script(code.replace(/\}\)\(\);\s*$/, `${expose}\n})();`)).runInContext(context);
   return { ui: context.ui, elements, app, html };
 }
 
-test("the standalone starts with constants in the header and the requested section order", () => {
+test("the standalone places Current Action above the corner table and constants below the board", () => {
   const { elements, html } = loadUI();
   const header = html.match(/<header class="topbar">([\s\S]*?)<\/header>/)[1];
-  assert.match(header, /id="turn-card"/);
+  assert.doesNotMatch(header, /id="turn-card"/);
   assert.equal((elements.get("turn-card").innerHTML.match(/class="constant"/g) ?? []).length, 4);
-  const positions = ["board", "board-hint", "action-controls", "resource-controls", "player-summary", "history"].map((id) => html.indexOf(`id="${id}"`));
+  const positions = ["action-controls", "player-summary", "board", "turn-card", "board-hint", "history"].map((id) => html.indexOf(`id="${id}"`));
   assert.deepEqual(positions, [...positions].sort((a,b) => a - b));
   assert.match(elements.get("action-controls").innerHTML, /Boudica|Caesar|David|Cleopatra/);
   assert.doesNotMatch(elements.get("action-controls").innerHTML, /Rank|rank-pips|physical-rank/);
@@ -65,7 +66,7 @@ test("Vassal controls render names and cost explanations without generic ranks",
   state.players.WHITE.court_noble_ids.push(id);
   Object.assign(state.nobles_by_id[id], { owner: PLAYER.WHITE, location: "WHITE_COURT" });
   ui.setState(state);
-  assert.match(elements.get("action-controls").innerHTML, /Vz♧ · Margaret of Parma/);
+  assert.match(elements.get("action-controls").innerHTML, /Vz♧ · Colbert/);
   assert.doesNotMatch(elements.get("action-controls").innerHTML, /Rank|rank-pips|physical-rank/);
 });
 
@@ -91,4 +92,61 @@ test("automatic explanations wait for the next legal action and require one clic
   assert.equal(elements.get("phase-notice").hidden, true);
   assert.equal(app.inert, false);
   assert.equal(ui.getState(), before, "acknowledgements do not move the game or end another turn");
+});
+
+test("Court inspection is owner-only, stays face down at rest and clears on handover", () => {
+  const { ui, elements } = loadUI();
+  const state = forcePhase(setUpMatch('private-court-ui'), PHASE.BUILD);
+  const id = 'NC-J-C';
+  state.decks.NOBLE = state.decks.NOBLE.filter(n => n !== id);
+  state.players.WHITE.court_noble_ids.push(id);
+  Object.assign(state.nobles_by_id[id], {owner: PLAYER.WHITE, location: 'WHITE_COURT'});
+  ui.setState(state);
+  ui.hideHandoff();
+  assert.doesNotMatch(elements.get('player-summary').innerHTML, /Colbert/);
+  ui.inspectNoble(id, true);
+  assert.equal(elements.get('inspection-dialog').open, true);
+  assert.match(elements.get('inspection-content').innerHTML, /Colbert/);
+  ui.showHandoff(PLAYER.BLACK);
+  assert.equal(elements.get('inspection-dialog').open, false);
+  assert.equal(elements.get('inspection-content').innerHTML, '');
+  ui.inspectNoble(id, true);
+  assert.equal(elements.get('inspection-content').innerHTML, '', 'handover blocks inspection');
+  ui.hideHandoff();
+  ui.setViewer({viewer:{role:'SPECTATOR', seat:null},room:{seats:{}}});
+  ui.inspectNoble(id, true);
+  assert.equal(elements.get('inspection-content').innerHTML, '', 'spectator cannot inspect even if passed an unfiltered state');
+});
+
+test("an unfunded Build preview survives tapping, and only Commit changes the board", async () => {
+  const { ui, elements } = loadUI();
+  const state = forcePhase(setUpMatch('preview-build'), PHASE.BUILD);
+  const card = giveResource(state, PLAYER.WHITE, SUIT.CLOVERS, 8);
+  ui.setState(state);
+  ui.hideHandoff();
+  ui.handleBoardClick('b2');
+  assert.match(elements.get('action-controls').innerHTML, /Build a Pawn at b2/);
+  assert.match(elements.get('action-controls').innerHTML, /id="commit-board-action"[^>]*disabled/);
+  assert.equal(Object.values(ui.getState().units_by_id).some(u => u.square === 'b2'), false);
+  await ui.run({type:'TAP_RESOURCES',player:PLAYER.WHITE,card_ids:[card]});
+  assert.doesNotMatch(elements.get('action-controls').innerHTML, /id="commit-board-action"[^>]*disabled/);
+  await elements.get('commit-board-action').onclick();
+  assert.equal(Object.values(ui.getState().units_by_id).some(u => u.square === 'b2'), true);
+  assert.equal(ui.getState().players.WHITE.seasonal_pools.CLOVERS, 6);
+});
+
+test("a cancelled movement preview leaves state intact", () => {
+  const { ui, elements } = loadUI();
+  const state = forcePhase(setUpMatch('cancel-move'), PHASE.MOBILIZE);
+  state.players.WHITE.seasonal_pools.SPADES = 8;
+  ui.setState(state);
+  ui.hideHandoff();
+  ui.handleBoardClick('a1');
+  ui.handleBoardClick('c2');
+  assert.match(elements.get('action-controls').innerHTML, /Move to c2/);
+  assert.equal(ui.getState().units_by_id['U-W-001'].square, 'a1');
+  elements.get('cancel-board-action').onclick();
+  assert.doesNotMatch(elements.get('action-controls').innerHTML, /Commit action/);
+  assert.equal(ui.getState().units_by_id['U-W-001'].square, 'a1');
+  assert.equal(ui.getState().players.WHITE.seasonal_pools.SPADES, 8);
 });
