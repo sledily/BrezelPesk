@@ -43,7 +43,20 @@ export function escapeMarkup(value) {
 
 export function pieceIcon(unit) {
   const color = unit.piece_color ?? unit.owner;
-  return `<span class="realm-piece ${color.toLowerCase()}" role="img" aria-label="${title(unit.unit_type)}">${PIECE_GLYPH[color][unit.unit_type]}</span>`;
+  return `<span class="realm-piece ${color.toLowerCase()}" role="img" aria-label="${title(unit.unit_type)}">${chessPieceSvg(unit.unit_type)}</span>`;
+}
+
+// Original, code-native chess illustrations; shared by board, reserve and inspection.
+export function chessPieceSvg(type) {
+  const crowns = {
+    PAWN: '<circle cx="32" cy="19" r="8"/><path d="M26 28h12l-3 13 8 9H21l8-9z"/>',
+    ROOK: '<path d="M17 10h8v8h5v-8h5v8h5v-8h7v18l-7 5 2 17H22l2-17-7-5z"/><path d="M23 28h18M26 36h12" fill="none"/>',
+    KNIGHT: '<path d="M20 50c0-13 9-15 13-23l-12 6-7-7 12-13 1-7 7 5c15 1 17 18 12 39z"/><path d="m26 19-5 7m15-10c10 10 4 17 1 22" fill="none"/><circle cx="30" cy="18" r="1.5" class="piece-eye"/>',
+    BISHOP: '<path d="M32 6c-5 7-12 10-12 17 0 6 6 10 12 10s12-4 12-10c0-7-7-10-12-17zM28 34h8l-2 7 9 9H21l9-9z"/><path d="m34 15-8 10" fill="none"/>',
+    QUEEN: '<path d="m17 18 8 9 7-15 7 15 8-9-6 22H23zM25 40h14l4 10H21z"/><circle cx="16" cy="15" r="3"/><circle cx="32" cy="10" r="3"/><circle cx="48" cy="15" r="3"/><path d="M23 34h18" fill="none"/>',
+    KING: '<path d="M29 6h6v6h6v6h-6v7h-6v-7h-6v-6h6zM20 26c-5 8 1 15 6 16l-5 8h22l-5-8c5-1 11-8 6-16l-12 5z"/><path d="M26 41h12" fill="none"/>',
+  };
+  return `<svg class="chess-piece" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><g fill="currentColor" stroke="var(--piece-edge, #3c3026)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">${crowns[type] ?? crowns.PAWN}<path d="M21 50h22l4 7H17z"/><path d="M18 57h28v3H18z"/></g><path d="M23 54h17" stroke="white" opacity=".35" stroke-linecap="round"/></svg>`;
 }
 
 export function nobleCardHtml(noble) {

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#151815">
+    <meta name="theme-color" content="#e9dfc9">
     <meta name="application-name" content="BrezelPesk">
     <meta name="application-version" content="1.5.0">
     <meta name="description" content="Play Dendarv locally or online with guided Harvest, clear seasonal costs and a standardized game chronicle.">
@@ -30,34 +30,38 @@
           <button id="import-save" class="button quiet">Import</button>
           <input id="import-file" type="file" accept="application/json,.json" hidden>
         </nav>
-        <div id="turn-card" class="header-turn"></div>
       </header>
 
       <section id="online-strip" class="online-strip" aria-live="polite" hidden>
         <div id="online-strip-text"></div>
         <div class="online-strip-actions">
+          <button id="copy-recovery-code" class="button tiny">Copy recovery code</button>
           <button id="copy-room-link" class="button tiny">Copy spectator link</button>
           <button id="leave-online" class="button tiny quiet">Return to local game</button>
         </div>
       </section>
 
+      <section class="current-action" aria-label="Current Action">
+        <div class="action-rubric"><span class="eyebrow">Current Action</span><strong id="current-action-summary"></strong></div>
+      </section>
+      <section id="action-controls" class="panel action-panel" aria-label="Action controls"></section>
       <main class="game-layout">
+        <div id="tabletop" class="tabletop">
+        <section id="player-summary" aria-label="Player corners"></section>
         <section class="board-column" aria-label="Game board">
           <div class="board-frame">
             <div id="board" class="board" role="grid" aria-label="Dendarv board"></div>
           </div>
+          <div id="turn-card" class="board-constants"></div>
           <div id="board-hint" class="board-hint">Select an action to see legal squares.</div>
           <details class="board-vocabulary"><summary>Read the board and cards</summary>
-            <p>○ Holding: Harvests and defends. A Noble badge marks a Levy, which can also move and attack.</p>
+            <p>A Holding is a chess piece without a card. A small Vassal card marks a Levy, which can also move and attack. Select a piece to inspect it; select its card separately to inspect the Vassal.</p>
             <p>Vassal badges use Vz, Dx and Rx, with their suit symbols. The same titles identify the named Court cards below.</p>
             <p>A filled marker shows a legal destination; a red ring shows a Siege target. A gold border marks your selection. A dashed outline marks the Harvesting piece.</p>
             <p>Cards: * adds one Counter; a check marks a selection; a tilted card is tapped; ! means spend or return this Year.</p>
           </details>
         </section>
-
-        <section id="action-controls" class="panel action-panel" aria-label="Current action"></section>
-        <section id="resource-controls" class="panel" aria-label="Seasonal resource pool"></section>
-        <section id="player-summary" class="panel" aria-label="Players, Resources and Political order"></section>
+        </div>
 
         <aside class="history-column">
           <section class="panel chronicle-panel">
@@ -75,13 +79,18 @@
       </main>
     </div>
 
+    <dialog id="inspection-dialog" class="game-dialog inspection-dialog" aria-label="Card or Unit inspection">
+      <div id="inspection-content"></div>
+      <button id="close-inspection" class="button primary full">Return to table</button>
+    </dialog>
+
     <div id="handoff" class="handoff" role="dialog" aria-modal="true" hidden>
       <div class="handoff-card">
         <p class="eyebrow">Hot-seat privacy</p>
         <div id="handoff-seal" class="handoff-seal" aria-hidden="true"></div>
         <h2 id="handoff-title">Pass the device</h2>
         <p id="handoff-text"></p>
-        <button id="accept-handoff" class="button primary large">Reveal my view</button>
+        <button id="accept-handoff" class="button primary large">Ready</button>
       </div>
     </div>
 
@@ -134,8 +143,6 @@
           </select>
           <label for="online-create-seat">Your color</label>
           <select id="online-create-seat"></select>
-          <label for="online-create-seed">Random seed <span class="optional">optional</span></label>
-          <input id="online-create-seed" autocomplete="off" placeholder="Generated automatically">
           <button id="create-online-room" type="button" class="button primary full">Create room</button>
         </section>
         <div class="online-divider"><span>or</span></div>
@@ -144,6 +151,9 @@
           <label for="online-room-code">Six-character room code</label>
           <input id="online-room-code" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="ABC123">
           <button id="open-online-room" type="button" class="button full">Open room</button>
+          <label for="online-recovery-code">Private recovery code</label>
+          <input id="online-recovery-code" maxlength="128" autocomplete="off" type="password">
+          <button id="recover-online-seat" type="button" class="button full">Recover seat</button>
           <p class="field-note">Opening a room starts in spectator mode. If the match has not begun, you may claim any open player color.</p>
         </section>
         <div class="dialog-actions">
@@ -165,6 +175,7 @@
         </div>
         <div class="choice-grid online-lobby-actions">
           <button id="start-online-match" class="button primary" hidden>Start match</button>
+          <button id="lobby-copy-recovery" class="button">Copy recovery code</button>
           <button id="lobby-copy-link" class="button">Copy spectator link</button>
           <button id="lobby-close" class="button quiet">Return to local game</button>
         </div>

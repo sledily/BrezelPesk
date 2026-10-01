@@ -3,7 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
-const outputPath = resolve(projectRoot, "..", "Dendarv_Play.html");
+const outputPath = resolve(projectRoot, "Dendarv_Play.html");
 
 const sourceOrder = [
   "src/constants.js",
@@ -17,6 +17,7 @@ const sourceOrder = [
   "src/format.js",
   "src/online.js",
   "src/presentation.js",
+  "src/tabletop.js",
   "src/ui.js",
 ];
 

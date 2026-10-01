@@ -1,0 +1,36 @@
+name: V2 foundation checks
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: dendarv_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:local
+      - run: npm test
+        env:
+          DENDARV_TEST_DATABASE_URL: postgres://test:test@localhost:5432/dendarv_test
+          DENDARV_TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+      - run: git diff --exit-code -- Dendarv_Play.html

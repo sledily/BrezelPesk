@@ -550,6 +550,7 @@ function declarePoker(state, command) {
 }
 
 function finishPoker(state, command) {
+  if (state.v2_acted) delete state.v2_acted[opportunityKey(state, command.player)];
   requirePhase(state, PHASE.HARVEST);
   requireCondition(state.harvest?.stage === "POKER", "WRONG_HARVEST_STAGE", "Poker declarations have not begun");
   requireActor(state, command.player);
@@ -1126,6 +1127,7 @@ function acknowledgePhaseNotice(state, command) {
 }
 
 function passPhase(state, command) {
+  if (state.v2_acted) delete state.v2_acted[opportunityKey(state, command.player)];
   requireCondition(state.status === "ACTIVE", "WRONG_MATCH_STATUS", "The match is not active");
   requireCondition(![PHASE.HARVEST, PHASE.RANSOM, PHASE.STOCKPILE].includes(state.phase), "PASS_NOT_ALLOWED", "This phase has a specific completion decision");
   requireCondition(!state.pending_combat, "PENDING_DECISION", "Resolve the Quarter decision first");
@@ -1189,12 +1191,15 @@ function queueAutomaticNotice(state, reason, section = state.phase, player = sta
 
 // Settle all clerical transitions in the same transaction. This never draws for
 // the next piece, chooses among offered cards, or spends a player's resources.
+function opportunityKey(state, player = state.current_actor) { return `${state.year_number}:${state.phase}:${player}`; }
+
 export function settleAutomaticPhases(state) {
   if (!state.rules.automatic_passes) return;
   state.phase_notice = null;
   for (let step = 0; step < 256 && state.status === "ACTIVE"; step++) {
     if (state.pending_combat || state.pending_conquest) return;
     const player = state.current_actor;
+    if (state.rules.explicit_action_pass && state.v2_acted?.[opportunityKey(state)]) return;
     if (state.phase === PHASE.HARVEST) {
       if (state.harvest.stage === "DRAW") return;
       if (availablePokerHands(state, player).length) return;
@@ -1302,11 +1307,20 @@ export function dispatch(state, command) {
     }
     const handler = HANDLERS[command.type];
     requireCondition(Boolean(handler), "UNKNOWN_COMMAND", `Unknown command: ${command.type}`);
+    if (working.rules.explicit_action_pass && ["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "RECRUIT_NOBLE",
+      "MOBILIZE_UNIT", "LAY_SIEGE", "VASSALIZE_NOBLE", "EXECUTE_HOSTAGE", "DECLARE_POKER"].includes(command.type)) {
+      working.v2_acted ??= {}; working.v2_acted[opportunityKey(working, command.player)] = true;
+    }
     handler(working, command);
     if (!working.rules.automatic_passes && command.auto_harvest && ["DRAW_HARVEST", "KEEP_HARVEST_CARD", "RESOLVE_HARVEST_FAILSAFE"].includes(command.type)) {
       continueForcedHarvest(working, command.player);
     }
-    if (working.rules.automatic_passes) settleAutomaticPhases(working);
+    const ordinaryAction = ["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "RECRUIT_NOBLE",
+      "MOBILIZE_UNIT", "LAY_SIEGE", "VASSALIZE_NOBLE", "EXECUTE_HOSTAGE", "DECLARE_POKER"].includes(command.type);
+    const sameOpportunity = working.current_actor === state.current_actor && working.phase === state.phase;
+    if (working.rules.automatic_passes) {
+      if (!(working.rules.explicit_action_pass && ordinaryAction && sameOpportunity)) settleAutomaticPhases(working);
+    }
     else refreshPhaseNotice(working);
     working.command_log.push(deepClone(command));
     const invariantErrors = validateInvariants(working);

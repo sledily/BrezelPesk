@@ -1,9 +1,9 @@
-# Dendarv v1.5
+# BrezelPesk V2 foundation review
 
-For local hot-seat play, open Dendarv_Play.html in a web browser. Use New to choose two or four players.
+For local hot-seat play, open `Dendarv_Play.html`. It retains the existing V1.5 screen and local rules integration.
 
-For online play, use the complete dendarv folder. With Node.js 20 or later, run `node server.mjs` inside that folder, then open http://127.0.0.1:4173 and choose BrezelPesk. No npm packages are needed.
+For the online development server, use Node.js 24 and run `npm ci`, then `npm start`, from this repository root. Open http://127.0.0.1:4173 and choose BrezelPesk. There is no nested source folder.
 
-For an existing Node deployment, replace its application source with the contents of the dendarv folder. Keep src/rooms.js and the other src files beside the server in their supplied paths. Existing persistent room data is not included in this package.
+Read `README.md` for PostgreSQL, private recovery codes, provisional capacity limits and tests. Read `V2_FOUNDATION.md` for implemented behavior and remaining release gates.
 
-The source README and V1.5_SPECIFICATION.md describe the changes and the intentional digital Stockpile exception. The suite has 72 passing automated checks; browser layout and a live deployment were not verified in this revision.
+This is an isolated review branch. Do not merge it into the auto-deploying main branch until durable database configuration and the remaining release requirements have been reviewed. No old-game migration is required; preservation of new V2 games is required.

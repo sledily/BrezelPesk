@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: brezelpesk
-    runtime: node
-    plan: free
-    buildCommand: npm install
-    startCommand: npm start
-    healthCheckPath: /api/health
-    autoDeployTrigger: commit

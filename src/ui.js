@@ -4,6 +4,7 @@ import {
   LEVEL_BY_TYPE,
   NOBLE_NAME,
   PHASE,
+  PHASE_ORDER,
   PLAYER,
   SUIT,
   SUIT_GLYPH,
@@ -18,7 +19,8 @@ import {
   upgradeToV15,
 } from "./engine.js";
 import { actionCostDescription, harvestCardDetails, formatNoble, formatResource, formatUnit, title } from "./format.js";
-import { PIECE_GLYPH, nobleCardHtml, realmComparisonHtml, harvestListHtml, HARVEST_COORDINATE_GUIDE } from "./presentation.js";
+import { pieceIcon, nobleCardHtml, harvestListHtml, HARVEST_COORDINATE_GUIDE } from "./presentation.js";
+import { calendarHtml, constantsHtml, tabletopRegionsHtml, unitInspectionHtml, nobleInspectionHtml } from "./tabletop.js";
 import { formatChronicle } from "./notation.js";
 import { deserializeMatch, loadFromBrowser, saveToBrowser, serializeMatch } from "./persistence.js";
 import { matchPlayers } from "./model.js";
@@ -55,7 +57,9 @@ const dom = {
   matchStatus: document.querySelector("#match-status"),
   playerSummary: document.querySelector("#player-summary"),
   turnCard: document.querySelector("#turn-card"),
-  resourceControls: document.querySelector("#resource-controls"),
+  inspection: document.querySelector("#inspection-dialog"),
+  inspectionContent: document.querySelector("#inspection-content"),
+  actionSummary: document.querySelector("#current-action-summary"),
   actionControls: document.querySelector("#action-controls"),
   history: document.querySelector("#history"),
   handoff: document.querySelector("#handoff"),
@@ -78,7 +82,6 @@ const dom = {
   onlineCreateName: document.querySelector("#online-create-name"),
   onlineCreateCount: document.querySelector("#online-create-count"),
   onlineCreateSeat: document.querySelector("#online-create-seat"),
-  onlineCreateSeed: document.querySelector("#online-create-seed"),
   onlineRoomCode: document.querySelector("#online-room-code"),
   onlineStrip: document.querySelector("#online-strip"),
   onlineStripText: document.querySelector("#online-strip-text"),
@@ -104,12 +107,13 @@ let onlinePollTimer = null;
 let onlineRequestPending = false;
 let dismissedOnlineNotice = null;
 let vassalSelection = { nobleId: null, unitId: null };
+let boardCandidate = null;
 
 function loadInitialState() {
   try {
-    return upgradeToV15(loadFromBrowser() ?? newMatch({ seed: "Remy-and-Franny", playerCount: 4 }));
+    return upgradeToV15(loadFromBrowser() ?? newMatch({ seed: "Remy-and-Franny", playerCount: 4, rules: { explicit_action_pass: true } }));
   } catch {
-    return newMatch({ seed: "Remy-and-Franny", playerCount: 4 });
+    return newMatch({ seed: "Remy-and-Franny", playerCount: 4, rules: { explicit_action_pass: true } });
   }
 }
 
@@ -144,6 +148,7 @@ function escapeHtml(value) {
 }
 
 async function run(command, { keepSelection = false } = {}) {
+  if (!dom.handoff.hidden) return false;
   if (pendingAutomaticNotices().length) { maybeShowPhaseNotice(); return false; }
   const retainTarget = ["TAP_RESOURCES", "MOBILIZE_UNIT"].includes(command.type);
   const previousTarget = retainTarget ? structuredClone(interaction) : null;
@@ -200,6 +205,7 @@ function applyOnlinePayload(payload, { resetSelection = false, force = false, re
     ? `${onlinePayload.room.status}:${onlinePayload.room.revision}:${onlinePayload.viewer.private_revision}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`
     : null;
   const nextSignature = `${payload.room.status}:${payload.room.revision}:${payload.viewer.private_revision}:${payload.viewer.role}:${payload.viewer.seat}`;
+  if (previousSignature !== nextSignature) closeInspection();
   onlinePayload = payload;
   if (payload.game && (force || previousSignature !== nextSignature)) {
     state = payload.game;
@@ -219,7 +225,7 @@ function applyOnlinePayload(payload, { resetSelection = false, force = false, re
 
 function newLocalMatch(seed, playerCount = 4) {
   leaveOnlineMode({ updateLocation: true });
-  state = newMatch({ seed: seed || "dendarv", playerCount });
+  state = newMatch({ seed: seed || "dendarv", playerCount, rules: { explicit_action_pass: true } });
   selectedResourceIds = new Set();
   interaction = emptyInteraction();
   stockpileSelectionKey = null;
@@ -234,7 +240,8 @@ function showHandoff(player) {
   if (!player) return;
   const name = playerName(player);
   dom.handoffTitle.textContent = `${name} to act`;
-  dom.handoffText.textContent = `Pass the device to ${name}. Your Court cards will be revealed after confirmation. Harvest cards are public.`;
+  closeInspection();
+  dom.handoffText.textContent = `Pass the device to ${name}. Choose Ready to open your view, then privately inspect your face-down Court when needed. Harvest cards are public.`;
   dom.handoffSeal.textContent = playerCode(player);
   dom.handoffSeal.className = `handoff-seal ${player.toLowerCase()}`;
   dom.phaseNotice.hidden = true;
@@ -335,16 +342,18 @@ function showToast(message, success = false) {
 }
 
 function render() {
+  closeInspection();
+  if (boardCandidate && !candidateStillLegal()) boardCandidate = null;
   syncRecommendedStockpile();
   syncBoardInteraction();
   renderStatus();
   renderBoard();
   renderTurnCard();
-  renderResourceControls();
   renderActionControls();
   renderPlayerSummary();
   renderHistory();
   renderPhaseNotice();
+  renderActionSummary();
   dom.undoAction.disabled = onlinePayload ? !onlinePayload.viewer.can_undo : undoStack.length === 0;
   bindDynamicControls();
 }
@@ -352,13 +361,45 @@ function render() {
 function renderStatus() {
   const phase = state.status === "SETUP" ? "Sovereign selection" : state.status === "COMPLETE" ? "Match complete" : title(state.phase);
   const season = state.phase ? seasonForPhase(state.phase) : "Setup";
-  dom.matchStatus.innerHTML = `
-    <span class="status-chip strong">${state.year_number ? `Year ${state.year_number}` : "Turn 0"}</span>
-    <span class="status-chip">${matchPlayers(state).length} players</span>
-    <span class="status-chip">${season}</span>
-    <span class="status-chip">${phase}</span>
-    <span class="status-chip">Button: ${playerName(state.button_holder)}</span>
-  `;
+  dom.matchStatus.innerHTML = `${calendarHtml(state)}<div class="year-heading"><span class="eyebrow">${season}</span><h2>${phase}</h2><p>${playerName(state.current_actor)}${state.status === 'COMPLETE' ? '' : ' to act'} · Button: ${playerName(state.button_holder)}</p><details class="phase-key"><summary>Year sequence</summary><ol>${PHASE_ORDER.map(p => `<li ${p === state.phase ? 'aria-current="step"' : ''}>${title(p)}</li>`).join('')}</ol></details></div>`;
+}
+
+function privateViewer() {
+  return onlinePayload ? onlinePayload.viewer.role === 'PLAYER' ? onlinePayload.viewer.seat : null : activePlayer();
+}
+
+function renderActionSummary() {
+  const actor = state.current_actor;
+  const suit = ACTIVE_SUIT_BY_PHASE[state.phase];
+  const pool = suit ? ` · Pool ${state.players[actor]?.seasonal_pools[suit] ?? 0} ${SUIT_GLYPH[suit]}` : '';
+  const unit = state.units_by_id[interaction.unitId];
+  const selection = boardCandidate ? ` · ${boardCandidate.label} · Cost ${boardCandidate.cost} ${SUIT_GLYPH[suit]} · Shortfall ${Math.max(0, boardCandidate.cost - (state.players[actor]?.seasonal_pools[suit] ?? 0))}`
+    : unit ? ` · ${title(unit.unit_type)} at ${unit.square}${state.phase === PHASE.MOBILIZE ? ` · Cost ${actionCost(state, 'MOBILIZE', {unit_id: unit.unit_id})} ♤ · Select a destination` : ' · Select a defender'}` : '';
+  dom.actionSummary.textContent = `${playerName(actor)} · ${state.status === 'SETUP' ? 'Choose Sovereign' : state.status === 'COMPLETE' ? 'Match complete' : title(state.phase)}${pool}${selection}`;
+}
+
+function closeInspection() {
+  if (dom.inspection.open) dom.inspection.close();
+  dom.inspectionContent.innerHTML = '';
+}
+
+function inspectNoble(id, court = false) {
+  if (!dom.handoff.hidden) return;
+  const viewer = privateViewer();
+  const ownCourt = viewer && !state.players[viewer]?.eliminated && state.players[viewer]?.court_noble_ids.includes(id);
+  const publicCard = Object.values(state.units_by_id).some(u => !u.defeated && u.vassal_noble_id === id)
+    || Object.values(state.players).some(p => p.dungeon_noble_id === id);
+  if (court ? !ownCourt : !publicCard) return;
+  const html = nobleInspectionHtml(state, state.nobles_by_id[id]);
+  if (!html) return;
+  dom.inspectionContent.innerHTML = `<p class="eyebrow">${court ? 'Private Court inspection' : 'Public Noble'}</p>${html}`;
+  dom.inspection.showModal();
+}
+
+function inspectUnit(unit) {
+  if (!unit || !dom.handoff.hidden) return;
+  dom.inspectionContent.innerHTML = unitInspectionHtml(state, unit);
+  dom.inspection.showModal();
 }
 
 function seasonForPhase(phase) {
@@ -393,17 +434,15 @@ function syncBoardInteraction() {
     return;
   }
   if (state.phase === PHASE.BUILD) {
-    const cost = actionCost(state, "BUILD");
     interaction = { mode: "BUILD", unitId: null,
-      legalSquares: new Set(hasPool(cost) && state.players[activePlayer()].reserve.PAWN > 0 ? validBuildTargets(state, activePlayer()) : []),
+      legalSquares: new Set(state.players[activePlayer()].reserve.PAWN > 0 ? validBuildTargets(state, activePlayer()) : []),
       attackSquares: new Set() };
   } else if (interaction.mode === "MOBILIZE" && state.phase === PHASE.MOBILIZE) {
     const unit = state.units_by_id[interaction.unitId];
     if (!unit || unit.defeated || unit.owner !== activePlayer()) { interaction = emptyInteraction(); return; }
-    interaction.legalSquares = new Set(hasPool(actionCost(state, "MOBILIZE", { unit_id: unit.unit_id })) ? legalMovementDestinations(state, unit.unit_id) : []);
+    interaction.legalSquares = new Set(legalMovementDestinations(state, unit.unit_id));
   } else if (interaction.mode === "SIEGE" && state.phase === PHASE.SIEGE) {
     interaction.attackSquares = new Set(legalSiegeTargets(state, interaction.unitId)
-      .filter((id) => hasPool(actionCost(state, "SIEGE", { defender_id: id })))
       .map((id) => state.units_by_id[id].square));
   } else if (interaction.mode) interaction = emptyInteraction();
 }
@@ -427,6 +466,7 @@ function renderBoard() {
         "square",
         isBlackSquare(square) ? "dark" : "light",
         isCenter(square) ? "center-square" : "",
+        isCorner(square) ? "corner-square" : "",
         isSelected ? "selected" : "",
         isLegal ? "legal" : "",
         isAttack ? "attack" : "",
@@ -437,15 +477,15 @@ function renderBoard() {
       const vassal = unit?.vassal_noble_id ? state.nobles_by_id[unit.vassal_noble_id] : null;
       const pieceColor = unit?.piece_color ?? unit?.owner;
       const unitHtml = unit ? `
-        <span class="piece ${pieceColor.toLowerCase()}" aria-hidden="true">${PIECE_GLYPH[pieceColor][unit.unit_type]}</span>
-        ${vassal ? `<span class="vassal-badge ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(vassal.suit) ? "red" : ""}" title="${formatNoble(vassal, true, false)}">${formatNoble(vassal, true, false)}</span>` : `<span class="holding-marker" title="Holding: Harvests and defends; needs a Vassal to move or attack" aria-hidden="true">○</span>`}
+        <span class="piece ${pieceColor.toLowerCase()}" aria-hidden="true">${pieceIcon(unit)}</span>
+        ${pieceColor !== unit.owner ? `<span class="controller-banner ${unit.owner.toLowerCase()}" title="Controlled by ${playerName(unit.owner)}"></span>` : ''}
       ` : "";
       parts.push(`
-        <button class="${classes}" data-square="${square}" role="gridcell" aria-label="${square}${unit ? `, ${playerName(unit.owner)}-controlled ${playerName(pieceColor)} ${title(unit.unit_type)}${vassal ? `, Levy assigned to ${formatNoble(vassal, true, false)}` : ", Holding"}` : ", empty"}">
+        <div class="square-shell" role="gridcell"><button class="${classes}" data-square="${square}" aria-label="${square}${unit ? `, ${playerName(unit.owner)}-controlled ${playerName(pieceColor)} ${title(unit.unit_type)}${vassal ? `, Levy assigned to ${formatNoble(vassal, true, false)}` : ", Holding"}` : ", empty"}">
           ${fileIndex === 0 ? `<span class="coordinate rank">${rank}</span>` : ""}
           ${rank === 1 ? `<span class="coordinate file">${file}</span>` : ""}
           ${unitHtml}
-        </button>
+        </button>${vassal ? `<button class="vassal-badge ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(vassal.suit) ? 'red' : ''}" data-inspect-noble="${vassal.noble_id}" aria-label="Inspect ${escapeHtml(formatNoble(vassal))}">${formatNoble(vassal, true, false)}</button>` : ''}</div>
       `);
     }
   }
@@ -470,34 +510,50 @@ function boardHint() {
   if (interaction.mode === "SIEGE") return "Choose a red-ringed adjacent enemy Unit.";
   if (state.phase === PHASE.MOBILIZE) return "Select one of your Levies to show its legal destinations.";
   if (state.phase === PHASE.SIEGE) return "Select one of your Levies to show adjacent Siege targets.";
-  return "The four outlined squares are the Center Squares and grant a Harvest Counter.";
+  return "Blue Center Squares grant a Harvest Counter. Select any piece or its Vassal card to inspect it.";
 }
 
 function handleBoardClick(square) {
-  if (!onlinePlayerCanAct()) return;
+  if (!dom.handoff.hidden) return;
   const unit = unitAt(state, square);
+  if (!onlinePlayerCanAct()) { inspectUnit(unit); return; }
+  if (unit && unit.unit_id === interaction.unitId) { inspectUnit(unit); return; }
   if (interaction.mode === "BUILD" && interaction.legalSquares.has(square)) {
-    run({ type: "BUILD_UNIT", player: activePlayer(), square });
+    previewBoardAction({ type: "BUILD_UNIT", player: activePlayer(), square }, actionCost(state, 'BUILD'), `Build a Pawn at ${square}`);
     return;
   }
   if (interaction.mode === "MOBILIZE" && interaction.legalSquares.has(square)) {
-    run({ type: "MOBILIZE_UNIT", player: activePlayer(), unit_id: interaction.unitId, destination: square });
+    previewBoardAction({ type: "MOBILIZE_UNIT", player: activePlayer(), unit_id: interaction.unitId, destination: square }, actionCost(state, 'MOBILIZE', {unit_id: interaction.unitId}), `Move to ${square}`);
     return;
   }
   if (interaction.mode === "SIEGE" && interaction.attackSquares.has(square) && unit) {
-    run({ type: "LAY_SIEGE", player: activePlayer(), attacker_id: interaction.unitId, defender_id: unit.unit_id });
+    previewBoardAction({ type: "LAY_SIEGE", player: activePlayer(), attacker_id: interaction.unitId, defender_id: unit.unit_id }, actionCost(state, 'SIEGE', {defender_id: unit.unit_id}), `Lay Siege to ${square}`);
     return;
   }
   if (unit?.owner === activePlayer() && state.phase === PHASE.MOBILIZE && isLevy(unit)) {
     selectMovement(unit.unit_id);
   } else if (unit?.owner === activePlayer() && state.phase === PHASE.SIEGE && isLevy(unit)) {
     selectSiege(unit.unit_id);
-  } else if (unit && isLevy(unit)) {
-    dom.boardHint.textContent = nobleDetail(state.nobles_by_id[unit.vassal_noble_id]);
-  }
+  } else if (unit) inspectUnit(unit);
+}
+
+function previewBoardAction(command, cost, label) {
+  boardCandidate = {command, cost, label, phase: state.phase, year: state.year_number};
+  dom.actionControls.hidden = false;
+  renderActionControls(); renderActionSummary(); renderTurnCard(); bindActionControlsOnly();
+}
+
+function candidateStillLegal() {
+  const c = boardCandidate;
+  if (!onlinePlayerCanAct() || c.command.player !== state.current_actor || c.phase !== state.phase || c.year !== state.year_number || state.status !== 'ACTIVE' || state.pending_combat || state.phase_notice) return false;
+  if (c.command.type === 'BUILD_UNIT') { c.cost = actionCost(state, 'BUILD'); return validBuildTargets(state, c.command.player).includes(c.command.square) && state.players[c.command.player].reserve.PAWN > 0; }
+  if (c.command.type === 'MOBILIZE_UNIT') { c.cost = actionCost(state, 'MOBILIZE', {unit_id: c.command.unit_id}); return legalMovementDestinations(state, c.command.unit_id).includes(c.command.destination); }
+  c.cost = actionCost(state, 'SIEGE', {defender_id: c.command.defender_id});
+  return legalSiegeTargets(state, c.command.attacker_id).includes(c.command.defender_id);
 }
 
 function selectMovement(unitId) {
+  boardCandidate = null;
   interaction = {
     mode: "MOBILIZE",
     unitId,
@@ -505,10 +561,11 @@ function selectMovement(unitId) {
     attackSquares: new Set(),
   };
   syncBoardInteraction();
-  renderBoard();
+  renderBoard(); renderTurnCard(); renderActionControls(); renderActionSummary(); bindDynamicControls();
 }
 
 function selectSiege(unitId) {
+  boardCandidate = null;
   const targetSquares = legalSiegeTargets(state, unitId).map((id) => state.units_by_id[id].square);
   interaction = {
     mode: "SIEGE",
@@ -517,79 +574,11 @@ function selectSiege(unitId) {
     attackSquares: new Set(targetSquares),
   };
   syncBoardInteraction();
-  renderBoard();
+  renderBoard(); renderTurnCard(); renderActionControls(); renderActionSummary(); bindDynamicControls();
 }
 
 function renderTurnCard() {
-  const player = state.status === "COMPLETE" ? state.winner
-    : onlinePayload?.viewer.waiting_for_pass ? onlinePayload.viewer.seat
-      : state.current_actor;
-  const initialBase = matchPlayers(state).length;
-  const constants = state.status !== "SETUP" ? deriveConstants(state, player) : { C: 2, D: initialBase, S_mobilize: 1, H: initialBase };
-  const actionName = state.status === "SETUP" ? "Choose a Sovereign"
-    : state.status === "COMPLETE" ? `${playerName(state.winner)} is victorious`
-      : `${playerName(player)} · ${title(state.phase)}`;
-  const actorPosition = state.phase_actor_order?.indexOf(player) ?? -1;
-  const sub = state.status === "COMPLETE" ? (state.victory_reason === "LAST_KING_STANDING" ? "Only one King remains on the board." : "The enemy King has been defeated.")
-    : state.status === "SETUP" ? `${playerName(player)} chooses from the available Rx Nobles.`
-      : `${seasonForPhase(state.phase)} · ${state.button_holder === player ? "holds the button" : `acts ${ordinal(actorPosition + 1)} this phase`}`;
-  dom.turnCard.innerHTML = `
-    <div class="turn-banner">
-      <div class="player-seal ${player?.toLowerCase() ?? "white"}">${playerCode(player)}</div>
-      <div><h2 class="turn-title">${actionName}</h2><div class="turn-subtitle">${sub}</div></div>
-    </div>
-    <div class="constant-grid" aria-label="Action costs for ${playerName(player)}">
-      <div class="constant" title="Clubs base: twice your current Unit count"><strong><span class="suit-symbol">${SUIT_GLYPH[SUIT.CLOVERS]}</span> ${constants.C}</strong><span>Build base</span></div>
-      <div class="constant" title="Diamonds base: all Nobles outside the deck"><strong><span class="suit-symbol red-suit">${SUIT_GLYPH[SUIT.DIAMONDS]}</span> ${constants.D}</strong><span>Nobles drawn</span></div>
-      <div class="constant" title="Spades base: your Units for Mobilization; the defender's Units for Siege"><strong><span class="suit-symbol">${SUIT_GLYPH[SUIT.SPADES]}</span> ${constants.S_mobilize}</strong><span>Your Units</span></div>
-      <div class="constant" title="Hearts base: assigned Vassals plus Hostages in all Dungeons"><strong><span class="suit-symbol red-suit">${SUIT_GLYPH[SUIT.HEARTS]}</span> ${constants.H}</strong><span>Vassals + Hostages</span></div>
-    </div>
-    <ol class="season-track" aria-label="Year sequence">
-      ${[["Harvest", "Draw"], ["Winter", SUIT_GLYPH[SUIT.CLOVERS]], ["Spring", SUIT_GLYPH[SUIT.DIAMONDS]], ["Summer", SUIT_GLYPH[SUIT.SPADES]], ["Fall", SUIT_GLYPH[SUIT.HEARTS]], ["Year end", "Keep"]].map(([season, symbol]) => `<li ${seasonForPhase(state.phase) === season && state.status === "ACTIVE" ? 'aria-current="step"' : ""}><span>${symbol}</span>${season}</li>`).join("")}
-    </ol>
-  `;
-}
-
-function ordinal(value) {
-  if (value === 1) return "first";
-  if (value === 2) return "second";
-  if (value === 3) return "third";
-  if (value === 4) return "fourth";
-  return String(value);
-}
-
-function renderResourceControls() {
-  if (state.status !== "ACTIVE") {
-    dom.resourceControls.innerHTML = `<p class="eyebrow">Resources</p><h2>Seasonal pool</h2><div class="empty-state">${state.status === "COMPLETE" ? "The game has ended. Resource payments are closed." : "Resource play begins after Sovereign selection."}</div>`;
-    return;
-  }
-  const player = state.current_actor;
-  const suit = ACTIVE_SUIT_BY_PHASE[state.phase] ?? null;
-  if (!suit) {
-    dom.resourceControls.innerHTML = `<p class="eyebrow">Resources</p><h2>Seasonal pool</h2><p class="empty-state">No seasonal pool is active during ${state.harvest?.stage === "POKER" ? "Poker declarations" : title(state.phase)}.</p>`;
-    return;
-  }
-  const pool = suit ? state.players[player].seasonal_pools[suit] : null;
-  const allCards = sortResourceCards(state.players[player].resource_hand_ids.map((id) => state.resources_by_id[id]));
-  const maySelect = onlinePlayerCanAct();
-  const selectionMode = !maySelect ? "NONE"
-    : state.phase === PHASE.HARVEST && state.harvest?.stage === "POKER" ? "POKER"
-      : state.phase === PHASE.STOCKPILE ? "STOCKPILE"
-        : suit ? "TAP" : "NONE";
-  const cards = allCards.filter((card) => card.suit === suit);
-  const emptyMessage = selectionMode === "TAP"
-    ? `No ${SUIT_GLYPH[suit]} ${title(suit)} cards are available. Only ${title(suit)} may be tapped during ${seasonForPhase(state.phase)}.`
-    : "No Resource Cards in hand.";
-  const cardHtml = cards.length ? cards.map((card) => resourceCheckbox(card, selectionMode)).join("") : `<div class="empty-state">${emptyMessage}</div>`;
-  const action = selectionMode === "TAP" ? `<button id="tap-selected" class="button primary" ${selectedResourceIds.size ? "" : "disabled"}>Tap selected</button><span id="tap-preview" class="payment-preview" aria-live="polite"></span>` : "";
-  dom.resourceControls.innerHTML = `
-    <p class="eyebrow">${playerName(player)} · ${seasonForPhase(state.phase)}</p>
-    <h2>Seasonal pool</h2>
-    ${suit ? `<div class="pool-readout"><span>Active pool · ${SUIT_GLYPH[suit]} ${title(suit)}</span><strong>${pool}</strong></div>` : ""}
-    <div class="resource-row">${cardHtml}</div>
-    ${cards.some((card) => card.has_counter || card.tapped || card.mandatory_spend_year === state.year_number) ? '<p class="card-state-key">* Counter +1 · tilted = tapped · ! spend or return this Year</p>' : ""}
-    ${action ? `<div class="resource-actions">${action}</div>` : ""}
-  `;
+  dom.turnCard.innerHTML = constantsHtml(state, privateViewer(), boardCandidate?.command.defender_id);
 }
 
 function resourceCheckbox(card, mode) {
@@ -599,15 +588,21 @@ function resourceCheckbox(card, mode) {
     || (mode === "TAP" && (card.tapped || card.suit !== activeSuit))
     || (mode === "STOCKPILE" && (card.tapped || card.mandatory_spend_year === state.year_number));
   const classes = ["card-token", red ? "red" : "", card.tapped ? "tapped" : "", card.mandatory_spend_year === state.year_number ? "mandatory" : ""].filter(Boolean).join(" ");
+  const description = `${formatResource(card)}, usable value ${card.tapped ? 0 : card.face_value + Number(card.has_counter)} ${SUIT_GLYPH[card.suit]}${card.has_counter ? '. Counter adds 1' : ''}${card.tapped ? '. Tapped' : ''}${card.mandatory_spend_year === state.year_number ? '. Spend or return this Year' : ''}`;
   return `
-    <label class="card-choice" title="${card.tapped ? "Tapped" : card.mandatory_spend_year === state.year_number ? "Must be spent or returned this Year" : "Untapped"}">
+    <label class="card-choice" title="${description}">
       <input type="checkbox" aria-label="${formatResource(card)}, effective value ${card.face_value + Number(card.has_counter)}${card.tapped ? ', tapped' : ''}${card.mandatory_spend_year === state.year_number ? ', spend or return this Year' : ''}" data-resource-id="${card.card_id}" ${selectedResourceIds.has(card.card_id) ? "checked" : ""} ${disabled ? "disabled" : ""}>
-      <span class="${classes}">${formatResource(card)}</span>
+      <span class="${classes}">${formatResource({...card, has_counter: false})}${card.has_counter ? '<span class="card-counter" aria-hidden="true"></span>' : ''}</span>
     </label>
   `;
 }
 
 function renderActionControls() {
+  if (boardCandidate) {
+    const siege = boardCandidate.command.type === 'LAY_SIEGE';
+    dom.actionControls.innerHTML = `<p class="eyebrow">Selected action · ${playerName(state.current_actor)}</p><h2>${escapeHtml(boardCandidate.label)}</h2><p>Cost ${boardCandidate.cost} ${SUIT_GLYPH[ACTIVE_SUIT_BY_PHASE[state.phase]]}. ${fundingDescription(boardCandidate.cost)}.</p>${siege ? '<p>Confirming rolls Combat dice and resolves the battle. This cannot be undone.</p>' : ''}<div class="choice-grid"><button id="commit-board-action" class="button primary" ${hasPool(boardCandidate.cost) ? '' : 'disabled'}>${siege ? 'Confirm Siege' : 'Commit action'}</button><button id="cancel-board-action" class="button">Cancel</button><button id="inspect-selected-unit" class="button">Inspect selected piece</button></div>`;
+    return;
+  }
   if (onlinePayload && (state.status !== "COMPLETE" || onlinePayload.viewer.waiting_for_pass)) {
     if (onlinePayload.viewer.role === "SPECTATOR") {
       dom.actionControls.innerHTML = `<p class="eyebrow">Spectator</p><h2>Watching ${playerName(state.current_actor)}</h2><div class="online-waiting">You have a live, read-only view of every committed action. Harvest offers are public. Private Court cards remain hidden.</div>`;
@@ -811,7 +806,7 @@ function renderSiegeActions() {
     const costs = targets.map((id) => actionCost(state, "SIEGE", { actor: player, defender_id: id }));
     return `<div class="action-row"><div><strong>${formatUnit(unit, state)}</strong><small>${targets.length ? targets.map((id, index) => `${formatUnit(state.units_by_id[id], state)}: ${costs[index]} ${SUIT_GLYPH[SUIT.SPADES]}`).join(" · ") : "No adjacent enemy"}</small></div><button class="button tiny select-siege" data-unit-id="${unit.unit_id}" ${targets.length ? "" : "disabled"}>Select</button></div>`;
   }).join("") : `<div class="empty-state">You control no Levies able to Lay Siege.</div>`;
-  dom.actionControls.innerHTML = `<p class="eyebrow">Summer · Siege</p><h2>Lay Siege</h2><div class="rule-note">Cost = defending player's Unit count + target Level, paid in ${SUIT_GLYPH[SUIT.SPADES]}. Red-ringed targets can be paid for from your pool.</div><div class="action-list">${rows}</div>${passButton()}`;
+  dom.actionControls.innerHTML = `<p class="eyebrow">Summer · Siege</p><h2>Lay Siege</h2><div class="rule-note">Cost = defending player's Unit count + target Level, paid in ${SUIT_GLYPH[SUIT.SPADES]}. Select a red-ringed target to preview the cost, then tap any needed Resources before confirming.</div><div class="action-list">${rows}</div>${passButton()}`;
 }
 
 function renderVassalizeActions() {
@@ -867,9 +862,8 @@ function passButton() {
 }
 
 function renderPlayerSummary() {
-  const viewer = onlinePayload ? onlinePayload.viewer.seat : activePlayer();
   const names = onlinePayload ? Object.fromEntries(Object.entries(onlinePayload.room.seats).filter(([, seat]) => seat).map(([player, seat]) => [player, seat.name])) : {};
-  dom.playerSummary.innerHTML = `<p class="eyebrow">Resources</p><h2>Political order</h2>${realmComparisonHtml(state, viewer, names)}`;
+  dom.playerSummary.innerHTML = tabletopRegionsHtml(state, { viewer: privateViewer(), names, resourceHtml: resourceCheckbox, canAct: onlinePlayerCanAct() });
 }
 
 function visibleChronicle() {
@@ -888,13 +882,22 @@ function renderHistory() {
 }
 
 function bindDynamicControls() {
+  bindInspectionControls();
   document.querySelectorAll("[data-resource-id]").forEach((checkbox) => {
     checkbox.onchange = () => {
       if (checkbox.checked) selectedResourceIds.add(checkbox.dataset.resourceId);
       else selectedResourceIds.delete(checkbox.dataset.resourceId);
+      document.querySelectorAll(`[data-resource-id="${checkbox.dataset.resourceId}"]`).forEach(other => { other.checked = checkbox.checked; });
       renderActionControls();
       bindDynamicControls();
       updateTapPreview();
+    };
+    if (checkbox.parentElement) checkbox.parentElement.ondblclick = event => {
+      if (checkbox.disabled || !onlinePlayerCanAct() || state.current_actor !== privateViewer() || !dom.handoff.hidden) return;
+      const card = state.resources_by_id[checkbox.dataset.resourceId];
+      if (ACTIVE_SUIT_BY_PHASE[state.phase] !== card?.suit || card.tapped) return;
+      event.preventDefault();
+      run({type: 'TAP_RESOURCES', player: activePlayer(), card_ids: [card.card_id]});
     };
   });
   bindActionControlsOnly();
@@ -916,6 +919,13 @@ function updateTapPreview() {
 }
 
 function bindActionControlsOnly() {
+  onClick('commit-board-action', async () => {
+    if (!boardCandidate || !candidateStillLegal()) { boardCandidate = null; render(); return; }
+    const command = boardCandidate.command;
+    if (await run(command)) { boardCandidate = null; render(); }
+  });
+  onClick('cancel-board-action', () => { boardCandidate = null; render(); });
+  onClick('inspect-selected-unit', () => inspectUnit(state.units_by_id[interaction.unitId]));
   onClick("online-pass", passOnlineTurn);
   onClick("online-undo", undoLastAction);
   document.querySelectorAll(".sovereign-choice").forEach((button) => button.addEventListener("click", () => run({ type: "CHOOSE_SOVEREIGN", player: activePlayer(), noble_id: button.dataset.nobleId })));
@@ -940,7 +950,7 @@ function bindActionControlsOnly() {
   onClick("no-quarter", () => run({ type: "CHOOSE_QUARTER", player: activePlayer(), quarter: false }));
   onClick("take-conquest-card", () => run({ type: "CHOOSE_CONQUEST", player: activePlayer(), choice: "CARD" }));
   onClick("take-conquest-holding", () => run({ type: "CHOOSE_CONQUEST", player: activePlayer(), choice: "HOLDING" }));
-  onClick("execute-hostage", () => run({ type: "EXECUTE_HOSTAGE", player: activePlayer() }));
+  onClick("execute-hostage", () => { if (window.confirm('Execute this Hostage? The Noble returns to the deck. This cannot be undone.')) run({ type: "EXECUTE_HOSTAGE", player: activePlayer() }); });
   onClick("pass-phase", () => onlineClient ? passOnlineTurn() : run({ type: "PASS_PHASE", player: activePlayer() }));
   onClick("commit-stockpile", () => run({ type: "CHOOSE_STOCKPILE", player: activePlayer(), card_ids: [...selectedResourceIds] }));
   onClick("victory-new", () => dom.newDialog.showModal());
@@ -972,6 +982,14 @@ function onClick(id, callback) {
   const element = document.querySelector(`#${id}`);
   if (element) element.onclick = callback;
 }
+
+function bindInspectionControls() {
+  document.querySelectorAll('[data-inspect-court]').forEach(button => { button.onclick = () => inspectNoble(button.dataset.inspectCourt, true); });
+  document.querySelectorAll('[data-inspect-noble]').forEach(button => { button.onclick = () => inspectNoble(button.dataset.inspectNoble); });
+}
+
+onClick('close-inspection', closeInspection);
+dom.inspection.addEventListener('close', () => { dom.inspectionContent.innerHTML = ''; });
 
 function commandLabel(command) {
   const labels = {
@@ -1120,17 +1138,37 @@ function rememberOnlineLocation(code) {
 }
 
 function beginOnlinePolling() {
-  window.clearInterval(onlinePollTimer);
-  onlinePollTimer = window.setInterval(async () => {
-    if (!onlineClient || onlineRequestPending) return;
-    try {
-      const payload = await onlineClient.view();
-      applyOnlinePayload(payload);
-    } catch (error) {
-      if (error.code !== "SERVER_UNREACHABLE") showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
+  window.clearTimeout(onlinePollTimer);
+  let delay = 3000;
+  async function tick() {
+    if (!onlineClient) return;
+    const client = onlineClient;
+    if (!document.hidden && !onlineRequestPending && !client.busy) {
+      try {
+        const before = client.lastView;
+        const payload = await client.view();
+        if (onlineClient !== client) return;
+        delay = before === payload ? Math.min(delay * 1.5, 20000) : 3000;
+        applyOnlinePayload(payload);
+      } catch (error) {
+        delay = Math.min(delay * 2, 30000);
+        if (error.code !== "SERVER_UNREACHABLE") showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
+      }
     }
-  }, 1200);
+    onlinePollTimer = window.setTimeout(tick, delay);
+  }
+  onlinePollTimer = window.setTimeout(tick, 3000);
 }
+document.addEventListener?.("visibilitychange", async () => {
+  if (!document.hidden && onlineClient && !onlineRequestPending && !onlineClient.busy) {
+    const client = onlineClient;
+    try {
+      const payload = await client.view();
+      if (onlineClient === client) applyOnlinePayload(payload);
+    } catch (error) { if (onlineClient === client) showToast(error.message); }
+    if (onlineClient === client) beginOnlinePolling();
+  }
+});
 
 async function enterOnlineRoom(code, { spectate = false } = {}) {
   const candidate = new OnlineClient(code, { spectate });
@@ -1161,7 +1199,6 @@ async function createOnlineRoom() {
       playerCount: Number(dom.onlineCreateCount.value),
       playerName: playerNameValue,
       seat: dom.onlineCreateSeat.value,
-      seed: dom.onlineCreateSeed.value.trim(),
     });
     onlineClient = client;
     dismissedOnlineNotice = null;
@@ -1209,7 +1246,7 @@ async function startOnlineMatch() {
 }
 
 function leaveOnlineMode({ updateLocation = true, restoreLocal = false } = {}) {
-  window.clearInterval(onlinePollTimer);
+  window.clearTimeout(onlinePollTimer);
   onlinePollTimer = null;
   onlineClient = null;
   onlinePayload = null;
@@ -1256,6 +1293,26 @@ document.querySelector("#open-online-room").addEventListener("click", () => ente
 dom.onlineCreateCount.addEventListener("change", updateOnlineCreateSeats);
 dom.onlineRoomCode.addEventListener("input", () => { dom.onlineRoomCode.value = dom.onlineRoomCode.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
 dom.startOnlineMatch.addEventListener("click", startOnlineMatch);
+async function copyRecoveryCode() {
+  const code = onlineClient?.recoveryCode();
+  if (!code || onlinePayload?.viewer.role !== "PLAYER") return showToast("Recover or join a seat first.");
+  try { await navigator.clipboard.writeText(code); showToast("Private recovery code copied. Keep it somewhere safe.", true); }
+  catch { showToast("Clipboard access failed. Allow clipboard access and try again."); }
+}
+document.querySelector("#copy-recovery-code").addEventListener("click", copyRecoveryCode);
+document.querySelector("#lobby-copy-recovery").addEventListener("click", copyRecoveryCode);
+document.querySelector("#recover-online-seat").addEventListener("click", async () => {
+  if (onlineRequestPending) return;
+  const codeInput = document.querySelector("#online-recovery-code");
+  const candidate = new OnlineClient(dom.onlineRoomCode.value);
+  onlineRequestPending = true;
+  try {
+    const payload = await candidate.recover(codeInput.value);
+    codeInput.value = ""; onlineClient = candidate; dom.onlineDialog.close(); dom.handoff.hidden = true;
+    rememberOnlineLocation(candidate.code); applyOnlinePayload(payload, { resetSelection: true, force: true }); beginOnlinePolling();
+  } catch (error) { showToast(error.message); }
+  finally { onlineRequestPending = false; }
+});
 document.querySelector("#copy-room-link").addEventListener("click", copyOnlineRoomLink);
 document.querySelector("#lobby-copy-link").addEventListener("click", copyOnlineRoomLink);
 document.querySelector("#leave-online").addEventListener("click", () => leaveOnlineMode({ restoreLocal: true }));
@@ -1279,9 +1336,11 @@ document.querySelector("#load-autosave").addEventListener("click", () => {
     showToast(error.message);
   }
 });
-document.querySelector("#export-save").addEventListener("click", () => {
-  if (onlineClient) return showToast("Online matches are saved by the server and cannot be exported from a redacted player view.");
-  const blob = new Blob([serializeMatch(state)], { type: "application/json" });
+document.querySelector("#export-save").addEventListener("click", async () => {
+  let contents;
+  try { contents = onlineClient ? JSON.stringify(await onlineClient.export(), null, 2) : serializeMatch(state); }
+  catch (error) { return showToast(error.message); }
+  const blob = new Blob([contents], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -1313,14 +1372,17 @@ dom.importFile.addEventListener("change", async () => {
 });
 document.querySelector("#copy-log").addEventListener("click", async () => {
   try {
-    await navigator.clipboard.writeText(visibleChronicle());
+    await navigator.clipboard.writeText(onlineClient ? formatChronicle((await onlineClient.export()).state) : visibleChronicle());
     showToast("Standard chronicle copied.", true);
   } catch {
     showToast("Clipboard access is unavailable in this browser.");
   }
 });
-document.querySelector("#download-log").addEventListener("click", () => {
-  const blob = new Blob([visibleChronicle()], { type: "text/plain;charset=utf-8" });
+document.querySelector("#download-log").addEventListener("click", async () => {
+  let text;
+  try { text = onlineClient ? formatChronicle((await onlineClient.export()).state) : visibleChronicle(); }
+  catch (error) { return showToast(error.message); }
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;

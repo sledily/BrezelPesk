@@ -3,23 +3,23 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#151815">
+    <meta name="theme-color" content="#e9dfc9">
     <meta name="application-name" content="BrezelPesk">
     <meta name="application-version" content="1.5.0">
     <meta name="description" content="Play Dendarv locally or online with guided Harvest, clear seasonal costs and a standardized game chronicle.">
     <title>Dendarv: Age of Crusader Kings</title>
     <style>
 :root {
-  color-scheme: dark;
-  --ink: #ece8dc;
-  --muted: #aaa99f;
-  --black: #101310;
-  --surface: #191d19;
-  --surface-2: #222722;
-  --surface-3: #2b312b;
-  --line: #3b4239;
-  --gold: #d0ad62;
-  --gold-soft: #8d7546;
+  color-scheme: light;
+  --ink: #302c24;
+  --muted: #685f50;
+  --black: #cfc2a7;
+  --surface: #f3ebd9;
+  --surface-2: #e8ddc5;
+  --surface-3: #ded0b4;
+  --line: #baaa89;
+  --gold: #796021;
+  --gold-soft: #a48851;
   --red: #a94c42;
   --red-bright: #d46a5e;
   --green: #759b76;
@@ -31,7 +31,7 @@
   --legal: #77a97a;
   --danger: #cb6157;
   --radius: 12px;
-  --shadow: 0 18px 42px rgb(0 0 0 / 34%);
+  --shadow: 0 12px 32px rgb(50 35 14 / 18%);
 }
 
 * { box-sizing: border-box; }
@@ -578,6 +578,212 @@ select, input[type="text"], .game-dialog input {
   .harvest-completed { text-align: left; }
   .realm-cell { padding: 9px; }
 }
+/* V2 Tabletop: fixed board orientation, corner hands and outward-facing side arms. */
+body { background: radial-gradient(ellipse at top, #f5eedf, #d9ccb2); }
+.topbar { padding: 14px max(18px, calc((100vw - 1380px) / 2)); background: #eee4ce; grid-template-columns: auto 1fr auto; gap: 20px; border-bottom: 3px double var(--line); }
+.brand-lockup { grid-column: 1; }
+.brand-lockup h1 { font-size: 29px; }
+.brand-lockup .eyebrow { font-size: 10px; letter-spacing: .12em; }
+.labyrinth-mark { transform: none; border: 3px double var(--gold-soft); outline: none; border-radius: 50%; }
+.match-status { grid-column: 2; grid-row: 1; justify-content: center; flex-wrap: nowrap; gap: 10px; }
+.file-actions { grid-column: 3; grid-row: 1; max-width: 310px; gap: 5px; }
+.button { background: #e9ddc4; color: var(--ink); border-color: var(--line); min-height: 44px; border-radius: 5px; }
+.button:hover:not(:disabled) { background: #dfcea9; border-color: var(--gold); }
+.button.primary { background: #5d6546; color: #fffaf0; border-color: #4c5239; }
+.button.primary:hover:not(:disabled) { background: #4b5536; }
+.button.quiet { background: transparent; color: var(--muted); }
+.button.danger { background: #853c31; color: #fff5e8; }
+.button.tiny { min-height: 36px; font-size: 12px; }
+button:disabled { opacity: .6; }
+.year-heading h2 { margin: 4px 0; font: 25px Georgia, serif; }
+.year-heading p { margin: 0; font-size: 12px; }
+.year-calendar { width: 86px; flex: 0 0 86px; }
+.year-calendar svg { display: block; width: 86px; height: 86px; }
+.calendar-orbit { fill: none; stroke: var(--line); stroke-width: 1; }
+.calendar-phase { fill: #f7efd9; stroke: #9a895f; stroke-width: 1.4; }
+.calendar-phase.done { fill: #9c9e7c; }
+.calendar-phase.current { fill: #823f31; stroke: #592e25; }
+.year-calendar text { fill: var(--muted); font: 10px Georgia, serif; }
+.year-calendar text.calendar-year { font-size: 24px; fill: var(--ink); }
+.button-dots { display: flex; justify-content: center; gap: 8px; margin-top: 3px; }
+.player-dot { display: inline-block; width: 12px; height: 12px; border: 1px solid #766c5c; border-radius: 50%; background: #eee7d5; flex-shrink: 0; }
+.player-dot.black, .controller-banner.black { background: #333b3b; }
+.player-dot.green, .controller-banner.green { background: #507357; }
+.player-dot.red, .controller-banner.red { background: #984c41; }
+.player-dot.white, .controller-banner.white { background: #f4ecd7; }
+.player-dot.has-button { outline: 2px solid #ad8229; outline-offset: 3px; }
+.phase-key { font-size: 11px; margin-top: 6px; }
+.phase-key summary { cursor: pointer; }
+.phase-key ol { position: absolute; z-index: 40; background: var(--surface); padding: 15px 24px; border: 1px solid var(--line); line-height: 1.8; box-shadow: var(--shadow); }
+.phase-key li[aria-current] { color: #843c30; font-weight: bold; }
+.current-action { position: sticky; top: 0; z-index: 35; background: #f8efdb; border-bottom: 1px solid #a9946a; box-shadow: 0 4px 14px #3e291114; }
+.action-rubric { display: flex; align-items: center; gap: 16px; max-width: 1380px; margin: auto; padding: 9px 18px; }
+.action-rubric > .eyebrow { color: #874434; font: small-caps 16px Georgia, serif; white-space: nowrap; }
+.action-rubric > strong { flex: 1; font-size: 14px; line-height: 1.4; font-weight: 500; }
+.action-panel { max-width: 1240px; margin: 0 auto; border-radius: 0; border: 0; box-shadow: none; padding: 12px 18px; }
+.action-panel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; border-bottom: 3px double var(--line); }
+.action-panel > .eyebrow { flex-basis: 100%; font-size: 10px; margin: 0; }
+.action-panel > h2 { margin: 0; font-size: 20px; }
+.action-panel > p { flex: 1 1 400px; margin: 0; font-size: 13px; }
+.action-panel > .rule-note { flex: 1 1 270px; margin: 0; }
+.action-panel > .action-row { flex: 1 1 250px; margin: 0; }
+.action-panel > .action-list, .action-panel > .control-stack, .action-panel > .harvest-list { flex-basis: 100%; }
+.action-panel > .harvest-list { grid-template-columns: repeat(auto-fit,minmax(270px,1fr)); margin: 0; }
+[hidden] { display: none !important; }
+.game-layout { display: block; width: min(1240px, 100%); padding: 20px 18px 40px; }
+.tabletop { display: grid; grid-template-columns: minmax(140px, .7fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(140px, .7fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: start; }
+#player-summary, .corner-region { display: contents; }
+.board-column { grid-column: 2 / 4; grid-row: 2 / 4; min-width: 0; align-self: start; padding: 8px 0; }
+.realm-hand, .realm-side { min-width: 0; background: #efe5cf; padding: 14px; border: 1px solid var(--line); border-radius: 6px; }
+.realm-hand { border-top: 4px solid #ddd2b8; align-self: stretch; }
+.corner-region.black .realm-hand { border-top-color: #414c4c; }
+.corner-region.green .realm-hand { border-top-color: #507357; }
+.corner-region.red .realm-hand { border-top-color: #984c41; }
+.north-west .realm-hand { grid-column: 1 / 3; grid-row: 1; }
+.north-west .realm-side { grid-column: 1; grid-row: 2; border-top: 0; }
+.north-east .realm-hand { grid-column: 3 / 5; grid-row: 1; }
+.north-east .realm-side { grid-column: 4; grid-row: 2; border-top: 0; }
+.south-west .realm-hand { grid-column: 1 / 3; grid-row: 4; }
+.south-west .realm-side { grid-column: 1; grid-row: 3; border-bottom: 0; }
+.south-east .realm-hand { grid-column: 3 / 5; grid-row: 4; }
+.south-east .realm-side { grid-column: 4; grid-row: 3; border-bottom: 0; }
+.corner-region.defeated > * { filter: grayscale(1); opacity: .67; }
+.realm-hand header { display: flex; gap: 10px; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.realm-hand h2 { display: inline; margin: 0 7px; font: 22px Georgia, serif; overflow-wrap: anywhere; }
+.realm-caption { display: block; color: var(--muted); font-size: 11px; margin: 5px 0 0 20px; }
+.table-pool { display: flex; gap: 10px; align-items: baseline; white-space: nowrap; }
+.table-pool span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.table-pool strong { font: 23px Georgia, serif; }
+.suit-groups { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.suit-group { min-width: 0; border-left: 1px solid #cabea5; padding-left: 8px; }
+.suit-heading { font: 21px Georgia, serif; display: block; margin-bottom: 6px; }
+.suit-cards { display: flex; flex-wrap: wrap; align-items: start; gap: 8px 6px; padding-bottom: 4px; }
+.empty-suit { color: #9b8e72; }
+.card-choice { display: inline-flex; min-width: 44px; min-height: 56px; align-items: center; }
+.card-token, .card-choice .card-token { padding: 5px; min-width: 44px; height: 56px; font: bold 19px Georgia, serif; border: 1px solid #b5a485; border-radius: 4px; background: #faf5e8; box-shadow: 1px 2px 3px #3024111a; position: relative; }
+.card-choice input:disabled + .card-token { opacity: 1; }
+.card-token.tapped { opacity: .75; transform: rotate(90deg) scale(.78); }
+.card-token.mandatory::after { position: absolute; top: 1px; right: 3px; font: bold 13px sans-serif; }
+.card-counter { position: absolute; width: 15px; height: 15px; border-radius: 50%; border: 3px dashed #efe7d5; background: #a53a30; box-shadow: 0 0 0 1px #333; bottom: -3px; right: -2px; }
+.card-choice input:checked + .card-token { outline: 2px solid #8b6b23; outline-offset: 2px; }
+.card-choice input:checked + .card-token::before { background: #6d702f; color: white; }
+.resource-actions { display: flex; gap: 10px; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 9px; }
+.resource-actions .payment-preview { flex: 1; font-size: 11px; }
+.realm-side h3 { margin: 14px 0 8px; font: small-caps 15px Georgia, serif; letter-spacing: .08em; }
+.court-heading { display: flex; justify-content: space-between; gap: 5px; align-items: baseline; }
+.court-heading h3 { margin-top: 0; }
+.court-heading span { font-size: 11px; color: var(--muted); }
+.court-fan { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 0 9px; min-height: 62px; }
+.court-back { flex: 0 0 44px; width: 44px; height: 60px; border: 4px double #d0be8d; border-radius: 4px; background: repeating-linear-gradient(45deg, #686747 0 2px, #5c5b40 2px 6px); color: #e9ddb8; transform: rotate(-5deg); font: 24px Georgia, serif; cursor: pointer; }
+.court-back + .court-back { margin-left: -13px; transform: rotate(5deg); }
+.court-back:disabled { opacity: 1; cursor: default; }
+.court-back:focus-visible { transform: translateY(-6px); outline: 3px solid #9e7322; z-index: 2; }
+.dungeon-slot { min-height: 70px; display: flex; align-items: center; justify-content: center; border: 2px solid #a29379; background: repeating-linear-gradient(90deg, transparent 0 16px, #a89c8444 16px 19px), #ded3bd; color: var(--muted); font-size: 12px; }
+.hostage-card { border: 0; background: none; padding: 5px; cursor: pointer; width: 100%; }
+.hostage-card .noble-card { flex-direction: column; font-size: 11px; padding: 5px; }
+.reserve-pieces { display: flex; flex-wrap: wrap; align-items: end; gap: 3px 7px; }
+.reserve-group { display: flex; flex-wrap: wrap; max-width: 100%; }
+.reserve-group .realm-piece { width: 26px; height: 30px; display: block; margin-right: -5px; }
+.realm-piece { display: inline-block; width: 40px; height: 44px; text-shadow: none; }
+.realm-piece.white { color: #f4edda; --piece-edge: #645c4b; }
+.realm-piece.black { color: #394342; --piece-edge: #172323; }
+.realm-piece.green { color: #64876a; --piece-edge: #264b32; }
+.realm-piece.red { color: #ad5e50; --piece-edge: #652f27; }
+.chess-piece { width: 100%; height: 100%; display: block; filter: drop-shadow(0 2px 1px #31241633); }
+.piece-eye { fill: #2d2c26; stroke: none; }
+.board-frame { width: 100%; padding: 9px; border: 3px double #79654a; border-radius: 3px; background: #75644b; box-shadow: 0 8px 18px #3226192b; }
+.board { width: 100%; aspect-ratio: 1; }
+.square-shell { position: relative; min-width: 0; min-height: 0; }
+.square { width: 100%; height: 100%; border-radius: 0; aspect-ratio: 1; }
+.square.light { background: #dfd3b8; }
+.square.dark { background: #927b5e; }
+.square.center-square.light { background: #a9c3c5; }
+.square.center-square.dark { background: #668991; }
+.square.center-square::after { display: none; }
+.square.corner-square { background-image: conic-gradient(#b8a386 25%, #6a5d4e 0 50%, #b8a386 0 75%, #6a5d4e 0); background-size: 50% 50%; }
+.square .piece { inset: 9%; position: absolute; display: block; width: 82%; height: 82%; filter: none; }
+.square .piece .realm-piece { width: 100%; height: 100%; }
+.coordinate { z-index: 2; font-size: 10px; color: #251e17; text-shadow: 0 1px #ffffff66; }
+.vassal-badge { position: absolute; top: auto; bottom: 3%; right: 3%; z-index: 4; height: 29px; min-width: 28px; padding: 2px; background: #fbf4df; color: #332e23; border: 1px solid #8a7759; border-radius: 3px; font: bold 12px Georgia, serif; cursor: pointer; box-shadow: 1px 2px 2px #31241633; }
+.vassal-badge.red { color: #9c342d; }
+.vassal-badge::after { content: ''; position: absolute; inset: -6px; }
+.controller-banner { position: absolute; width: 12px; height: 20px; top: 4%; left: 8%; border: 1px solid #332d20; clip-path: polygon(0 0,100% 0,100% 100%,50% 75%,0 100%); }
+.board-constants { margin-top: 10px; }
+.constant-grid { margin: 0; gap: 4px; }
+.constant { background: #eee4ce; border-radius: 3px; padding: 7px 3px; position: relative; }
+.constant summary { list-style: none; cursor: pointer; }
+.constant summary::-webkit-details-marker { display: none; }
+.constant strong { font: 21px Georgia, serif; color: #28271f; }
+.constant:nth-child(even) strong, .red-suit { color: #963c31; }
+.constant summary > span { font-size: 10px; display: block; text-transform: none; letter-spacing: 0; }
+.constant p { position: absolute; top: 100%; z-index: 20; margin: 5px 0 0; width: min(260px, 65vw); left: 0; background: #fcf3df; border: 1px solid var(--line); padding: 12px; box-shadow: var(--shadow); text-align: left; font-size: 13px; line-height: 1.5; }
+.constant:nth-child(n+3) p { left: auto; right: 0; }
+.board-hint { font-size: 12px; line-height: 1.4; min-height: 34px; margin: 8px 0; }
+.board-vocabulary { font-size: 12px; padding: 8px; border-radius: 3px; }
+.board-vocabulary p { font-size: 12px; }
+.panel { background: var(--surface); }
+.rule-note, .setup-guide, .phase-notice-reason, .action-row, .online-seat { background: #e9dfc9; color: var(--ink); }
+.harvest-piece.current { background: #e6d9b9; }
+.online-waiting { background: #e0e5cf; color: #35482f; }
+.online-strip { background: #e5ddc9; color: var(--ink); position: static; }
+.history-column { margin-top: 24px; }
+.chronicle-panel { padding: 18px; box-shadow: none; }
+.chronicle-text { max-height: 260px; }
+.handoff { background: #d9cdb5; }
+.handoff-card, .phase-notice-card, .online-lobby-card { background: var(--surface); border-radius: 5px; }
+.game-dialog { border-radius: 5px; }
+.game-dialog input, .game-dialog select, .control-stack select { background: #faf3e3; color: var(--ink); border-color: var(--line); }
+.inspection-dialog { text-align: center; max-width: 440px; }
+.inspection-dialog .realm-piece { width: 96px; height: 105px; }
+.inspection-dialog .noble-card { display: inline-flex; flex-direction: column; width: 180px; min-height: 215px; justify-content: center; gap: 22px; border: 6px double #ae9363; font: 23px Georgia, serif; }
+.inspection-dialog .noble-card strong { font: 36px Georgia, serif; }
+.inspection-dialog p { line-height: 1.5; color: var(--muted); font-size: 14px; }
+.inspection-dialog .button { margin-top: 15px; }
+@media (max-width: 1050px) {
+  .topbar { grid-template-columns: auto 1fr; gap: 12px; }
+  .file-actions { grid-column: 1 / -1; grid-row: 2; max-width: none; justify-content: center; }
+  .tabletop { grid-template-columns: minmax(120px,.6fr) minmax(145px,1fr) minmax(145px,1fr) minmax(120px,.6fr); gap: 8px; }
+  .realm-hand, .realm-side { padding: 10px; }
+  .suit-groups { gap: 4px; }
+  .suit-group { padding-left: 4px; }
+  .reserve-group .realm-piece { width: 23px; }
+}
+@media (max-width: 720px) {
+  .game-layout { padding: 10px 8px 24px; }
+  .tabletop { grid-template-columns: 108px minmax(110px,1fr) minmax(110px,1fr) 108px; gap: 5px; }
+  .realm-hand, .realm-side { padding: 8px; }
+  .realm-hand h2 { font-size: 18px; }
+  .table-pool { display: block; }
+  .table-pool span { display: block; }
+  .suit-groups { gap: 3px; }
+  .suit-group { padding-left: 3px; }
+  .action-rubric { gap: 8px; padding: 7px 10px; }
+  .action-rubric > .eyebrow { font-size: 13px; }
+  .action-rubric > strong { font-size: 12px; }
+  .constant-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .constant strong { font-size: 18px; }
+  .constant summary > span { font-size: 9px; }
+}
+@media (max-width: 560px) {
+  .topbar { padding: 12px; grid-template-columns: 1fr; }
+  .brand-lockup { justify-content: center; }
+  .match-status { grid-column: 1; grid-row: 2; }
+  .file-actions { grid-column: 1; grid-row: 3; }
+  .tabletop { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .board-column { grid-column: 1 / -1; grid-row: 3; }
+  .north-west .realm-hand { grid-column: 1; grid-row: 1; }
+  .north-east .realm-hand { grid-column: 2; grid-row: 1; }
+  .north-west .realm-side { grid-column: 1; grid-row: 2; }
+  .north-east .realm-side { grid-column: 2; grid-row: 2; }
+  .south-west .realm-hand { grid-column: 1; grid-row: 4; }
+  .south-east .realm-hand { grid-column: 2; grid-row: 4; }
+  .south-west .realm-side { grid-column: 1; grid-row: 5; }
+  .south-east .realm-side { grid-column: 2; grid-row: 5; }
+  .suit-groups { grid-template-columns: repeat(2,minmax(0,1fr)); row-gap: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; scroll-behavior: auto !important; }
+}
 
     </style>
   </head>
@@ -601,34 +807,38 @@ select, input[type="text"], .game-dialog input {
           <button id="import-save" class="button quiet">Import</button>
           <input id="import-file" type="file" accept="application/json,.json" hidden>
         </nav>
-        <div id="turn-card" class="header-turn"></div>
       </header>
 
       <section id="online-strip" class="online-strip" aria-live="polite" hidden>
         <div id="online-strip-text"></div>
         <div class="online-strip-actions">
+          <button id="copy-recovery-code" class="button tiny">Copy recovery code</button>
           <button id="copy-room-link" class="button tiny">Copy spectator link</button>
           <button id="leave-online" class="button tiny quiet">Return to local game</button>
         </div>
       </section>
 
+      <section class="current-action" aria-label="Current Action">
+        <div class="action-rubric"><span class="eyebrow">Current Action</span><strong id="current-action-summary"></strong></div>
+      </section>
+      <section id="action-controls" class="panel action-panel" aria-label="Action controls"></section>
       <main class="game-layout">
+        <div id="tabletop" class="tabletop">
+        <section id="player-summary" aria-label="Player corners"></section>
         <section class="board-column" aria-label="Game board">
           <div class="board-frame">
             <div id="board" class="board" role="grid" aria-label="Dendarv board"></div>
           </div>
+          <div id="turn-card" class="board-constants"></div>
           <div id="board-hint" class="board-hint">Select an action to see legal squares.</div>
           <details class="board-vocabulary"><summary>Read the board and cards</summary>
-            <p>○ Holding: Harvests and defends. A Noble badge marks a Levy, which can also move and attack.</p>
+            <p>A Holding is a chess piece without a card. A small Vassal card marks a Levy, which can also move and attack. Select a piece to inspect it; select its card separately to inspect the Vassal.</p>
             <p>Vassal badges use Vz, Dx and Rx, with their suit symbols. The same titles identify the named Court cards below.</p>
             <p>A filled marker shows a legal destination; a red ring shows a Siege target. A gold border marks your selection. A dashed outline marks the Harvesting piece.</p>
             <p>Cards: * adds one Counter; a check marks a selection; a tilted card is tapped; ! means spend or return this Year.</p>
           </details>
         </section>
-
-        <section id="action-controls" class="panel action-panel" aria-label="Current action"></section>
-        <section id="resource-controls" class="panel" aria-label="Seasonal resource pool"></section>
-        <section id="player-summary" class="panel" aria-label="Players, Resources and Political order"></section>
+        </div>
 
         <aside class="history-column">
           <section class="panel chronicle-panel">
@@ -646,13 +856,18 @@ select, input[type="text"], .game-dialog input {
       </main>
     </div>
 
+    <dialog id="inspection-dialog" class="game-dialog inspection-dialog" aria-label="Card or Unit inspection">
+      <div id="inspection-content"></div>
+      <button id="close-inspection" class="button primary full">Return to table</button>
+    </dialog>
+
     <div id="handoff" class="handoff" role="dialog" aria-modal="true" hidden>
       <div class="handoff-card">
         <p class="eyebrow">Hot-seat privacy</p>
         <div id="handoff-seal" class="handoff-seal" aria-hidden="true"></div>
         <h2 id="handoff-title">Pass the device</h2>
         <p id="handoff-text"></p>
-        <button id="accept-handoff" class="button primary large">Reveal my view</button>
+        <button id="accept-handoff" class="button primary large">Ready</button>
       </div>
     </div>
 
@@ -705,8 +920,6 @@ select, input[type="text"], .game-dialog input {
           </select>
           <label for="online-create-seat">Your color</label>
           <select id="online-create-seat"></select>
-          <label for="online-create-seed">Random seed <span class="optional">optional</span></label>
-          <input id="online-create-seed" autocomplete="off" placeholder="Generated automatically">
           <button id="create-online-room" type="button" class="button primary full">Create room</button>
         </section>
         <div class="online-divider"><span>or</span></div>
@@ -715,6 +928,9 @@ select, input[type="text"], .game-dialog input {
           <label for="online-room-code">Six-character room code</label>
           <input id="online-room-code" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="ABC123">
           <button id="open-online-room" type="button" class="button full">Open room</button>
+          <label for="online-recovery-code">Private recovery code</label>
+          <input id="online-recovery-code" maxlength="128" autocomplete="off" type="password">
+          <button id="recover-online-seat" type="button" class="button full">Recover seat</button>
           <p class="field-note">Opening a room starts in spectator mode. If the match has not begun, you may claim any open player color.</p>
         </section>
         <div class="dialog-actions">
@@ -736,6 +952,7 @@ select, input[type="text"], .game-dialog input {
         </div>
         <div class="choice-grid online-lobby-actions">
           <button id="start-online-match" class="button primary" hidden>Start match</button>
+          <button id="lobby-copy-recovery" class="button">Copy recovery code</button>
           <button id="lobby-copy-link" class="button">Copy spectator link</button>
           <button id="lobby-close" class="button quiet">Return to local game</button>
         </div>
@@ -917,16 +1134,16 @@ const NOBLE_DISPLAY_CODE = Object.freeze({
 
 const NOBLE_NAME = Object.freeze({
   [NOBLE_FACE.JACK]: Object.freeze({
-    [SUIT.CLOVERS]: "Margaret of Parma",
-    [SUIT.DIAMONDS]: "Colbert",
-    [SUIT.SPADES]: "La Malinche",
-    [SUIT.HEARTS]: "Catherine de Medici",
+    [SUIT.CLOVERS]: "Colbert",
+    [SUIT.DIAMONDS]: "Catherine De Medici",
+    [SUIT.SPADES]: "Barbarrosa Heyreddin",
+    [SUIT.HEARTS]: "La Malinche",
   }),
   [NOBLE_FACE.QUEEN]: Object.freeze({
     [SUIT.CLOVERS]: "Heinrich the Lion",
     [SUIT.DIAMONDS]: "Eleanor of Aquitaine",
-    [SUIT.SPADES]: "Frederick Barbarossa",
-    [SUIT.HEARTS]: "Pope Gregory",
+    [SUIT.SPADES]: "Jean d'Arc",
+    [SUIT.HEARTS]: "Innocent",
   }),
   [NOBLE_FACE.KING]: Object.freeze({
     [SUIT.CLOVERS]: "Boudica",
@@ -2461,6 +2678,7 @@ function declarePoker(state, command) {
 }
 
 function finishPoker(state, command) {
+  if (state.v2_acted) delete state.v2_acted[opportunityKey(state, command.player)];
   requirePhase(state, PHASE.HARVEST);
   requireCondition(state.harvest?.stage === "POKER", "WRONG_HARVEST_STAGE", "Poker declarations have not begun");
   requireActor(state, command.player);
@@ -3037,6 +3255,7 @@ function acknowledgePhaseNotice(state, command) {
 }
 
 function passPhase(state, command) {
+  if (state.v2_acted) delete state.v2_acted[opportunityKey(state, command.player)];
   requireCondition(state.status === "ACTIVE", "WRONG_MATCH_STATUS", "The match is not active");
   requireCondition(![PHASE.HARVEST, PHASE.RANSOM, PHASE.STOCKPILE].includes(state.phase), "PASS_NOT_ALLOWED", "This phase has a specific completion decision");
   requireCondition(!state.pending_combat, "PENDING_DECISION", "Resolve the Quarter decision first");
@@ -3100,12 +3319,15 @@ function queueAutomaticNotice(state, reason, section = state.phase, player = sta
 
 // Settle all clerical transitions in the same transaction. This never draws for
 // the next piece, chooses among offered cards, or spends a player's resources.
+function opportunityKey(state, player = state.current_actor) { return `${state.year_number}:${state.phase}:${player}`; }
+
 function settleAutomaticPhases(state) {
   if (!state.rules.automatic_passes) return;
   state.phase_notice = null;
   for (let step = 0; step < 256 && state.status === "ACTIVE"; step++) {
     if (state.pending_combat || state.pending_conquest) return;
     const player = state.current_actor;
+    if (state.rules.explicit_action_pass && state.v2_acted?.[opportunityKey(state)]) return;
     if (state.phase === PHASE.HARVEST) {
       if (state.harvest.stage === "DRAW") return;
       if (availablePokerHands(state, player).length) return;
@@ -3213,11 +3435,20 @@ function dispatch(state, command) {
     }
     const handler = HANDLERS[command.type];
     requireCondition(Boolean(handler), "UNKNOWN_COMMAND", `Unknown command: ${command.type}`);
+    if (working.rules.explicit_action_pass && ["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "RECRUIT_NOBLE",
+      "MOBILIZE_UNIT", "LAY_SIEGE", "VASSALIZE_NOBLE", "EXECUTE_HOSTAGE", "DECLARE_POKER"].includes(command.type)) {
+      working.v2_acted ??= {}; working.v2_acted[opportunityKey(working, command.player)] = true;
+    }
     handler(working, command);
     if (!working.rules.automatic_passes && command.auto_harvest && ["DRAW_HARVEST", "KEEP_HARVEST_CARD", "RESOLVE_HARVEST_FAILSAFE"].includes(command.type)) {
       continueForcedHarvest(working, command.player);
     }
-    if (working.rules.automatic_passes) settleAutomaticPhases(working);
+    const ordinaryAction = ["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "RECRUIT_NOBLE",
+      "MOBILIZE_UNIT", "LAY_SIEGE", "VASSALIZE_NOBLE", "EXECUTE_HOSTAGE", "DECLARE_POKER"].includes(command.type);
+    const sameOpportunity = working.current_actor === state.current_actor && working.phase === state.phase;
+    if (working.rules.automatic_passes) {
+      if (!(working.rules.explicit_action_pass && ordinaryAction && sameOpportunity)) settleAutomaticPhases(working);
+    }
     else refreshPhaseNotice(working);
     working.command_log.push(deepClone(command));
     const invariantErrors = validateInvariants(working);
@@ -3378,7 +3609,7 @@ function projectForPlayer(state, viewer, { revealComplete = state.status === "CO
 }
 
 function projectSpectator(state) {
-  return projectForPlayer(state, null);
+  return projectForPlayer(state, null, { revealComplete: false });
 }
 
 function playerName(player) {
@@ -3530,136 +3761,95 @@ function title(value) {
 
 
 /* src/online.js */
-const ROOM_KEY_PREFIX = "dendarv.online.room.";
-const NAME_KEY = "dendarv.online.name";
-const SPECTATOR_KEY = "dendarv.online.spectator";
-
+const ROOM_KEY_PREFIX = 'dendarv.online.room.';
+const RECOVERY_PREFIX = 'dendarv.online.recovery.';
+const PENDING_PREFIX = 'dendarv.online.pending.';
+const NAME_KEY = 'dendarv.online.name';
+const SPECTATOR_KEY = 'dendarv.online.spectator';
 class OnlineError extends Error {
-  constructor(code, message, status = 0) {
-    super(message);
-    this.name = "OnlineError";
-    this.code = code;
-    this.status = status;
-  }
+  constructor(code,message,status=0){super(message);this.name='OnlineError';this.code=code;this.status=status;}
 }
-
-function normalizeCode(code) {
-  return String(code ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
-}
-
-function randomId() {
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
-}
-
-async function api(path, { method = "GET", token = null, body = null, spectatorId = null } = {}) {
-  const headers = { Accept: "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (spectatorId) headers["X-Dendarv-Spectator"] = spectatorId;
-  if (body !== null) headers["Content-Type"] = "application/json";
+function normalizeCode(code){return String(code??'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);}
+function randomId(){return Array.from(crypto.getRandomValues(new Uint8Array(32)),v=>v.toString(16).padStart(2,'0')).join('');}
+async function api(path,{method='GET',token=null,body=null,spectatorId=null,requestId=null,etag=null}={}){
+  const headers={Accept:'application/json'};
+  if(token)headers.Authorization=`Bearer ${token}`;
+  if(spectatorId)headers['X-Dendarv-Spectator']=spectatorId;
+  if(body!==null)headers['Content-Type']='application/json';
+  if(requestId)headers['Idempotency-Key']=requestId;
+  if(etag)headers['If-None-Match']=etag;
   let response;
-  try {
-    response = await fetch(path, {
-      method,
-      headers,
-      body: body === null ? undefined : JSON.stringify(body),
-      cache: "no-store",
-    });
-  } catch {
-    throw new OnlineError("SERVER_UNREACHABLE", "The Dendarv online server could not be reached");
-  }
+  try{response=await fetch(path,{method,headers,body:body===null?undefined:JSON.stringify(body),cache:'no-store'});}
+  catch{throw new OnlineError('SERVER_UNREACHABLE','The online server could not be reached. Your pending request will be retried safely.');}
+  if(response.status===304)return {unchanged:true,etag};
   let payload;
-  try {
-    payload = await response.json();
-  } catch {
-    throw new OnlineError("INVALID_SERVER_RESPONSE", "The online server returned an unreadable response", response.status);
-  }
-  if (!response.ok) {
-    throw new OnlineError(payload.error?.code ?? "ONLINE_ERROR", payload.error?.message ?? "The online request failed", response.status);
-  }
-  return payload;
+  try{payload=await response.json();}catch{throw new OnlineError('INVALID_SERVER_RESPONSE','The online response was unreadable. Retry safely.',response.status);}
+  if(!response.ok)throw new OnlineError(payload.error?.code??'ONLINE_ERROR',payload.error?.message??'The online request failed',response.status);
+  return {payload,etag:response.headers.get('etag')};
 }
-
+async function durableRequest(key,path,options){
+  // Retain the SAME request and identity across connection loss and page reload.
+  const existing=localStorage.getItem(PENDING_PREFIX+key);
+  const pending=existing?JSON.parse(existing):{path,options:{...options,method:'POST',requestId:randomId()}};
+  if(!existing)localStorage.setItem(PENDING_PREFIX+key,JSON.stringify(pending));
+  try{
+    const {payload}=await api(pending.path,pending.options);
+    localStorage.removeItem(PENDING_PREFIX+key);return payload;
+  }catch(error){
+    if(error.status>=400&&error.status<500)localStorage.removeItem(PENDING_PREFIX+key);
+    throw error;
+  }
+}
 class OnlineClient {
-  constructor(code, { spectate = false } = {}) {
-    this.code = normalizeCode(code);
-    this.spectate = spectate;
-    this.token = spectate ? null : localStorage.getItem(`${ROOM_KEY_PREFIX}${this.code}`);
-    this.spectatorId = localStorage.getItem(SPECTATOR_KEY) ?? randomId();
-    localStorage.setItem(SPECTATOR_KEY, this.spectatorId);
+  constructor(code,{spectate=false}={}){
+    this.code=normalizeCode(code);this.spectate=spectate;
+    this.token=spectate?null:localStorage.getItem(ROOM_KEY_PREFIX+this.code);
+    this.spectatorId=localStorage.getItem(SPECTATOR_KEY)??randomId();
+    localStorage.setItem(SPECTATOR_KEY,this.spectatorId);this.lastView=null;this.etag=null;this.busy=false;
   }
-
-  static rememberedName() {
-    return localStorage.getItem(NAME_KEY) ?? "";
+  static rememberedName(){return localStorage.getItem(NAME_KEY)??'';}
+  static rememberName(name){localStorage.setItem(NAME_KEY,String(name??'').trim());}
+  accept(payload){
+    if(payload.token){
+      this.token=payload.token;this.spectate=false;
+      localStorage.setItem(ROOM_KEY_PREFIX+this.code,payload.token);
+      if(payload.recoveryCode)localStorage.setItem(RECOVERY_PREFIX+this.code,payload.recoveryCode);
+    }
+    this.lastView=payload.view??payload;this.etag=null;return this.lastView;
   }
-
-  static rememberName(name) {
-    localStorage.setItem(NAME_KEY, String(name ?? "").trim());
+  static async create({playerCount,playerName,seat}){
+    const payload=await durableRequest('create','/api/rooms',{body:{playerCount,playerName,seat,credentials:{token:randomId(),recoveryCode:randomId()}}});
+    const client=new OnlineClient(payload.code);OnlineClient.rememberName(playerName);
+    return {client,payload:client.accept(payload)};
   }
-
-  static async create({ playerCount, playerName, seat, seed }) {
-    const payload = await api("/api/rooms", {
-      method: "POST",
-      body: { playerCount, playerName, seat, seed },
-    });
-    const client = new OnlineClient(payload.code);
-    client.token = payload.token;
-    localStorage.setItem(`${ROOM_KEY_PREFIX}${payload.code}`, payload.token);
-    OnlineClient.rememberName(playerName);
-    return { client, payload: payload.view };
+  async mutate(action,body={}){
+    if(this.busy)throw new OnlineError('REQUEST_PENDING','Wait for the pending request');
+    this.busy=true;
+    try{return this.accept(await durableRequest(this.code,`/api/rooms/${this.code}/${action}`,{token:this.token,body:{...body,expectedRevision:this.lastView?.viewer.private_revision}}));}
+    finally{this.busy=false;}
   }
-
-  async join({ playerName, seat }) {
-    const payload = await api(`/api/rooms/${this.code}/join`, {
-      method: "POST",
-      body: { playerName, seat },
-    });
-    this.spectate = false;
-    this.token = payload.token;
-    localStorage.setItem(`${ROOM_KEY_PREFIX}${this.code}`, payload.token);
-    OnlineClient.rememberName(playerName);
-    return payload.view;
+  async join({playerName,seat}){OnlineClient.rememberName(playerName);return this.mutate('join',{playerName,seat,credentials:{token:randomId(),recoveryCode:randomId()}});}
+  async view(){
+    const pending=localStorage.getItem(PENDING_PREFIX+this.code);
+    if(pending&&!this.busy&&!this.spectate){
+      this.busy=true;
+      try{this.accept(await durableRequest(this.code,null,null));}finally{this.busy=false;}
+    }
+    const response=await api(`/api/rooms/${this.code}`,{token:this.token,spectatorId:this.token?null:this.spectatorId,etag:this.etag});
+    if(response.unchanged&&this.lastView)return this.lastView;
+    this.lastView=response.payload;this.etag=response.etag;return this.lastView;
   }
-
-  view() {
-    return api(`/api/rooms/${this.code}`, {
-      token: this.token,
-      spectatorId: this.token ? null : this.spectatorId,
-    });
-  }
-
-  start() {
-    return api(`/api/rooms/${this.code}/start`, { method: "POST", token: this.token });
-  }
-
-  command(command) {
-    return api(`/api/rooms/${this.code}/command`, {
-      method: "POST",
-      token: this.token,
-      body: { command },
-    });
-  }
-
-  undo() {
-    return api(`/api/rooms/${this.code}/undo`, { method: "POST", token: this.token });
-  }
-
-  pass() {
-    return api(`/api/rooms/${this.code}/pass`, { method: "POST", token: this.token });
-  }
+  recoveryCode(){return localStorage.getItem(RECOVERY_PREFIX+this.code);}
+  async recover(recoveryCode){return this.mutate('recover',{recoveryCode:String(recoveryCode).trim(),token:randomId()});}
+  start(){return this.mutate('start');}
+  command(command){return this.mutate('command',{command});}
+  undo(){return this.mutate('undo');}
+  pass(){return this.mutate('pass');}
+  abandon(){return this.mutate('abandon',{confirmed:true});}
+  async export(){return (await api(`/api/rooms/${this.code}/export`,{token:this.token})).payload;}
 }
-
-function roomCodeFromLocation() {
-  return normalizeCode(new URLSearchParams(location.search).get("room"));
-}
-
-function onlineShareUrl(code) {
-  const url = new URL(location.href);
-  url.search = "";
-  url.hash = "";
-  url.searchParams.set("room", normalizeCode(code));
-  return url.href;
-}
+function roomCodeFromLocation(){return normalizeCode(new URLSearchParams(location.search).get('room'));}
+function onlineShareUrl(code){const url=new URL(location.href);url.search='';url.hash='';url.searchParams.set('room',normalizeCode(code));return url.href;}
 
 
 /* src/presentation.js */
@@ -3704,7 +3894,20 @@ function escapeMarkup(value) {
 
 function pieceIcon(unit) {
   const color = unit.piece_color ?? unit.owner;
-  return `<span class="realm-piece ${color.toLowerCase()}" role="img" aria-label="${title(unit.unit_type)}">${PIECE_GLYPH[color][unit.unit_type]}</span>`;
+  return `<span class="realm-piece ${color.toLowerCase()}" role="img" aria-label="${title(unit.unit_type)}">${chessPieceSvg(unit.unit_type)}</span>`;
+}
+
+// Original, code-native chess illustrations; shared by board, reserve and inspection.
+function chessPieceSvg(type) {
+  const crowns = {
+    PAWN: '<circle cx="32" cy="19" r="8"/><path d="M26 28h12l-3 13 8 9H21l8-9z"/>',
+    ROOK: '<path d="M17 10h8v8h5v-8h5v8h5v-8h7v18l-7 5 2 17H22l2-17-7-5z"/><path d="M23 28h18M26 36h12" fill="none"/>',
+    KNIGHT: '<path d="M20 50c0-13 9-15 13-23l-12 6-7-7 12-13 1-7 7 5c15 1 17 18 12 39z"/><path d="m26 19-5 7m15-10c10 10 4 17 1 22" fill="none"/><circle cx="30" cy="18" r="1.5" class="piece-eye"/>',
+    BISHOP: '<path d="M32 6c-5 7-12 10-12 17 0 6 6 10 12 10s12-4 12-10c0-7-7-10-12-17zM28 34h8l-2 7 9 9H21l9-9z"/><path d="m34 15-8 10" fill="none"/>',
+    QUEEN: '<path d="m17 18 8 9 7-15 7 15 8-9-6 22H23zM25 40h14l4 10H21z"/><circle cx="16" cy="15" r="3"/><circle cx="32" cy="10" r="3"/><circle cx="48" cy="15" r="3"/><path d="M23 34h18" fill="none"/>',
+    KING: '<path d="M29 6h6v6h6v6h-6v7h-6v-7h-6v-6h6zM20 26c-5 8 1 15 6 16l-5 8h22l-5-8c5-1 11-8 6-16l-12 5z"/><path d="M26 41h12" fill="none"/>',
+  };
+  return `<svg class="chess-piece" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><g fill="currentColor" stroke="var(--piece-edge, #3c3026)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">${crowns[type] ?? crowns.PAWN}<path d="M21 50h22l4 7H17z"/><path d="M18 57h28v3H18z"/></g><path d="M23 54h17" stroke="white" opacity=".35" stroke-linecap="round"/></svg>`;
 }
 
 function nobleCardHtml(noble) {
@@ -3768,6 +3971,63 @@ function harvestListHtml(state) {
 }
 
 
+/* src/tabletop.js */
+function calendarHtml(state) {
+  const index = PHASE_ORDER.indexOf(state.phase);
+  return `<div class="year-calendar"><svg viewBox="0 0 100 100" role="img" aria-label="Ten-phase Year calendar: ${escapeMarkup(title(state.phase ?? 'Setup'))}"><circle cx="50" cy="50" r="34" class="calendar-orbit"/>${PHASE_ORDER.map((phase, i) => {
+    const a = (i * 36 - 90) * Math.PI / 180;
+    return `<circle cx="${50 + 34 * Math.cos(a)}" cy="${50 + 34 * Math.sin(a)}" r="${index === i ? 7 : 4}" class="calendar-phase ${index === i ? 'current' : i < index ? 'done' : ''}"><title>${i + 1}. ${title(phase)}${index === i ? ' — current' : i < index ? ' — completed' : ' — upcoming'}</title></circle>`;
+  }).join('')}<text x="50" y="47" text-anchor="middle">YEAR</text><text x="50" y="66" text-anchor="middle" class="calendar-year">${state.year_number ?? 0}</text></svg><div class="button-dots" aria-label="Button holder">${(state.player_order ?? Object.keys(state.players)).map(p => `<span class="player-dot ${p.toLowerCase()} ${p === state.button_holder ? 'has-button' : ''}" title="${title(p)}${p === state.button_holder ? ' holds the Button' : ''}" aria-label="${title(p)}${p === state.button_holder ? ' holds the Button' : ''}"></span>`).join('')}</div></div>`;
+}
+
+function constantsHtml(state, viewer, defenderId = null) {
+  const seated = viewer && !state.players[viewer]?.eliminated ? viewer : state.current_actor;
+  const c = deriveConstants(state, seated);
+  const defender = state.units_by_id[defenderId];
+  const mover = deriveConstants(state, state.current_actor);
+  const s = state.phase === PHASE.SIEGE ? defender ? liveUnits(state, defender.owner).length : '⌖' : mover.S_mobilize;
+  const allC = (state.player_order ?? Object.keys(state.players)).map(p => `${title(p)}: ${deriveConstants(state, p).C}`).join(' · ');
+  return `<div class="constant-grid" aria-label="Public constants">
+    <details class="constant"><summary><strong>♧ ${c.C}</strong><span>${title(seated)} · Build</span></summary><p>Twice the player's Unit count. ${allC}.</p></details>
+    <details class="constant"><summary><strong>◇ ${c.D}</strong><span>Nobles drawn</span></summary><p>All Nobles outside the Noble deck.</p></details>
+    <details class="constant"><summary><strong>♤ ${s}</strong><span>${state.phase === PHASE.SIEGE ? defender ? `${title(defender.owner)} · Defender` : 'Select defender' : `${title(state.current_actor)} · Units`}</span></summary><p>Mobilization uses the mover's Unit count. Siege uses the selected defender's Unit count. Add the relevant Unit's Level to get the action cost.</p></details>
+    <details class="constant"><summary><strong>♡ ${c.H}</strong><span>Vassals + Hostages</span></summary><p>Assigned Vassals plus Hostages in all Dungeons.</p></details>
+  </div>`;
+}
+
+function tabletopRegionsHtml(state, { viewer = null, names = {}, resourceHtml = null, canAct = false } = {}) {
+  const suit = ACTIVE_SUIT_BY_PHASE[state.phase];
+  const regions = { WHITE: 'south-west', GREEN: 'south-east', BLACK: 'north-east', RED: 'north-west' };
+  return (state.player_order ?? Object.keys(state.players)).map(player => {
+    const p = state.players[player];
+    const privateOwner = player === viewer && !p.eliminated;
+    const actionable = privateOwner && canAct && state.status === 'ACTIVE' && state.current_actor === player;
+    const hand = sortResourceCards(p.resource_hand_ids.map(id => state.resources_by_id[id]).filter(card => card && !card.hidden));
+    const mode = actionable ? state.phase === PHASE.HARVEST && state.harvest?.stage === 'POKER' ? 'POKER' : state.phase === PHASE.STOCKPILE ? 'STOCKPILE' : suit ? 'TAP' : 'NONE' : 'NONE';
+    const hostage = state.nobles_by_id[p.dungeon_noble_id];
+    return `<section class="corner-region ${regions[player]} ${player.toLowerCase()} ${p.eliminated ? 'defeated' : ''}" aria-label="${title(player)} player area">
+      <div class="realm-hand"><header><div><span class="player-dot ${player.toLowerCase()}"></span><h2>${escapeMarkup(names[player] || title(player))}</h2><span class="realm-caption">${title(player)}${player === viewer ? ' · You' : ''}${p.eliminated ? ' · Defeated' : state.current_actor === player ? ' · Acting' : ''}${state.button_holder === player ? ' · Button' : ''}</span></div>${suit ? `<div class="table-pool" aria-label="${title(player)} seasonal pool"><span>Pool</span><strong>${SUIT_GLYPH[suit]} ${p.seasonal_pools[suit]}</strong></div>` : ''}</header>
+      <div class="suit-groups">${SUITS.map(group => `<div class="suit-group" aria-label="${title(group)} Resources"><span class="suit-heading ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(group) ? 'red-suit' : ''}">${SUIT_GLYPH[group]}</span><div class="suit-cards">${hand.filter(card => card.suit === group).map(card => resourceHtml ? resourceHtml(card, mode) : `<span class="card-token">${formatResource(card)}</span>`).join('') || '<span class="empty-suit">—</span>'}</div></div>`).join('')}</div>
+      ${actionable && suit ? '<div class="resource-actions"><button id="tap-selected" class="button" disabled>Select cards to tap</button><span id="tap-preview" class="payment-preview" aria-live="polite"></span></div>' : ''}</div>
+      <div class="realm-side"><div class="court-heading"><h3>Court</h3><span>${p.court_noble_ids.length} private</span></div><div class="court-fan" aria-label="${title(player)} face-down Court">${p.court_noble_ids.map((id, i) => `<button class="court-back" ${privateOwner ? `data-inspect-court="${escapeMarkup(id)}"` : 'disabled'} aria-label="${privateOwner ? 'Privately inspect' : 'Face-down'} ${title(player)} Court card ${i + 1}"><span aria-hidden="true">◇</span></button>`).join('') || '<span class="empty-state">No Court cards</span>'}</div>
+      <h3>Dungeon</h3><div class="dungeon-slot ${hostage && !hostage.hidden ? 'occupied' : ''}">${hostage && !hostage.hidden ? `<button class="hostage-card" data-inspect-noble="${escapeMarkup(hostage.noble_id)}" aria-label="Inspect Hostage ${escapeMarkup(formatNoble(hostage))}">${nobleCardHtml(hostage)}</button>` : '<span>Empty</span>'}</div>
+      <h3>Reserve</h3><div class="reserve-pieces">${Object.values(UNIT_TYPE).filter(type => p.reserve[type] > 0).map(type => `<div class="reserve-group" aria-label="${p.reserve[type]} ${title(type)} pieces">${Array.from({length: p.reserve[type]}, () => pieceIcon({owner: player, unit_type: type})).join('')}</div>`).join('') || '<span class="empty-state">No pieces in reserve</span>'}</div></div>
+    </section>`;
+  }).join('');
+}
+
+function unitInspectionHtml(state, unit) {
+  const noble = state.nobles_by_id[unit.vassal_noble_id];
+  return `${pieceIcon(unit)}<h2>${title(unit.owner)} ${title(unit.unit_type)} · ${unit.square}</h2><p>${isLevy(unit) ? 'Levy' : 'Holding'} · Level ${LEVEL_BY_TYPE[unit.unit_type]} · Draw ${drawCountOf(unit)}, keep one at Harvest.</p>${noble ? nobleCardHtml(noble) : '<p>An unassigned Holding Harvests and defends; assign a Vassal before moving or attacking.</p>'}<p>${STORAGE_TYPE[unit.unit_type] ? 'Adds one bonus Stockpile slot.' : 'No bonus Stockpile slot.'}</p>`;
+}
+
+function nobleInspectionHtml(state, noble) {
+  if (!noble || noble.hidden) return '';
+  const captor = Object.keys(state.players).find(p => state.players[p].dungeon_noble_id === noble.noble_id);
+  return `${nobleCardHtml(noble)}<p>${escapeMarkup(formatNoble(noble))}</p><p>Matching ${SUIT_GLYPH[noble.suit]} Harvest gains a Counter. Combat bonus +${noble.rank}.</p>${captor ? `<p>Hostage · original owner ${title(noble.owner)} · held by ${title(captor)}.</p><p>Ransom: ${actionCost(state, 'RANSOM', {noble_id: noble.noble_id})} ◇ · Execution: ${actionCost(state, 'EXECUTE', {noble_id: noble.noble_id})} ♡ at current constants.</p>` : ''}`;
+}
+
+
 /* src/ui.js */
 const dom = {
   board: document.querySelector("#board"),
@@ -3775,7 +4035,9 @@ const dom = {
   matchStatus: document.querySelector("#match-status"),
   playerSummary: document.querySelector("#player-summary"),
   turnCard: document.querySelector("#turn-card"),
-  resourceControls: document.querySelector("#resource-controls"),
+  inspection: document.querySelector("#inspection-dialog"),
+  inspectionContent: document.querySelector("#inspection-content"),
+  actionSummary: document.querySelector("#current-action-summary"),
   actionControls: document.querySelector("#action-controls"),
   history: document.querySelector("#history"),
   handoff: document.querySelector("#handoff"),
@@ -3798,7 +4060,6 @@ const dom = {
   onlineCreateName: document.querySelector("#online-create-name"),
   onlineCreateCount: document.querySelector("#online-create-count"),
   onlineCreateSeat: document.querySelector("#online-create-seat"),
-  onlineCreateSeed: document.querySelector("#online-create-seed"),
   onlineRoomCode: document.querySelector("#online-room-code"),
   onlineStrip: document.querySelector("#online-strip"),
   onlineStripText: document.querySelector("#online-strip-text"),
@@ -3824,12 +4085,13 @@ let onlinePollTimer = null;
 let onlineRequestPending = false;
 let dismissedOnlineNotice = null;
 let vassalSelection = { nobleId: null, unitId: null };
+let boardCandidate = null;
 
 function loadInitialState() {
   try {
-    return upgradeToV15(loadFromBrowser() ?? newMatch({ seed: "Remy-and-Franny", playerCount: 4 }));
+    return upgradeToV15(loadFromBrowser() ?? newMatch({ seed: "Remy-and-Franny", playerCount: 4, rules: { explicit_action_pass: true } }));
   } catch {
-    return newMatch({ seed: "Remy-and-Franny", playerCount: 4 });
+    return newMatch({ seed: "Remy-and-Franny", playerCount: 4, rules: { explicit_action_pass: true } });
   }
 }
 
@@ -3864,6 +4126,7 @@ function escapeHtml(value) {
 }
 
 async function run(command, { keepSelection = false } = {}) {
+  if (!dom.handoff.hidden) return false;
   if (pendingAutomaticNotices().length) { maybeShowPhaseNotice(); return false; }
   const retainTarget = ["TAP_RESOURCES", "MOBILIZE_UNIT"].includes(command.type);
   const previousTarget = retainTarget ? structuredClone(interaction) : null;
@@ -3920,6 +4183,7 @@ function applyOnlinePayload(payload, { resetSelection = false, force = false, re
     ? `${onlinePayload.room.status}:${onlinePayload.room.revision}:${onlinePayload.viewer.private_revision}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`
     : null;
   const nextSignature = `${payload.room.status}:${payload.room.revision}:${payload.viewer.private_revision}:${payload.viewer.role}:${payload.viewer.seat}`;
+  if (previousSignature !== nextSignature) closeInspection();
   onlinePayload = payload;
   if (payload.game && (force || previousSignature !== nextSignature)) {
     state = payload.game;
@@ -3939,7 +4203,7 @@ function applyOnlinePayload(payload, { resetSelection = false, force = false, re
 
 function newLocalMatch(seed, playerCount = 4) {
   leaveOnlineMode({ updateLocation: true });
-  state = newMatch({ seed: seed || "dendarv", playerCount });
+  state = newMatch({ seed: seed || "dendarv", playerCount, rules: { explicit_action_pass: true } });
   selectedResourceIds = new Set();
   interaction = emptyInteraction();
   stockpileSelectionKey = null;
@@ -3954,7 +4218,8 @@ function showHandoff(player) {
   if (!player) return;
   const name = playerName(player);
   dom.handoffTitle.textContent = `${name} to act`;
-  dom.handoffText.textContent = `Pass the device to ${name}. Your Court cards will be revealed after confirmation. Harvest cards are public.`;
+  closeInspection();
+  dom.handoffText.textContent = `Pass the device to ${name}. Choose Ready to open your view, then privately inspect your face-down Court when needed. Harvest cards are public.`;
   dom.handoffSeal.textContent = playerCode(player);
   dom.handoffSeal.className = `handoff-seal ${player.toLowerCase()}`;
   dom.phaseNotice.hidden = true;
@@ -4055,16 +4320,18 @@ function showToast(message, success = false) {
 }
 
 function render() {
+  closeInspection();
+  if (boardCandidate && !candidateStillLegal()) boardCandidate = null;
   syncRecommendedStockpile();
   syncBoardInteraction();
   renderStatus();
   renderBoard();
   renderTurnCard();
-  renderResourceControls();
   renderActionControls();
   renderPlayerSummary();
   renderHistory();
   renderPhaseNotice();
+  renderActionSummary();
   dom.undoAction.disabled = onlinePayload ? !onlinePayload.viewer.can_undo : undoStack.length === 0;
   bindDynamicControls();
 }
@@ -4072,13 +4339,45 @@ function render() {
 function renderStatus() {
   const phase = state.status === "SETUP" ? "Sovereign selection" : state.status === "COMPLETE" ? "Match complete" : title(state.phase);
   const season = state.phase ? seasonForPhase(state.phase) : "Setup";
-  dom.matchStatus.innerHTML = `
-    <span class="status-chip strong">${state.year_number ? `Year ${state.year_number}` : "Turn 0"}</span>
-    <span class="status-chip">${matchPlayers(state).length} players</span>
-    <span class="status-chip">${season}</span>
-    <span class="status-chip">${phase}</span>
-    <span class="status-chip">Button: ${playerName(state.button_holder)}</span>
-  `;
+  dom.matchStatus.innerHTML = `${calendarHtml(state)}<div class="year-heading"><span class="eyebrow">${season}</span><h2>${phase}</h2><p>${playerName(state.current_actor)}${state.status === 'COMPLETE' ? '' : ' to act'} · Button: ${playerName(state.button_holder)}</p><details class="phase-key"><summary>Year sequence</summary><ol>${PHASE_ORDER.map(p => `<li ${p === state.phase ? 'aria-current="step"' : ''}>${title(p)}</li>`).join('')}</ol></details></div>`;
+}
+
+function privateViewer() {
+  return onlinePayload ? onlinePayload.viewer.role === 'PLAYER' ? onlinePayload.viewer.seat : null : activePlayer();
+}
+
+function renderActionSummary() {
+  const actor = state.current_actor;
+  const suit = ACTIVE_SUIT_BY_PHASE[state.phase];
+  const pool = suit ? ` · Pool ${state.players[actor]?.seasonal_pools[suit] ?? 0} ${SUIT_GLYPH[suit]}` : '';
+  const unit = state.units_by_id[interaction.unitId];
+  const selection = boardCandidate ? ` · ${boardCandidate.label} · Cost ${boardCandidate.cost} ${SUIT_GLYPH[suit]} · Shortfall ${Math.max(0, boardCandidate.cost - (state.players[actor]?.seasonal_pools[suit] ?? 0))}`
+    : unit ? ` · ${title(unit.unit_type)} at ${unit.square}${state.phase === PHASE.MOBILIZE ? ` · Cost ${actionCost(state, 'MOBILIZE', {unit_id: unit.unit_id})} ♤ · Select a destination` : ' · Select a defender'}` : '';
+  dom.actionSummary.textContent = `${playerName(actor)} · ${state.status === 'SETUP' ? 'Choose Sovereign' : state.status === 'COMPLETE' ? 'Match complete' : title(state.phase)}${pool}${selection}`;
+}
+
+function closeInspection() {
+  if (dom.inspection.open) dom.inspection.close();
+  dom.inspectionContent.innerHTML = '';
+}
+
+function inspectNoble(id, court = false) {
+  if (!dom.handoff.hidden) return;
+  const viewer = privateViewer();
+  const ownCourt = viewer && !state.players[viewer]?.eliminated && state.players[viewer]?.court_noble_ids.includes(id);
+  const publicCard = Object.values(state.units_by_id).some(u => !u.defeated && u.vassal_noble_id === id)
+    || Object.values(state.players).some(p => p.dungeon_noble_id === id);
+  if (court ? !ownCourt : !publicCard) return;
+  const html = nobleInspectionHtml(state, state.nobles_by_id[id]);
+  if (!html) return;
+  dom.inspectionContent.innerHTML = `<p class="eyebrow">${court ? 'Private Court inspection' : 'Public Noble'}</p>${html}`;
+  dom.inspection.showModal();
+}
+
+function inspectUnit(unit) {
+  if (!unit || !dom.handoff.hidden) return;
+  dom.inspectionContent.innerHTML = unitInspectionHtml(state, unit);
+  dom.inspection.showModal();
 }
 
 function seasonForPhase(phase) {
@@ -4113,17 +4412,15 @@ function syncBoardInteraction() {
     return;
   }
   if (state.phase === PHASE.BUILD) {
-    const cost = actionCost(state, "BUILD");
     interaction = { mode: "BUILD", unitId: null,
-      legalSquares: new Set(hasPool(cost) && state.players[activePlayer()].reserve.PAWN > 0 ? validBuildTargets(state, activePlayer()) : []),
+      legalSquares: new Set(state.players[activePlayer()].reserve.PAWN > 0 ? validBuildTargets(state, activePlayer()) : []),
       attackSquares: new Set() };
   } else if (interaction.mode === "MOBILIZE" && state.phase === PHASE.MOBILIZE) {
     const unit = state.units_by_id[interaction.unitId];
     if (!unit || unit.defeated || unit.owner !== activePlayer()) { interaction = emptyInteraction(); return; }
-    interaction.legalSquares = new Set(hasPool(actionCost(state, "MOBILIZE", { unit_id: unit.unit_id })) ? legalMovementDestinations(state, unit.unit_id) : []);
+    interaction.legalSquares = new Set(legalMovementDestinations(state, unit.unit_id));
   } else if (interaction.mode === "SIEGE" && state.phase === PHASE.SIEGE) {
     interaction.attackSquares = new Set(legalSiegeTargets(state, interaction.unitId)
-      .filter((id) => hasPool(actionCost(state, "SIEGE", { defender_id: id })))
       .map((id) => state.units_by_id[id].square));
   } else if (interaction.mode) interaction = emptyInteraction();
 }
@@ -4147,6 +4444,7 @@ function renderBoard() {
         "square",
         isBlackSquare(square) ? "dark" : "light",
         isCenter(square) ? "center-square" : "",
+        isCorner(square) ? "corner-square" : "",
         isSelected ? "selected" : "",
         isLegal ? "legal" : "",
         isAttack ? "attack" : "",
@@ -4157,15 +4455,15 @@ function renderBoard() {
       const vassal = unit?.vassal_noble_id ? state.nobles_by_id[unit.vassal_noble_id] : null;
       const pieceColor = unit?.piece_color ?? unit?.owner;
       const unitHtml = unit ? `
-        <span class="piece ${pieceColor.toLowerCase()}" aria-hidden="true">${PIECE_GLYPH[pieceColor][unit.unit_type]}</span>
-        ${vassal ? `<span class="vassal-badge ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(vassal.suit) ? "red" : ""}" title="${formatNoble(vassal, true, false)}">${formatNoble(vassal, true, false)}</span>` : `<span class="holding-marker" title="Holding: Harvests and defends; needs a Vassal to move or attack" aria-hidden="true">○</span>`}
+        <span class="piece ${pieceColor.toLowerCase()}" aria-hidden="true">${pieceIcon(unit)}</span>
+        ${pieceColor !== unit.owner ? `<span class="controller-banner ${unit.owner.toLowerCase()}" title="Controlled by ${playerName(unit.owner)}"></span>` : ''}
       ` : "";
       parts.push(`
-        <button class="${classes}" data-square="${square}" role="gridcell" aria-label="${square}${unit ? `, ${playerName(unit.owner)}-controlled ${playerName(pieceColor)} ${title(unit.unit_type)}${vassal ? `, Levy assigned to ${formatNoble(vassal, true, false)}` : ", Holding"}` : ", empty"}">
+        <div class="square-shell" role="gridcell"><button class="${classes}" data-square="${square}" aria-label="${square}${unit ? `, ${playerName(unit.owner)}-controlled ${playerName(pieceColor)} ${title(unit.unit_type)}${vassal ? `, Levy assigned to ${formatNoble(vassal, true, false)}` : ", Holding"}` : ", empty"}">
           ${fileIndex === 0 ? `<span class="coordinate rank">${rank}</span>` : ""}
           ${rank === 1 ? `<span class="coordinate file">${file}</span>` : ""}
           ${unitHtml}
-        </button>
+        </button>${vassal ? `<button class="vassal-badge ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(vassal.suit) ? 'red' : ''}" data-inspect-noble="${vassal.noble_id}" aria-label="Inspect ${escapeHtml(formatNoble(vassal))}">${formatNoble(vassal, true, false)}</button>` : ''}</div>
       `);
     }
   }
@@ -4190,34 +4488,50 @@ function boardHint() {
   if (interaction.mode === "SIEGE") return "Choose a red-ringed adjacent enemy Unit.";
   if (state.phase === PHASE.MOBILIZE) return "Select one of your Levies to show its legal destinations.";
   if (state.phase === PHASE.SIEGE) return "Select one of your Levies to show adjacent Siege targets.";
-  return "The four outlined squares are the Center Squares and grant a Harvest Counter.";
+  return "Blue Center Squares grant a Harvest Counter. Select any piece or its Vassal card to inspect it.";
 }
 
 function handleBoardClick(square) {
-  if (!onlinePlayerCanAct()) return;
+  if (!dom.handoff.hidden) return;
   const unit = unitAt(state, square);
+  if (!onlinePlayerCanAct()) { inspectUnit(unit); return; }
+  if (unit && unit.unit_id === interaction.unitId) { inspectUnit(unit); return; }
   if (interaction.mode === "BUILD" && interaction.legalSquares.has(square)) {
-    run({ type: "BUILD_UNIT", player: activePlayer(), square });
+    previewBoardAction({ type: "BUILD_UNIT", player: activePlayer(), square }, actionCost(state, 'BUILD'), `Build a Pawn at ${square}`);
     return;
   }
   if (interaction.mode === "MOBILIZE" && interaction.legalSquares.has(square)) {
-    run({ type: "MOBILIZE_UNIT", player: activePlayer(), unit_id: interaction.unitId, destination: square });
+    previewBoardAction({ type: "MOBILIZE_UNIT", player: activePlayer(), unit_id: interaction.unitId, destination: square }, actionCost(state, 'MOBILIZE', {unit_id: interaction.unitId}), `Move to ${square}`);
     return;
   }
   if (interaction.mode === "SIEGE" && interaction.attackSquares.has(square) && unit) {
-    run({ type: "LAY_SIEGE", player: activePlayer(), attacker_id: interaction.unitId, defender_id: unit.unit_id });
+    previewBoardAction({ type: "LAY_SIEGE", player: activePlayer(), attacker_id: interaction.unitId, defender_id: unit.unit_id }, actionCost(state, 'SIEGE', {defender_id: unit.unit_id}), `Lay Siege to ${square}`);
     return;
   }
   if (unit?.owner === activePlayer() && state.phase === PHASE.MOBILIZE && isLevy(unit)) {
     selectMovement(unit.unit_id);
   } else if (unit?.owner === activePlayer() && state.phase === PHASE.SIEGE && isLevy(unit)) {
     selectSiege(unit.unit_id);
-  } else if (unit && isLevy(unit)) {
-    dom.boardHint.textContent = nobleDetail(state.nobles_by_id[unit.vassal_noble_id]);
-  }
+  } else if (unit) inspectUnit(unit);
+}
+
+function previewBoardAction(command, cost, label) {
+  boardCandidate = {command, cost, label, phase: state.phase, year: state.year_number};
+  dom.actionControls.hidden = false;
+  renderActionControls(); renderActionSummary(); renderTurnCard(); bindActionControlsOnly();
+}
+
+function candidateStillLegal() {
+  const c = boardCandidate;
+  if (!onlinePlayerCanAct() || c.command.player !== state.current_actor || c.phase !== state.phase || c.year !== state.year_number || state.status !== 'ACTIVE' || state.pending_combat || state.phase_notice) return false;
+  if (c.command.type === 'BUILD_UNIT') { c.cost = actionCost(state, 'BUILD'); return validBuildTargets(state, c.command.player).includes(c.command.square) && state.players[c.command.player].reserve.PAWN > 0; }
+  if (c.command.type === 'MOBILIZE_UNIT') { c.cost = actionCost(state, 'MOBILIZE', {unit_id: c.command.unit_id}); return legalMovementDestinations(state, c.command.unit_id).includes(c.command.destination); }
+  c.cost = actionCost(state, 'SIEGE', {defender_id: c.command.defender_id});
+  return legalSiegeTargets(state, c.command.attacker_id).includes(c.command.defender_id);
 }
 
 function selectMovement(unitId) {
+  boardCandidate = null;
   interaction = {
     mode: "MOBILIZE",
     unitId,
@@ -4225,10 +4539,11 @@ function selectMovement(unitId) {
     attackSquares: new Set(),
   };
   syncBoardInteraction();
-  renderBoard();
+  renderBoard(); renderTurnCard(); renderActionControls(); renderActionSummary(); bindDynamicControls();
 }
 
 function selectSiege(unitId) {
+  boardCandidate = null;
   const targetSquares = legalSiegeTargets(state, unitId).map((id) => state.units_by_id[id].square);
   interaction = {
     mode: "SIEGE",
@@ -4237,79 +4552,11 @@ function selectSiege(unitId) {
     attackSquares: new Set(targetSquares),
   };
   syncBoardInteraction();
-  renderBoard();
+  renderBoard(); renderTurnCard(); renderActionControls(); renderActionSummary(); bindDynamicControls();
 }
 
 function renderTurnCard() {
-  const player = state.status === "COMPLETE" ? state.winner
-    : onlinePayload?.viewer.waiting_for_pass ? onlinePayload.viewer.seat
-      : state.current_actor;
-  const initialBase = matchPlayers(state).length;
-  const constants = state.status !== "SETUP" ? deriveConstants(state, player) : { C: 2, D: initialBase, S_mobilize: 1, H: initialBase };
-  const actionName = state.status === "SETUP" ? "Choose a Sovereign"
-    : state.status === "COMPLETE" ? `${playerName(state.winner)} is victorious`
-      : `${playerName(player)} · ${title(state.phase)}`;
-  const actorPosition = state.phase_actor_order?.indexOf(player) ?? -1;
-  const sub = state.status === "COMPLETE" ? (state.victory_reason === "LAST_KING_STANDING" ? "Only one King remains on the board." : "The enemy King has been defeated.")
-    : state.status === "SETUP" ? `${playerName(player)} chooses from the available Rx Nobles.`
-      : `${seasonForPhase(state.phase)} · ${state.button_holder === player ? "holds the button" : `acts ${ordinal(actorPosition + 1)} this phase`}`;
-  dom.turnCard.innerHTML = `
-    <div class="turn-banner">
-      <div class="player-seal ${player?.toLowerCase() ?? "white"}">${playerCode(player)}</div>
-      <div><h2 class="turn-title">${actionName}</h2><div class="turn-subtitle">${sub}</div></div>
-    </div>
-    <div class="constant-grid" aria-label="Action costs for ${playerName(player)}">
-      <div class="constant" title="Clubs base: twice your current Unit count"><strong><span class="suit-symbol">${SUIT_GLYPH[SUIT.CLOVERS]}</span> ${constants.C}</strong><span>Build base</span></div>
-      <div class="constant" title="Diamonds base: all Nobles outside the deck"><strong><span class="suit-symbol red-suit">${SUIT_GLYPH[SUIT.DIAMONDS]}</span> ${constants.D}</strong><span>Nobles drawn</span></div>
-      <div class="constant" title="Spades base: your Units for Mobilization; the defender's Units for Siege"><strong><span class="suit-symbol">${SUIT_GLYPH[SUIT.SPADES]}</span> ${constants.S_mobilize}</strong><span>Your Units</span></div>
-      <div class="constant" title="Hearts base: assigned Vassals plus Hostages in all Dungeons"><strong><span class="suit-symbol red-suit">${SUIT_GLYPH[SUIT.HEARTS]}</span> ${constants.H}</strong><span>Vassals + Hostages</span></div>
-    </div>
-    <ol class="season-track" aria-label="Year sequence">
-      ${[["Harvest", "Draw"], ["Winter", SUIT_GLYPH[SUIT.CLOVERS]], ["Spring", SUIT_GLYPH[SUIT.DIAMONDS]], ["Summer", SUIT_GLYPH[SUIT.SPADES]], ["Fall", SUIT_GLYPH[SUIT.HEARTS]], ["Year end", "Keep"]].map(([season, symbol]) => `<li ${seasonForPhase(state.phase) === season && state.status === "ACTIVE" ? 'aria-current="step"' : ""}><span>${symbol}</span>${season}</li>`).join("")}
-    </ol>
-  `;
-}
-
-function ordinal(value) {
-  if (value === 1) return "first";
-  if (value === 2) return "second";
-  if (value === 3) return "third";
-  if (value === 4) return "fourth";
-  return String(value);
-}
-
-function renderResourceControls() {
-  if (state.status !== "ACTIVE") {
-    dom.resourceControls.innerHTML = `<p class="eyebrow">Resources</p><h2>Seasonal pool</h2><div class="empty-state">${state.status === "COMPLETE" ? "The game has ended. Resource payments are closed." : "Resource play begins after Sovereign selection."}</div>`;
-    return;
-  }
-  const player = state.current_actor;
-  const suit = ACTIVE_SUIT_BY_PHASE[state.phase] ?? null;
-  if (!suit) {
-    dom.resourceControls.innerHTML = `<p class="eyebrow">Resources</p><h2>Seasonal pool</h2><p class="empty-state">No seasonal pool is active during ${state.harvest?.stage === "POKER" ? "Poker declarations" : title(state.phase)}.</p>`;
-    return;
-  }
-  const pool = suit ? state.players[player].seasonal_pools[suit] : null;
-  const allCards = sortResourceCards(state.players[player].resource_hand_ids.map((id) => state.resources_by_id[id]));
-  const maySelect = onlinePlayerCanAct();
-  const selectionMode = !maySelect ? "NONE"
-    : state.phase === PHASE.HARVEST && state.harvest?.stage === "POKER" ? "POKER"
-      : state.phase === PHASE.STOCKPILE ? "STOCKPILE"
-        : suit ? "TAP" : "NONE";
-  const cards = allCards.filter((card) => card.suit === suit);
-  const emptyMessage = selectionMode === "TAP"
-    ? `No ${SUIT_GLYPH[suit]} ${title(suit)} cards are available. Only ${title(suit)} may be tapped during ${seasonForPhase(state.phase)}.`
-    : "No Resource Cards in hand.";
-  const cardHtml = cards.length ? cards.map((card) => resourceCheckbox(card, selectionMode)).join("") : `<div class="empty-state">${emptyMessage}</div>`;
-  const action = selectionMode === "TAP" ? `<button id="tap-selected" class="button primary" ${selectedResourceIds.size ? "" : "disabled"}>Tap selected</button><span id="tap-preview" class="payment-preview" aria-live="polite"></span>` : "";
-  dom.resourceControls.innerHTML = `
-    <p class="eyebrow">${playerName(player)} · ${seasonForPhase(state.phase)}</p>
-    <h2>Seasonal pool</h2>
-    ${suit ? `<div class="pool-readout"><span>Active pool · ${SUIT_GLYPH[suit]} ${title(suit)}</span><strong>${pool}</strong></div>` : ""}
-    <div class="resource-row">${cardHtml}</div>
-    ${cards.some((card) => card.has_counter || card.tapped || card.mandatory_spend_year === state.year_number) ? '<p class="card-state-key">* Counter +1 · tilted = tapped · ! spend or return this Year</p>' : ""}
-    ${action ? `<div class="resource-actions">${action}</div>` : ""}
-  `;
+  dom.turnCard.innerHTML = constantsHtml(state, privateViewer(), boardCandidate?.command.defender_id);
 }
 
 function resourceCheckbox(card, mode) {
@@ -4319,15 +4566,21 @@ function resourceCheckbox(card, mode) {
     || (mode === "TAP" && (card.tapped || card.suit !== activeSuit))
     || (mode === "STOCKPILE" && (card.tapped || card.mandatory_spend_year === state.year_number));
   const classes = ["card-token", red ? "red" : "", card.tapped ? "tapped" : "", card.mandatory_spend_year === state.year_number ? "mandatory" : ""].filter(Boolean).join(" ");
+  const description = `${formatResource(card)}, usable value ${card.tapped ? 0 : card.face_value + Number(card.has_counter)} ${SUIT_GLYPH[card.suit]}${card.has_counter ? '. Counter adds 1' : ''}${card.tapped ? '. Tapped' : ''}${card.mandatory_spend_year === state.year_number ? '. Spend or return this Year' : ''}`;
   return `
-    <label class="card-choice" title="${card.tapped ? "Tapped" : card.mandatory_spend_year === state.year_number ? "Must be spent or returned this Year" : "Untapped"}">
+    <label class="card-choice" title="${description}">
       <input type="checkbox" aria-label="${formatResource(card)}, effective value ${card.face_value + Number(card.has_counter)}${card.tapped ? ', tapped' : ''}${card.mandatory_spend_year === state.year_number ? ', spend or return this Year' : ''}" data-resource-id="${card.card_id}" ${selectedResourceIds.has(card.card_id) ? "checked" : ""} ${disabled ? "disabled" : ""}>
-      <span class="${classes}">${formatResource(card)}</span>
+      <span class="${classes}">${formatResource({...card, has_counter: false})}${card.has_counter ? '<span class="card-counter" aria-hidden="true"></span>' : ''}</span>
     </label>
   `;
 }
 
 function renderActionControls() {
+  if (boardCandidate) {
+    const siege = boardCandidate.command.type === 'LAY_SIEGE';
+    dom.actionControls.innerHTML = `<p class="eyebrow">Selected action · ${playerName(state.current_actor)}</p><h2>${escapeHtml(boardCandidate.label)}</h2><p>Cost ${boardCandidate.cost} ${SUIT_GLYPH[ACTIVE_SUIT_BY_PHASE[state.phase]]}. ${fundingDescription(boardCandidate.cost)}.</p>${siege ? '<p>Confirming rolls Combat dice and resolves the battle. This cannot be undone.</p>' : ''}<div class="choice-grid"><button id="commit-board-action" class="button primary" ${hasPool(boardCandidate.cost) ? '' : 'disabled'}>${siege ? 'Confirm Siege' : 'Commit action'}</button><button id="cancel-board-action" class="button">Cancel</button><button id="inspect-selected-unit" class="button">Inspect selected piece</button></div>`;
+    return;
+  }
   if (onlinePayload && (state.status !== "COMPLETE" || onlinePayload.viewer.waiting_for_pass)) {
     if (onlinePayload.viewer.role === "SPECTATOR") {
       dom.actionControls.innerHTML = `<p class="eyebrow">Spectator</p><h2>Watching ${playerName(state.current_actor)}</h2><div class="online-waiting">You have a live, read-only view of every committed action. Harvest offers are public. Private Court cards remain hidden.</div>`;
@@ -4531,7 +4784,7 @@ function renderSiegeActions() {
     const costs = targets.map((id) => actionCost(state, "SIEGE", { actor: player, defender_id: id }));
     return `<div class="action-row"><div><strong>${formatUnit(unit, state)}</strong><small>${targets.length ? targets.map((id, index) => `${formatUnit(state.units_by_id[id], state)}: ${costs[index]} ${SUIT_GLYPH[SUIT.SPADES]}`).join(" · ") : "No adjacent enemy"}</small></div><button class="button tiny select-siege" data-unit-id="${unit.unit_id}" ${targets.length ? "" : "disabled"}>Select</button></div>`;
   }).join("") : `<div class="empty-state">You control no Levies able to Lay Siege.</div>`;
-  dom.actionControls.innerHTML = `<p class="eyebrow">Summer · Siege</p><h2>Lay Siege</h2><div class="rule-note">Cost = defending player's Unit count + target Level, paid in ${SUIT_GLYPH[SUIT.SPADES]}. Red-ringed targets can be paid for from your pool.</div><div class="action-list">${rows}</div>${passButton()}`;
+  dom.actionControls.innerHTML = `<p class="eyebrow">Summer · Siege</p><h2>Lay Siege</h2><div class="rule-note">Cost = defending player's Unit count + target Level, paid in ${SUIT_GLYPH[SUIT.SPADES]}. Select a red-ringed target to preview the cost, then tap any needed Resources before confirming.</div><div class="action-list">${rows}</div>${passButton()}`;
 }
 
 function renderVassalizeActions() {
@@ -4587,9 +4840,8 @@ function passButton() {
 }
 
 function renderPlayerSummary() {
-  const viewer = onlinePayload ? onlinePayload.viewer.seat : activePlayer();
   const names = onlinePayload ? Object.fromEntries(Object.entries(onlinePayload.room.seats).filter(([, seat]) => seat).map(([player, seat]) => [player, seat.name])) : {};
-  dom.playerSummary.innerHTML = `<p class="eyebrow">Resources</p><h2>Political order</h2>${realmComparisonHtml(state, viewer, names)}`;
+  dom.playerSummary.innerHTML = tabletopRegionsHtml(state, { viewer: privateViewer(), names, resourceHtml: resourceCheckbox, canAct: onlinePlayerCanAct() });
 }
 
 function visibleChronicle() {
@@ -4608,13 +4860,22 @@ function renderHistory() {
 }
 
 function bindDynamicControls() {
+  bindInspectionControls();
   document.querySelectorAll("[data-resource-id]").forEach((checkbox) => {
     checkbox.onchange = () => {
       if (checkbox.checked) selectedResourceIds.add(checkbox.dataset.resourceId);
       else selectedResourceIds.delete(checkbox.dataset.resourceId);
+      document.querySelectorAll(`[data-resource-id="${checkbox.dataset.resourceId}"]`).forEach(other => { other.checked = checkbox.checked; });
       renderActionControls();
       bindDynamicControls();
       updateTapPreview();
+    };
+    if (checkbox.parentElement) checkbox.parentElement.ondblclick = event => {
+      if (checkbox.disabled || !onlinePlayerCanAct() || state.current_actor !== privateViewer() || !dom.handoff.hidden) return;
+      const card = state.resources_by_id[checkbox.dataset.resourceId];
+      if (ACTIVE_SUIT_BY_PHASE[state.phase] !== card?.suit || card.tapped) return;
+      event.preventDefault();
+      run({type: 'TAP_RESOURCES', player: activePlayer(), card_ids: [card.card_id]});
     };
   });
   bindActionControlsOnly();
@@ -4636,6 +4897,13 @@ function updateTapPreview() {
 }
 
 function bindActionControlsOnly() {
+  onClick('commit-board-action', async () => {
+    if (!boardCandidate || !candidateStillLegal()) { boardCandidate = null; render(); return; }
+    const command = boardCandidate.command;
+    if (await run(command)) { boardCandidate = null; render(); }
+  });
+  onClick('cancel-board-action', () => { boardCandidate = null; render(); });
+  onClick('inspect-selected-unit', () => inspectUnit(state.units_by_id[interaction.unitId]));
   onClick("online-pass", passOnlineTurn);
   onClick("online-undo", undoLastAction);
   document.querySelectorAll(".sovereign-choice").forEach((button) => button.addEventListener("click", () => run({ type: "CHOOSE_SOVEREIGN", player: activePlayer(), noble_id: button.dataset.nobleId })));
@@ -4660,7 +4928,7 @@ function bindActionControlsOnly() {
   onClick("no-quarter", () => run({ type: "CHOOSE_QUARTER", player: activePlayer(), quarter: false }));
   onClick("take-conquest-card", () => run({ type: "CHOOSE_CONQUEST", player: activePlayer(), choice: "CARD" }));
   onClick("take-conquest-holding", () => run({ type: "CHOOSE_CONQUEST", player: activePlayer(), choice: "HOLDING" }));
-  onClick("execute-hostage", () => run({ type: "EXECUTE_HOSTAGE", player: activePlayer() }));
+  onClick("execute-hostage", () => { if (window.confirm('Execute this Hostage? The Noble returns to the deck. This cannot be undone.')) run({ type: "EXECUTE_HOSTAGE", player: activePlayer() }); });
   onClick("pass-phase", () => onlineClient ? passOnlineTurn() : run({ type: "PASS_PHASE", player: activePlayer() }));
   onClick("commit-stockpile", () => run({ type: "CHOOSE_STOCKPILE", player: activePlayer(), card_ids: [...selectedResourceIds] }));
   onClick("victory-new", () => dom.newDialog.showModal());
@@ -4692,6 +4960,14 @@ function onClick(id, callback) {
   const element = document.querySelector(`#${id}`);
   if (element) element.onclick = callback;
 }
+
+function bindInspectionControls() {
+  document.querySelectorAll('[data-inspect-court]').forEach(button => { button.onclick = () => inspectNoble(button.dataset.inspectCourt, true); });
+  document.querySelectorAll('[data-inspect-noble]').forEach(button => { button.onclick = () => inspectNoble(button.dataset.inspectNoble); });
+}
+
+onClick('close-inspection', closeInspection);
+dom.inspection.addEventListener('close', () => { dom.inspectionContent.innerHTML = ''; });
 
 function commandLabel(command) {
   const labels = {
@@ -4840,17 +5116,37 @@ function rememberOnlineLocation(code) {
 }
 
 function beginOnlinePolling() {
-  window.clearInterval(onlinePollTimer);
-  onlinePollTimer = window.setInterval(async () => {
-    if (!onlineClient || onlineRequestPending) return;
-    try {
-      const payload = await onlineClient.view();
-      applyOnlinePayload(payload);
-    } catch (error) {
-      if (error.code !== "SERVER_UNREACHABLE") showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
+  window.clearTimeout(onlinePollTimer);
+  let delay = 3000;
+  async function tick() {
+    if (!onlineClient) return;
+    const client = onlineClient;
+    if (!document.hidden && !onlineRequestPending && !client.busy) {
+      try {
+        const before = client.lastView;
+        const payload = await client.view();
+        if (onlineClient !== client) return;
+        delay = before === payload ? Math.min(delay * 1.5, 20000) : 3000;
+        applyOnlinePayload(payload);
+      } catch (error) {
+        delay = Math.min(delay * 2, 30000);
+        if (error.code !== "SERVER_UNREACHABLE") showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
+      }
     }
-  }, 1200);
+    onlinePollTimer = window.setTimeout(tick, delay);
+  }
+  onlinePollTimer = window.setTimeout(tick, 3000);
 }
+document.addEventListener?.("visibilitychange", async () => {
+  if (!document.hidden && onlineClient && !onlineRequestPending && !onlineClient.busy) {
+    const client = onlineClient;
+    try {
+      const payload = await client.view();
+      if (onlineClient === client) applyOnlinePayload(payload);
+    } catch (error) { if (onlineClient === client) showToast(error.message); }
+    if (onlineClient === client) beginOnlinePolling();
+  }
+});
 
 async function enterOnlineRoom(code, { spectate = false } = {}) {
   const candidate = new OnlineClient(code, { spectate });
@@ -4881,7 +5177,6 @@ async function createOnlineRoom() {
       playerCount: Number(dom.onlineCreateCount.value),
       playerName: playerNameValue,
       seat: dom.onlineCreateSeat.value,
-      seed: dom.onlineCreateSeed.value.trim(),
     });
     onlineClient = client;
     dismissedOnlineNotice = null;
@@ -4929,7 +5224,7 @@ async function startOnlineMatch() {
 }
 
 function leaveOnlineMode({ updateLocation = true, restoreLocal = false } = {}) {
-  window.clearInterval(onlinePollTimer);
+  window.clearTimeout(onlinePollTimer);
   onlinePollTimer = null;
   onlineClient = null;
   onlinePayload = null;
@@ -4976,6 +5271,26 @@ document.querySelector("#open-online-room").addEventListener("click", () => ente
 dom.onlineCreateCount.addEventListener("change", updateOnlineCreateSeats);
 dom.onlineRoomCode.addEventListener("input", () => { dom.onlineRoomCode.value = dom.onlineRoomCode.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
 dom.startOnlineMatch.addEventListener("click", startOnlineMatch);
+async function copyRecoveryCode() {
+  const code = onlineClient?.recoveryCode();
+  if (!code || onlinePayload?.viewer.role !== "PLAYER") return showToast("Recover or join a seat first.");
+  try { await navigator.clipboard.writeText(code); showToast("Private recovery code copied. Keep it somewhere safe.", true); }
+  catch { showToast("Clipboard access failed. Allow clipboard access and try again."); }
+}
+document.querySelector("#copy-recovery-code").addEventListener("click", copyRecoveryCode);
+document.querySelector("#lobby-copy-recovery").addEventListener("click", copyRecoveryCode);
+document.querySelector("#recover-online-seat").addEventListener("click", async () => {
+  if (onlineRequestPending) return;
+  const codeInput = document.querySelector("#online-recovery-code");
+  const candidate = new OnlineClient(dom.onlineRoomCode.value);
+  onlineRequestPending = true;
+  try {
+    const payload = await candidate.recover(codeInput.value);
+    codeInput.value = ""; onlineClient = candidate; dom.onlineDialog.close(); dom.handoff.hidden = true;
+    rememberOnlineLocation(candidate.code); applyOnlinePayload(payload, { resetSelection: true, force: true }); beginOnlinePolling();
+  } catch (error) { showToast(error.message); }
+  finally { onlineRequestPending = false; }
+});
 document.querySelector("#copy-room-link").addEventListener("click", copyOnlineRoomLink);
 document.querySelector("#lobby-copy-link").addEventListener("click", copyOnlineRoomLink);
 document.querySelector("#leave-online").addEventListener("click", () => leaveOnlineMode({ restoreLocal: true }));
@@ -4999,9 +5314,11 @@ document.querySelector("#load-autosave").addEventListener("click", () => {
     showToast(error.message);
   }
 });
-document.querySelector("#export-save").addEventListener("click", () => {
-  if (onlineClient) return showToast("Online matches are saved by the server and cannot be exported from a redacted player view.");
-  const blob = new Blob([serializeMatch(state)], { type: "application/json" });
+document.querySelector("#export-save").addEventListener("click", async () => {
+  let contents;
+  try { contents = onlineClient ? JSON.stringify(await onlineClient.export(), null, 2) : serializeMatch(state); }
+  catch (error) { return showToast(error.message); }
+  const blob = new Blob([contents], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -5033,14 +5350,17 @@ dom.importFile.addEventListener("change", async () => {
 });
 document.querySelector("#copy-log").addEventListener("click", async () => {
   try {
-    await navigator.clipboard.writeText(visibleChronicle());
+    await navigator.clipboard.writeText(onlineClient ? formatChronicle((await onlineClient.export()).state) : visibleChronicle());
     showToast("Standard chronicle copied.", true);
   } catch {
     showToast("Clipboard access is unavailable in this browser.");
   }
 });
-document.querySelector("#download-log").addEventListener("click", () => {
-  const blob = new Blob([visibleChronicle()], { type: "text/plain;charset=utf-8" });
+document.querySelector("#download-log").addEventListener("click", async () => {
+  let text;
+  try { text = onlineClient ? formatChronicle((await onlineClient.export()).state) : visibleChronicle(); }
+  catch (error) { return showToast(error.message); }
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
