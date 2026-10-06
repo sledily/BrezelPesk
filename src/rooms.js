@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { FOUR_PLAYER_COUNTERCLOCKWISE, PLAYER, TWO_PLAYER_ORDER } from "./constants.js";
-import { dispatch, newMatch, turnBoundaryCrossed, upgradeToV15 } from "./engine.js";
+import { FOUR_PLAYER_COUNTERCLOCKWISE, PLAYER, TWO_PLAYER_ORDER, V2_RULES } from "./constants.js";
+import { dispatch, newMatch, preserveStockpileInstructions, reversibleAction, turnBoundaryCrossed, upgradeToV15 } from "./engine.js";
 import { deepClone } from "./model.js";
 import { projectForPlayer, projectSpectator } from "./projection.js";
 import { validateInvariants } from "./rules.js";
@@ -222,7 +222,7 @@ export class RoomStore {
       seed: room.seed,
       playerCount: room.player_count,
       matchId: `DENDARV-${room.code}`,
-      rules: { explicit_action_pass: true },
+      rules: V2_RULES,
     });
     room.status = "ACTIVE";
     room.revision += 1;
@@ -283,6 +283,7 @@ export class RoomStore {
     if (room.status !== "ACTIVE") roomFail("MATCH_NOT_ACTIVE", "The online match is not active", 409);
     const seat = identifySeat(room, token);
     if (!seat) roomFail("PLAYER_TOKEN_REQUIRED", "A player seat is required", 403);
+    if (command?.type === "SET_STOCKPILE_INSTRUCTIONS") return this.saveStockpileInstructions(room, token, seat, command);
     const owner = room.draft_state?.current_actor ?? room.committed_state.current_actor;
     if (seat !== owner) roomFail("NOT_YOUR_TURN", `It is ${owner}'s turn`, 409);
     if (room.draft_state && room.draft_turn_complete) roomFail("PASS_REQUIRED", "Your decisions are complete; press Pass to publish them", 409);
@@ -293,8 +294,7 @@ export class RoomStore {
     const safeCommand = { ...deepClone(command), player: seat };
     const result = dispatch(base, safeCommand);
     if (!result.ok) roomFail(result.error.code, result.error.message, 409);
-    const reversible = new Set(["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "MOBILIZE_UNIT", "VASSALIZE_NOBLE", "EXECUTE_HOSTAGE", "DECLARE_POKER"]);
-    if (reversible.has(command.type) && JSON.stringify(base.rng_state) === JSON.stringify(result.state.rng_state)) {
+    if (reversibleAction(base, result.state, command)) {
       room.draft_history.push(undoSnapshot(base, result.state, { command: safeCommand,
         owner: room.draft_owner, had_draft: Boolean(room.draft_state), turn_complete: room.draft_turn_complete }));
     } else {
@@ -317,6 +317,30 @@ export class RoomStore {
     return this.view(room.code, token);
   }
 
+  saveStockpileInstructions(room, token, seat, command) {
+    const safeCommand = { type: "SET_STOCKPILE_INSTRUCTIONS", player: seat, instructions: deepClone(command.instructions) };
+    const base = room.draft_state ?? room.committed_state;
+    const result = dispatch(base, safeCommand);
+    if (!result.ok) roomFail(result.error.code, result.error.message, 409);
+    if (result.events.some(event => event.type === "ResourceStockpileCommitted")) {
+      this.commit(room, result.state);
+      return this.view(room.code, token);
+    }
+    if (room.draft_state) {
+      const committed = dispatch(room.committed_state, safeCommand);
+      if (!committed.ok) roomFail(committed.error.code, committed.error.message, 409);
+      room.committed_state = committed.state;
+      room.draft_state = result.state;
+    } else room.committed_state = result.state;
+    // Keep gameplay draft ownership and Undo history. Projections disclose only
+    // the requesting player's instructions, even when another turn is in flight.
+    room.revision = Math.max(room.revision, room.draft_revision) + 1;
+    room.draft_revision = room.revision;
+    room.updated_at = this.now().toISOString();
+    this.persist();
+    return this.view(room.code, token);
+  }
+
   undo(code, token) {
     const room = this.get(code);
     if (room.status !== "ACTIVE") roomFail("MATCH_NOT_ACTIVE", "The online match is not active", 409);
@@ -324,7 +348,7 @@ export class RoomStore {
     if (!seat || room.draft_owner !== seat) roomFail("NOTHING_TO_UNDO", "There is no unpublished action to undo", 409);
     const snapshot = room.draft_history.pop();
     if (!snapshot) roomFail("NOTHING_TO_UNDO", "There is no unpublished action to undo", 409);
-    const restored = restoreUndoSnapshot(snapshot, room.draft_state);
+    const restored = preserveStockpileInstructions(restoreUndoSnapshot(snapshot, room.draft_state), room.draft_state);
     if (snapshot.had_draft) {
       room.draft_state = restored;
       room.draft_owner = snapshot.owner;

@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { Script, createContext } from "node:vm";
-import { PHASE, PLAYER, SUIT } from "../src/constants.js";
-import { settleAutomaticPhases } from "../src/engine.js";
+import { PHASE, PLAYER, SUIT, V2_RULES } from "../src/constants.js";
+import { settleAutomaticPhases, dispatch } from "../src/engine.js";
 import { forcePhase, giveResource, setUpMatch } from "./helpers.js";
 
 // A lightweight DOM host runs the real standalone UI. These are interaction
@@ -40,7 +40,7 @@ function loadUI() {
     window: { setTimeout() {}, clearTimeout() {}, setInterval() {}, clearInterval() {}, confirm() { return true; } },
     navigator: {}, crypto: { getRandomValues(array) { return array; } },
   });
-  const expose = 'globalThis.ui = { render, run, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); } };';
+  const expose = 'globalThis.ui = { render, run, selectHarvestCard, cancelResourceSelection, openStockpilePanel, saveStockpilePlan, undoLastAction, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); } };';
   new Script(code.replace(/\}\)\(\);\s*$/, `${expose}\n})();`)).runInContext(context);
   return { ui: context.ui, elements, app, html };
 }
@@ -149,4 +149,35 @@ test("a cancelled movement preview leaves state intact", () => {
   assert.doesNotMatch(elements.get('action-controls').innerHTML, /Commit action/);
   assert.equal(ui.getState().units_by_id['U-W-001'].square, 'a1');
   assert.equal(ui.getState().players.WHITE.seasonal_pools.SPADES, 8);
+});
+
+
+test("Harvest selection can be cancelled without keeping or redrawing, and revealed cards cannot be undone", async () => {
+  const { ui, elements } = loadUI();
+  let state = setUpMatch('ui-resource-cancel', V2_RULES);
+  state = dispatch(state, {type:'DRAW_HARVEST', player:PLAYER.WHITE, unit_id:'U-W-001', deck:'BLACK'}).state;
+  ui.setState(state);
+  ui.hideHandoff();
+  const before = JSON.stringify(ui.getState());
+  ui.selectHarvestCard(state.harvest.offer_ids[0], {detail:1});
+  assert.equal(elements.get('keep-harvest-selection').disabled, false);
+  ui.cancelResourceSelection();
+  assert.match(elements.get('harvest-table').innerHTML, /id="keep-harvest-selection"[^>]*disabled/);
+  assert.equal(JSON.stringify(ui.getState()), before);
+  await ui.undoLastAction();
+  assert.equal(JSON.stringify(ui.getState()), before);
+});
+
+test("a local Stockpile plan closes at handover and does not reveal the incoming player's instructions", async () => {
+  const { ui, elements } = loadUI();
+  const state = forcePhase(setUpMatch('ui-plan-handover', V2_RULES), PHASE.BUILD);
+  giveResource(state, PLAYER.WHITE, SUIT.CLOVERS, 8);
+  ui.setState(state);
+  ui.hideHandoff();
+  ui.openStockpilePanel();
+  assert.match(elements.get('player-summary').innerHTML, /Private Stockpile instructions/);
+  await ui.saveStockpilePlan();
+  assert.equal(ui.getState().players.WHITE.stockpile_instructions.manual_plan.card_ids.length, 0);
+  ui.showHandoff(PLAYER.BLACK);
+  assert.doesNotMatch(elements.get('player-summary').innerHTML, /Private Stockpile instructions|Saved exact plan/);
 });

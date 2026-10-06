@@ -7,9 +7,9 @@ import { join } from 'node:path';
 import { PersistentRooms } from '../src/persistent-rooms.js';
 import { allocatedBytes, FileRoomStorage, PostgresRoomStorage } from '../src/room-storage.js';
 import { dispatch } from '../src/engine.js';
-import { validateInvariants } from '../src/rules.js';
+import { validateInvariants, stockpileInstructions } from '../src/rules.js';
 import { RoomStore } from '../src/rooms.js';
-import { forcePhase, givePool, PHASE, SUIT, PLAYER, addUnit, UNIT_TYPE, setUpMatch, must } from './helpers.js';
+import { forcePhase, giveResource, givePool, PHASE, SUIT, PLAYER, addUnit, UNIT_TYPE, setUpMatch, must } from './helpers.js';
 const id=()=>randomBytes(24).toString('hex');
 const credentials=()=>({token:id(),recoveryCode:id()});
 const limits={maxGames:5,totalBytes:32*1024*1024,reserveBytes:1024*1024};
@@ -287,4 +287,51 @@ test('terminal archive work keeps its reserve until ready; full admission does n
   assert.equal(current.viewer.saving_paused,false);
   const drawn=await service.mutate('command',host.code,host.token,{expectedRevision:current.viewer.private_revision,command:{type:'DRAW_HARVEST',unit_id:'U-W-001',deck:'BLACK'}},id());
   assert.ok(drawn.game.harvest.offer_ids.length);
+});
+
+
+test('private waiting-player Stockpile plans survive failed saves, restart, takeover and multiple Undo operations', async t => {
+  const db = await fileStore(t);
+  const { service, host, black } = await setup(db);
+  let whiteCard, blackCard;
+  await db.transact(host.code, data => {
+    forcePhase(data.room.committed_state, PHASE.BUILD);
+    whiteCard = giveResource(data.room.committed_state, PLAYER.WHITE, SUIT.CLOVERS, 8);
+    blackCard = giveResource(data.room.committed_state, PLAYER.BLACK, SUIT.HEARTS, 7);
+    return {write:data};
+  });
+  let active = new PersistentRooms(db);
+  async function act(action, token, body = {}, request = id()) {
+    const view = await active.view(host.code, token);
+    return active.mutate(action, host.code, token, {...body, expectedRevision:view.viewer.private_revision}, request);
+  }
+  await act('command', host.token, {command:{type:'TAP_RESOURCES', card_ids:[whiteCard]}});
+  await act('command', host.token, {command:{type:'BUILD_UNIT', square:'b2'}});
+  const before = await db.read(host.code);
+  const instructions = {...stockpileInstructions(before.room.committed_state, PLAYER.BLACK), card_order: {CLOVERS:[], DIAMONDS:[], SPADES:[], HEARTS:[]}, manual_plan:{year:1, card_ids:[blackCard]}};
+  const body = {command:{type:'SET_STOCKPILE_INSTRUCTIONS', instructions}};
+  const transact = db.transact.bind(db);
+  db.transact = (code, fn) => transact(code, async data => {await fn(data); throw new Error('injected plan save failure');});
+  await assert.rejects(() => act('command', black.token, body), e => e.code === 'SAVE_UNAVAILABLE');
+  assert.deepEqual(await db.read(host.code), before);
+  db.transact = transact;
+  await act('command', black.token, body);
+  active = new PersistentRooms(db);
+  const recoveredToken = id();
+  await active.mutate('recover', host.code, null, {recoveryCode:black.recoveryCode, token:recoveredToken}, id());
+  const blackView = await active.view(host.code, recoveredToken);
+  assert.deepEqual(blackView.game.players.BLACK.stockpile_instructions, instructions);
+  assert.equal(blackView.game.resources_by_id[whiteCard].tapped, false);
+  assert.equal(blackView.game.players.WHITE.unit_ids.length, 1);
+  await assert.rejects(() => act('command', black.token, body), e => e.code === 'SESSION_REPLACED');
+  await act('undo', host.token);
+  await act('undo', host.token);
+  const after = await db.read(host.code);
+  assert.equal(after.room.draft_state.resources_by_id[whiteCard].tapped, false);
+  assert.deepEqual(after.room.draft_state.players.BLACK.stockpile_instructions, instructions);
+  assert.deepEqual(validateInvariants(after.room.draft_state), []);
+  for (const token of [host.token, null]) {
+    const view = await active.view(host.code, token);
+    assert.equal(view.game.players.BLACK.stockpile_instructions, undefined);
+  }
 });

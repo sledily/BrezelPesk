@@ -17,6 +17,7 @@ export function projectForPlayer(state, viewer, { revealComplete = state.status 
     const ownsView = player === viewer || revealComplete;
     const courtIds = state.players[player].court_noble_ids;
     if (!ownsView) {
+      delete view.players[player].stockpile_instructions;
       view.players[player].court_noble_ids = hiddenCards(courtIds.length);
       for (const nobleId of courtIds) delete view.nobles_by_id[nobleId];
     }

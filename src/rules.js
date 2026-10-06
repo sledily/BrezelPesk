@@ -296,6 +296,46 @@ export function validateStockpile(state, player, keptIds) {
   return null;
 }
 
+export function stockpileInstructions(state, player) {
+  return state.players[player]?.stockpile_instructions ?? {
+    mode: "MANUAL", suit_order: [...SUITS], card_order: {}, manual_year: null, manual_plan: null,
+  };
+}
+
+export function autoStockpileIds(state, player, instructions = stockpileInstructions(state, player)) {
+  const groups = Object.fromEntries(SUITS.map(suit => [suit, state.players[player].resource_hand_ids
+    .map(id => state.resources_by_id[id])
+    .filter(card => card && card.suit === suit && !card.tapped && card.mandatory_spend_year !== state.year_number)
+    .sort((a, b) => {
+      const order = instructions.card_order[suit] ?? [];
+      const priority = card => { const i = order.indexOf(card.card_id); return i < 0 ? Infinity : i; };
+      return (priority(a) - priority(b) || effectiveCardValue(b) - effectiveCardValue(a)
+        || b.face_value - a.face_value || a.card_id.localeCompare(b.card_id));
+    })]));
+  const kept = SUITS.flatMap(suit => groups[suit].slice(0, 1).map(card => card.card_id));
+  let bonus = storageBonusCount(state, player);
+  for (const suit of instructions.suit_order) {
+    if (bonus && groups[suit][1]) { kept.push(groups[suit][1].card_id); bonus--; }
+  }
+  return kept;
+}
+
+export function stockpilePlan(state, player, instructions = stockpileInstructions(state, player)) {
+  const mode = instructions.manual_year === state.year_number ? "MANUAL" : instructions.mode;
+  const submitted = mode === "AUTO" || instructions.manual_plan?.year === state.year_number;
+  const card_ids = mode === "AUTO" ? autoStockpileIds(state, player, instructions)
+    : submitted ? instructions.manual_plan.card_ids : [];
+  return { mode, submitted, card_ids, error: submitted ? validateStockpile(state, player, card_ids) : "Choose and save the exact cards to keep, including none if you wish." };
+}
+
+export function pokerSelectionError(state, player, ids) {
+  if (new Set(ids).size !== ids.length) return "A physical card can appear only once.";
+  if (ids.some(id => !state.players[player].resource_hand_ids.includes(id) || !state.resources_by_id[id] || state.resources_by_id[id].tapped)) return "Choose untapped cards from your own hand.";
+  if (ids.some(id => state.resources_by_id[id].poker_used_year === state.year_number)) return "A selected card was already used for Poker this Year.";
+  if (!pokerKindForCards(state, ids)) return "Select a Pair, Three-of-a-Kind or Four-Card Straight by printed value.";
+  return null;
+}
+
 export function pokerKindForCards(state, cardIds) {
   const cards = cardIds.map((id) => state.resources_by_id[id]).filter(Boolean);
   const values = cards.map((card) => card.face_value).sort((a, b) => a - b);
@@ -312,7 +352,8 @@ export function pokerKindForCards(state, cardIds) {
 export function availablePokerHands(state, player = state.current_actor) {
   const used = new Set(state.harvest?.poker_used_ids ?? []);
   const cards = state.players[player].resource_hand_ids.map((id) => state.resources_by_id[id])
-    .filter((card) => card && !card.tapped && (state.rules.poker_overlap_allowed || !used.has(card.card_id)));
+    .filter((card) => card && !card.tapped && (state.rules.resource_flow_v2
+      ? card.poker_used_year !== state.year_number : state.rules.poker_overlap_allowed || !used.has(card.card_id)));
   const byValue = new Map();
   for (const card of cards) {
     if (!byValue.has(card.face_value)) byValue.set(card.face_value, []);
@@ -320,7 +361,7 @@ export function availablePokerHands(state, player = state.current_actor) {
   }
   const hands = [];
   const add = (ids) => {
-    if (!ids.some((id) => !state.resources_by_id[id].has_counter || state.resources_by_id[id].mandatory_spend_year !== state.year_number)) return;
+    if (!ids.some((id) => !state.resources_by_id[id].has_counter || (!state.rules.resource_flow_v2 && state.resources_by_id[id].mandatory_spend_year !== state.year_number))) return;
     hands.push({ kind: pokerKindForCards(state, ids), card_ids: ids });
   };
   for (const ids of byValue.values()) {
@@ -387,6 +428,9 @@ export function validateInvariants(state) {
   }
   for (const cardId of state.harvest?.offer_ids ?? []) {
     locations.set(cardId, (locations.get(cardId) ?? 0) + 1);
+  }
+  for (const reject of state.harvest?.rejects ?? []) {
+    locations.set(reject.card_id, (locations.get(reject.card_id) ?? 0) + 1);
   }
   for (const id of Object.keys(state.resources_by_id)) {
     if (locations.get(id) !== 1) errors.push(`${id} has ${locations.get(id) ?? 0} locations`);

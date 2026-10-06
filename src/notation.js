@@ -47,7 +47,13 @@ export function snapshotChronicleEntry(state, type, p, actor = state.current_act
     }
     case "HarvestFailsafeUsed":
       entry.section = "HARVEST";
-      entry.text = `(${resource(p.card_id, false)})`;
+      entry.text = `${state.rules?.resource_flow_v2 ? 'Alt' : ''}(${resource(p.card_id, false)})`;
+      entry.public_text = entry.text;
+      break;
+    case "HarvestCardsDrawn":
+      if (!state.rules?.resource_flow_v2 || p.card_ids.length) return null;
+      entry.section = "HARVEST";
+      entry.text = `()${['a1','a8','h1','h8'].includes(unit(p.unit_id)?.square) ? `@${p.deck === 'BLACK' ? 'Black' : 'Red'}` : ''}`;
       entry.public_text = entry.text;
       break;
     case "PokerHandDeclared":
@@ -157,6 +163,7 @@ export function chronicleEvents(state) {
 }
 
 export function formatChronicle(state, { playerNames = {} } = {}) {
+  if (state.rules.resource_flow_v2) return formatV2Chronicle(state, playerNames);
   const players = state.player_order ?? Object.keys(state.players);
   const fourPlayer = players.length === 4;
   const lines = ["DENDARV GAME RECORD", `Ruleset: ${fourPlayer ? "1.2 (four-player)" : "1.1"}`];
@@ -164,7 +171,8 @@ export function formatChronicle(state, { playerNames = {} } = {}) {
   lines.push("Noble notation: Rx / Dx / Vz. Harvest offers are public; unrevealed Court identities are private.");
   if (fourPlayer) lines.push("Four-player extensions are labeled explicitly.");
   if (!["STANDARD_V1", "STANDARD_V15"].includes(state.rules.harvest_order)) lines.push("Legacy record: Harvest used player-selected Unit order; implicit order is not guaranteed.");
-  if (state.rules.automatic_passes) lines.push("Digital v1.5: automatically retain all cards when they fit the Stockpile; unavailable turns pass automatically.");
+  if (state.rules.resource_flow_v2) lines.push("Digital V2: personal Harvest followed immediately by Poker; private Manual or opted-in Auto Stockpile resolves at Year end.");
+  else if (state.rules.automatic_passes) lines.push("Digital v1.5: automatically retain all cards when they fit the Stockpile; unavailable turns pass automatically.");
   const setup = new Map();
   const years = new Map();
   let currentBlock = null;
@@ -216,4 +224,42 @@ export function formatChronicle(state, { playerNames = {} } = {}) {
   }
   if (result) lines.push("", result);
   return `${lines.join("\n")}\n`;
+}
+
+function formatV2Chronicle(state, playerNames) {
+  const players = state.player_order ?? Object.keys(state.players);
+  const lines = ['DENDARV GAME RECORD', `Ruleset: ${state.ruleset_version}`, 'Notation: 1.1', `Players: ${players.length}`];
+  for (const player of players) lines.push(`${notationPlayer(player)}: ${String(playerNames[player] ?? notationPlayer(player)).replace(/[\r\n]/g, ' ')}`);
+  lines.push('Noble notation: Rx / Dx / Vz. Harvest offers are public; unrevealed Court identities are private.', '', 'Turn 0');
+  let year = 0, heading = 'SETUP', segment = null;
+  const flush = () => {
+    if (!segment) return;
+    const suffix = ['HARVEST', 'POKER'].includes(segment.section) ? ` ${segment.section === 'HARVEST' ? 'Harvest' : 'Poker'}` : '';
+    lines.push(`${notationPlayer(segment.player)}${suffix}: ${segment.entries.join(' ; ') || '/'}`);
+    segment = null;
+  };
+  const section = (event, name) => {
+    const nextHeading = ['HARVEST','POKER'].includes(name) ? 'Harvest / Poker' : CHRONICLE_PHASES[name] ?? name;
+    if (year !== event.year) { flush(); year = event.year; lines.push('', `Year ${year}`); heading = null; }
+    if (heading !== nextHeading) { flush(); lines.push(nextHeading); heading = nextHeading; }
+  };
+  const begin = (event, name, player) => {
+    section(event, name);
+    if (segment && (segment.section !== name || segment.player !== player)) flush();
+    segment ??= { section: name, player, entries: [] };
+  };
+  for (const event of chronicleEvents(state)) {
+    const p = event.payload ?? {}, entry = p.chronicle;
+    if (entry?.section === 'SETUP') { lines.push(`${notationPlayer(entry.player)}: ${entry.text}`); continue; }
+    if (event.type === 'SetupCompleted') { lines.push('Button: White'); continue; }
+    if (event.type === 'PhaseStarted') section(event, p.phase);
+    if (entry?.kind === 'result') { flush(); lines.push('', entry.text); break; }
+    if (entry?.kind === 'extension') { flush(); lines.push(`[Four-player extension: ${entry.text}]`); continue; }
+    if (entry?.text && entry.section) { begin(event, entry.section, entry.player); segment.entries.push(entry.text); }
+    const boundary = event.type === 'HarvestActorCompleted' ? 'HARVEST' : event.type === 'PokerDeclarationsFinished' ? 'POKER'
+      : ['ActorPassed','ResourceStockpileCommitted'].includes(event.type) ? p.section ?? event.phase : null;
+    if (boundary) { begin(event, boundary, p.player ?? event.actor); flush(); }
+  }
+  flush();
+  return `${lines.join('\n')}\n`;
 }

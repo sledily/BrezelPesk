@@ -218,6 +218,17 @@ export const DEFAULT_RULES = Object.freeze({
   red_start_square: "a8",
 });
 
+// New V2 matches use the approved personal Harvest and private Stockpile flows.
+export const V2_RULES = Object.freeze({
+  ruleset_version: "1.1-digital-2.0",
+  resource_flow_v2: true,
+  explicit_action_pass: true,
+  automatic_passes: true,
+  harvest_order: "STANDARD_V15",
+  harvest_returns_immediately: false,
+  poker_overlap_allowed: false,
+});
+
 export function otherPlayer(player) {
   return player === PLAYER.WHITE ? PLAYER.BLACK : PLAYER.WHITE;
 }

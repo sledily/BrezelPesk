@@ -8,12 +8,16 @@ import {
   PLAYER,
   SUIT,
   SUIT_GLYPH,
+  SUITS,
   UNIT_TYPE,
+  V2_RULES,
   playerCode,
 } from "./constants.js";
 import {
   dispatch,
   newMatch,
+  preserveStockpileInstructions,
+  reversibleAction,
   suggestedPhaseActions,
   turnBoundaryCrossed,
   upgradeToV15,
@@ -34,6 +38,7 @@ import {
   deriveConstants,
   deckSize,
   drawCountOf,
+  deckForSquare,
   isBlackSquare,
   isCenter,
   isCorner,
@@ -42,6 +47,10 @@ import {
   legalSiegeTargets,
   liveUnits,
   recommendedStockpileIds,
+  pokerKindForCards,
+  pokerSelectionError,
+  stockpileInstructions,
+  stockpilePlan,
   sortResourceCards,
   storageBonusCount,
   unitAt,
@@ -53,6 +62,7 @@ import {
 
 const dom = {
   board: document.querySelector("#board"),
+  harvestTable: document.querySelector("#harvest-table"),
   boardHint: document.querySelector("#board-hint"),
   matchStatus: document.querySelector("#match-status"),
   playerSummary: document.querySelector("#player-summary"),
@@ -108,12 +118,15 @@ let onlineRequestPending = false;
 let dismissedOnlineNotice = null;
 let vassalSelection = { nobleId: null, unitId: null };
 let boardCandidate = null;
+let harvestChoice = null;
+let lastHarvestTap = null;
+let stockpileEditor = { key: null, open: false, dirty: false, instructions: null, cards: [] };
 
 function loadInitialState() {
   try {
-    return upgradeToV15(loadFromBrowser() ?? newMatch({ seed: "Remy-and-Franny", playerCount: 4, rules: { explicit_action_pass: true } }));
+    return upgradeToV15(loadFromBrowser() ?? newMatch({ seed: "Remy-and-Franny", playerCount: 4, rules: V2_RULES }));
   } catch {
-    return newMatch({ seed: "Remy-and-Franny", playerCount: 4, rules: { explicit_action_pass: true } });
+    return newMatch({ seed: "Remy-and-Franny", playerCount: 4, rules: V2_RULES });
   }
 }
 
@@ -149,11 +162,13 @@ function escapeHtml(value) {
 
 async function run(command, { keepSelection = false } = {}) {
   if (!dom.handoff.hidden) return false;
-  if (pendingAutomaticNotices().length) { maybeShowPhaseNotice(); return false; }
+  const planning = command.type === "SET_STOCKPILE_INSTRUCTIONS";
+  if (!planning && pendingAutomaticNotices().length) { maybeShowPhaseNotice(); return false; }
   const retainTarget = ["TAP_RESOURCES", "MOBILIZE_UNIT"].includes(command.type);
   const previousTarget = retainTarget ? structuredClone(interaction) : null;
   if (onlineClient) {
-    if (!onlinePlayerCanAct() || onlineRequestPending) return false;
+    if ((!planning && !onlinePlayerCanAct()) || onlineRequestPending) return false;
+    if (planning && (onlinePayload?.viewer.role !== "PLAYER" || state.players[activePlayer()]?.eliminated)) return false;
     onlineRequestPending = true;
     try {
       const payload = await onlineClient.command(command);
@@ -179,10 +194,11 @@ async function run(command, { keepSelection = false } = {}) {
     showToast(`${result.error.code}: ${result.error.message}`);
     return false;
   }
-  if (state.rules.automatic_passes && turnBoundaryCrossed(state, result.state, result.events)) undoStack = [];
-  else undoStack.push(undoSnapshot);
+  if (turnBoundaryCrossed(state, result.state, result.events)) undoStack = [];
+  else if (reversibleAction(state, result.state, command)) undoStack.push(undoSnapshot);
+  else if (!planning) undoStack = [];
   state = result.state;
-  if (!keepSelection) {
+  if (!keepSelection && !planning) {
     selectedResourceIds = new Set();
     interaction = retainTarget && state.current_actor === previousActor ? previousTarget : emptyInteraction();
   }
@@ -225,7 +241,7 @@ function applyOnlinePayload(payload, { resetSelection = false, force = false, re
 
 function newLocalMatch(seed, playerCount = 4) {
   leaveOnlineMode({ updateLocation: true });
-  state = newMatch({ seed: seed || "dendarv", playerCount, rules: { explicit_action_pass: true } });
+  state = newMatch({ seed: seed || "dendarv", playerCount, rules: V2_RULES });
   selectedResourceIds = new Set();
   interaction = emptyInteraction();
   stockpileSelectionKey = null;
@@ -241,6 +257,11 @@ function showHandoff(player) {
   const name = playerName(player);
   dom.handoffTitle.textContent = `${name} to act`;
   closeInspection();
+  harvestChoice = null;
+  lastHarvestTap = null;
+  stockpileEditor = { key: null, open: false, dirty: false, instructions: null, cards: [] };
+  dom.handoff.hidden = false;
+  renderPlayerSummary();
   dom.handoffText.textContent = `Pass the device to ${name}. Choose Ready to open your view, then privately inspect your face-down Court when needed. Harvest cards are public.`;
   dom.handoffSeal.textContent = playerCode(player);
   dom.handoffSeal.className = `handoff-seal ${player.toLowerCase()}`;
@@ -252,10 +273,12 @@ function showHandoff(player) {
 function hideHandoff() {
   dom.handoff.hidden = true;
   document.querySelector(".app-shell").inert = false;
+  render();
   maybeShowPhaseNotice();
 }
 
 function syncRecommendedStockpile() {
+  if (state.rules.resource_flow_v2) return;
   if (onlinePayload && !onlinePlayerCanAct()) {
     stockpileSelectionKey = null;
     return;
@@ -348,6 +371,7 @@ function render() {
   syncBoardInteraction();
   renderStatus();
   renderBoard();
+  renderHarvestTable();
   renderTurnCard();
   renderActionControls();
   renderPlayerSummary();
@@ -375,7 +399,15 @@ function renderActionSummary() {
   const unit = state.units_by_id[interaction.unitId];
   const selection = boardCandidate ? ` · ${boardCandidate.label} · Cost ${boardCandidate.cost} ${SUIT_GLYPH[suit]} · Shortfall ${Math.max(0, boardCandidate.cost - (state.players[actor]?.seasonal_pools[suit] ?? 0))}`
     : unit ? ` · ${title(unit.unit_type)} at ${unit.square}${state.phase === PHASE.MOBILIZE ? ` · Cost ${actionCost(state, 'MOBILIZE', {unit_id: unit.unit_id})} ♤ · Select a destination` : ' · Select a defender'}` : '';
-  dom.actionSummary.textContent = `${playerName(actor)} · ${state.status === 'SETUP' ? 'Choose Sovereign' : state.status === 'COMPLETE' ? 'Match complete' : title(state.phase)}${pool}${selection}`;
+  if (state.phase === PHASE.HARVEST && state.harvest) {
+    const h = state.harvest;
+    const harvesting = state.units_by_id[h.unit_id ?? h.remaining_unit_ids[0]];
+    const ids = [...selectedResourceIds];
+    const choice = state.resources_by_id[harvestChoice];
+    const detail = h.stage === 'POKER' ? ids.length ? `${pokerKindForCards(state, ids) ? title(pokerKindForCards(state, ids)) : 'Candidate'} · ${pokerSelectionError(state, actor, ids) ?? 'Ready to Declare Hand'}` : 'Select an exact proposal or choose cards, then Declare Hand or Pass'
+      : harvesting ? `${title(harvesting.unit_type)} at ${harvesting.square} · Draw ${drawCountOf(harvesting)} from ${isCorner(harvesting.square) ? 'Black ♧ ♤ or Red ◇ ♡' : title(deckForSquare(harvesting.square))}${h.offer_ids.length ? choice ? ` · Selected ${formatResource(choice)} · Keep to commit` : ' · Select a card beside the Unit' : ''}` : 'Harvest complete';
+    dom.actionSummary.textContent = `${playerName(actor)} · ${h.stage === 'POKER' ? 'Poker' : 'Harvest'} · ${detail}`;
+  } else dom.actionSummary.textContent = `${playerName(actor)} · ${state.status === 'SETUP' ? 'Choose Sovereign' : state.status === 'COMPLETE' ? 'Match complete' : title(state.phase)}${pool}${selection}`;
 }
 
 function closeInspection() {
@@ -476,6 +508,7 @@ function renderBoard() {
       ].filter(Boolean).join(" ");
       const vassal = unit?.vassal_noble_id ? state.nobles_by_id[unit.vassal_noble_id] : null;
       const pieceColor = unit?.piece_color ?? unit?.owner;
+      const rejectCount = (state.harvest?.rejects ?? []).filter(item => item.unit_id === unit?.unit_id).length;
       const unitHtml = unit ? `
         <span class="piece ${pieceColor.toLowerCase()}" aria-hidden="true">${pieceIcon(unit)}</span>
         ${pieceColor !== unit.owner ? `<span class="controller-banner ${unit.owner.toLowerCase()}" title="Controlled by ${playerName(unit.owner)}"></span>` : ''}
@@ -485,6 +518,7 @@ function renderBoard() {
           ${fileIndex === 0 ? `<span class="coordinate rank">${rank}</span>` : ""}
           ${rank === 1 ? `<span class="coordinate file">${file}</span>` : ""}
           ${unitHtml}
+          ${rejectCount ? `<span class="harvest-rejects" title="${rejectCount} rejected cards held until personal Harvest ends" aria-label="${rejectCount} face-down rejected cards">▧ ${rejectCount}</span>` : ''}
         </button>${vassal ? `<button class="vassal-badge ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(vassal.suit) ? 'red' : ''}" data-inspect-noble="${vassal.noble_id}" aria-label="Inspect ${escapeHtml(formatNoble(vassal))}">${formatNoble(vassal, true, false)}</button>` : ''}</div>
       `);
     }
@@ -581,19 +615,28 @@ function renderTurnCard() {
   dom.turnCard.innerHTML = constantsHtml(state, privateViewer(), boardCandidate?.command.defender_id);
 }
 
-function resourceCheckbox(card, mode) {
+function resourceCheckbox(card, mode, owner = null) {
+  const planning = state.rules.resource_flow_v2 && owner === privateViewer() && stockpileEditor.open;
+  const draftPlan = planning ? stockpilePlan(state, owner, { ...stockpileEditor.instructions, manual_plan: { year: state.year_number, card_ids: stockpileEditor.cards } }) : null;
+  if (planning) mode = draftPlan.mode === 'MANUAL' ? 'PLAN' : 'NONE';
   const red = [SUIT.DIAMONDS, SUIT.HEARTS].includes(card.suit);
   const activeSuit = ACTIVE_SUIT_BY_PHASE[state.phase];
   const disabled = mode === "NONE"
     || (mode === "TAP" && (card.tapped || card.suit !== activeSuit))
-    || (mode === "STOCKPILE" && (card.tapped || card.mandatory_spend_year === state.year_number));
+    || (["PLAN", "STOCKPILE"].includes(mode) && (card.tapped || card.mandatory_spend_year === state.year_number))
+    || (mode === 'POKER' && state.rules.resource_flow_v2 && (card.tapped || card.poker_used_year === state.year_number));
   const classes = ["card-token", red ? "red" : "", card.tapped ? "tapped" : "", card.mandatory_spend_year === state.year_number ? "mandatory" : ""].filter(Boolean).join(" ");
-  const description = `${formatResource(card)}, usable value ${card.tapped ? 0 : card.face_value + Number(card.has_counter)} ${SUIT_GLYPH[card.suit]}${card.has_counter ? '. Counter adds 1' : ''}${card.tapped ? '. Tapped' : ''}${card.mandatory_spend_year === state.year_number ? '. Spend or return this Year' : ''}`;
+  const description = `${physicalResourceLabel(card)}, usable value ${card.tapped ? 0 : card.face_value + Number(card.has_counter)} ${SUIT_GLYPH[card.suit]}${card.has_counter ? `. One Counter adds 1${card.counter_sources?.length ? ` (${card.counter_sources.map(title).join(', ')})` : ''}` : ''}${card.tapped ? '. Tapped' : ''}${card.mandatory_spend_year === state.year_number ? '. Spend or return this Year' : ''}`;
+  const plan = owner === privateViewer() && state.rules.resource_flow_v2 ? draftPlan ?? stockpilePlan(state, owner) : null;
+  const marker = card.mandatory_spend_year === state.year_number ? 'Must return' : card.tapped ? '' : plan?.submitted ? plan.card_ids.includes(card.card_id) ? 'Keep' : 'Return' : '';
+  const priority = planning && draftPlan.mode === 'AUTO' && !card.tapped && card.mandatory_spend_year !== state.year_number;
+  const cardOrder = priority ? stockpilePriorityCards(card.suit) : [];
+  const priorityIndex = cardOrder.indexOf(card.card_id);
   return `
-    <label class="card-choice" title="${description}">
-      <input type="checkbox" aria-label="${formatResource(card)}, effective value ${card.face_value + Number(card.has_counter)}${card.tapped ? ', tapped' : ''}${card.mandatory_spend_year === state.year_number ? ', spend or return this Year' : ''}" data-resource-id="${card.card_id}" ${selectedResourceIds.has(card.card_id) ? "checked" : ""} ${disabled ? "disabled" : ""}>
+    <div class="resource-with-plan"><label class="card-choice" title="${description}">
+      <input type="checkbox" aria-label="${description}" ${mode === 'PLAN' ? 'data-stockpile-id' : 'data-resource-id'}="${card.card_id}" ${mode === 'PLAN' ? stockpileEditor.cards.includes(card.card_id) ? 'checked' : '' : selectedResourceIds.has(card.card_id) ? 'checked' : ''} ${disabled ? "disabled" : ""}>
       <span class="${classes}">${formatResource({...card, has_counter: false})}${card.has_counter ? '<span class="card-counter" aria-hidden="true"></span>' : ''}</span>
-    </label>
+    </label>${duplicateCardLabel(card) ? `<span class="physical-copy" title="Visible duplicate ${duplicateCardLabel(card)}">${duplicateCardLabel(card)}</span>` : ''}${marker ? `<span class="plan-marker ${marker === 'Keep' ? 'keep' : 'return'}">${marker}</span>` : ''}${priority ? `<span class="card-priority"><button type="button" data-card-priority="${card.card_id}" data-direction="-1" aria-label="Raise ${physicalResourceLabel(card)} priority" ${priorityIndex === 0 ? 'disabled' : ''}>↑</button><span>${priorityIndex + 1}</span><button type="button" data-card-priority="${card.card_id}" data-direction="1" aria-label="Lower ${physicalResourceLabel(card)} priority" ${priorityIndex === cardOrder.length - 1 ? 'disabled' : ''}>↓</button></span>` : ''}</div>
   `;
 }
 
@@ -707,30 +750,93 @@ function renderHarvestActions() {
   const h = state.harvest;
   if (h.stage === "POKER") {
     const hands = availablePokerHands(state, activePlayer());
-    const kinds = [...new Set(hands.map((hand) => title(hand.kind)))];
-    const eligibleIds = new Set(hands.flatMap((hand) => hand.card_ids));
-    const cards = sortResourceCards([...eligibleIds].map((id) => state.resources_by_id[id]));
     const selected = [...selectedResourceIds];
-    const legal = hands.some((hand) => hand.card_ids.length === selected.length && hand.card_ids.every((id) => selected.includes(id)));
-    dom.actionControls.innerHTML = `<p class="eyebrow">Harvest bonus</p><h2>Declare Poker Hands</h2>
-      <p>Available: ${kinds.join(", ")}. Select by face value. Declared cards gain a Counter and must be spent or returned this Year.</p>
-      <div class="resource-row">${cards.map((card) => resourceCheckbox(card, "POKER")).join("")}</div>
-      <div class="choice-grid"><button id="declare-poker" class="button primary" ${legal ? "" : "disabled"}>Declare selected</button><button id="finish-poker" class="button">Finish declarations</button></div>`;
+    const error = state.rules.resource_flow_v2 ? pokerSelectionError(state, activePlayer(), selected)
+      : hands.some(hand => hand.card_ids.length === selected.length && hand.card_ids.every(id => selected.includes(id))) ? null : 'Select a legal hand.';
+    const declared = h.poker_used_ids.length > 0;
+    dom.actionControls.innerHTML = `<div class="phase-heading"><p class="eyebrow">Personal Harvest complete</p><h2>Poker</h2><p>Choose a proposal or select cards in your Resource hand. Printed values qualify; suits and Counters do not. Each physical card can be declared once this Year.</p></div>
+      <div class="poker-proposals" aria-label="Exact Poker proposals">${hands.map((hand, index) => `<button class="button poker-proposal" data-poker-proposal="${index}"><strong>${title(hand.kind)}</strong><span>${hand.card_ids.map(id => physicalResourceLabel(state.resources_by_id[id])).join(' · ')}</span></button>`).join('') || '<p class="empty-state">No further proposals. You may Undo a declaration or Pass.</p>'}</div>
+      <div class="poker-candidate" aria-live="polite"><strong>${selected.length ? selected.map(id => physicalResourceLabel(state.resources_by_id[id])).join(' + ') : 'No candidate selected'}</strong><p>${escapeHtml(error ?? `${title(pokerKindForCards(state, selected))} · adds missing Counters; all selected cards must be spent or returned this Year.`)}</p></div>
+      <div class="choice-grid"><button id="declare-poker" class="button primary" ${error ? 'disabled' : ''}>Declare Hand</button><button id="cancel-poker" class="button" ${selected.length ? '' : 'disabled'}>Cancel selection</button><button id="poker-undo" class="button" ${(onlinePayload ? onlinePayload.viewer.can_undo : undoStack.length) ? '' : 'disabled'}>Undo</button><button id="finish-poker" class="button ${declared && !hands.length ? 'primary pass-ready' : ''}">Pass${onlinePayload ? ' and publish' : ''}</button></div>`;
     return;
   }
-  const guide = `<p class="rule-note">Harvest each piece in the numbered order: Holdings before Levies, then Level 1 → 2 → 3. ${HARVEST_COORDINATE_GUIDE[activePlayer()]} Click the deck button for each piece.</p>`;
-  const rule = '<p class="rule-note harvest-general-rule">Pawns and Knights draw 1; Rooks and Bishops draw 2; Queens and Kings draw 3. Keep 1 card for each piece.</p>';
+  const ids = h.ordered_unit_ids ?? h.remaining_unit_ids;
+  const queue = `<ol class="harvest-progress" aria-label="Harvest order">${ids.map((id, index) => {
+    const unit = state.units_by_id[id];
+    const done = !h.remaining_unit_ids.includes(id);
+    return `<li class="${done ? 'done' : h.remaining_unit_ids[0] === id ? 'current' : ''}" ${!done && h.remaining_unit_ids[0] === id ? 'aria-current="step"' : ''}><span>${done ? '✓' : index + 1}</span>${pieceIcon(unit)}<strong>${unit.square}</strong><small>${title(unit.unit_type)}</small></li>`;
+  }).join('')}</ol>`;
   let decision = "";
   if (h.failsafe_pending) {
-    decision = `<h3>Forgo normal Harvest?</h3><p>You have no Units on black squares. You may forgo normal Harvest for a Black Resource Card.</p><div class="choice-grid"><button id="use-failsafe" class="button primary">Take the Black card · ♧ ♤</button><button id="decline-failsafe" class="button quiet">Harvest normally</button></div>`;
-  } else if (h.offer_ids.length) {
-    const unit = state.units_by_id[h.unit_id];
-    decision = `<h3>Choose your Harvest card · ${unit.square}</h3><div class="choice-grid harvest-offer">${h.offer_ids.map((id) => {
-      const details = harvestCardDetails(state.resources_by_id[id], unit, state);
-      return `<button class="button harvest-keep ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(details.card.suit) ? "red-card" : ""}" data-card-id="${id}"><strong>${formatResource(details.card)}</strong><span>Worth ${details.effective_value} ${SUIT_GLYPH[details.card.suit]}</span><small>${details.explanation}</small></button>`;
-    }).join("")}</div>`;
+    decision = `<div><h3>Forgo normal Harvest?</h3><p>You have no Units on black squares. You may replace your entire Harvest with one available Black Resource Card.</p><div class="choice-grid"><button id="use-failsafe" class="button primary" ${deckSize(state, DECK.BLACK) ? '' : 'disabled'}>Take one Black card · ♧ ♤</button><button id="decline-failsafe" class="button quiet">Harvest normally</button></div></div>`;
   }
-  dom.actionControls.innerHTML = `<p class="eyebrow">Harvest</p><h2>${playerName(state.current_actor)} Harvest</h2>${guide}${harvestListHtml(state)}${decision}${rule}`;
+  const shortage = [...state.event_log].reverse().find(event => event.type === 'HarvestSupplyShortage' && event.year === state.year_number && event.payload.player === state.current_actor);
+  dom.actionControls.innerHTML = `<div class="phase-heading"><p class="eyebrow">${playerName(state.current_actor)} · Harvest</p><h2>${ids.length - h.remaining_unit_ids.length} of ${ids.length} Units harvested</h2><p>Select a card near the highlighted Unit; double-click or double-tap that same card to keep it. The Keep button also commits. A one-card offer is kept automatically.</p></div>${queue}${decision}${shortage ? `<p class="supply-notice" role="status">${escapeHtml(shortage.payload.message ?? 'The Resource supply could not fill an offer.')}</p>` : ''}<details class="harvest-order-guide"><summary>Harvest order and bonuses</summary><p>Holdings before Levies, then Level 1 → 2 → 3. ${HARVEST_COORDINATE_GUIDE[activePlayer()]} Pawns and Knights draw 1; Rooks and Bishops 2; Queens and Kings 3. Keep one actual card. A center square or matching Vassal adds one Counter; these bonuses do not stack.</p></details>`;
+}
+
+function physicalResourceLabel(card) {
+  if (!card) return 'Unavailable card';
+  const label = duplicateCardLabel(card);
+  return `${formatResource(card)}${label ? ` [${label}]` : ''}`;
+}
+
+function duplicateCardLabel(card) {
+  const holder = Object.values(state.players).find(player => player.resource_hand_ids.includes(card.card_id));
+  const visibleIds = holder?.resource_hand_ids ?? state.harvest?.offer_ids ?? [];
+  const copies = visibleIds.filter(id => state.resources_by_id[id]?.suit === card.suit && state.resources_by_id[id]?.face_value === card.face_value);
+  // These numbers identify positions among currently visible duplicates, not
+  // permanent deck copies that could be tracked through a hidden shuffle.
+  return copies.length > 1 ? String(copies.indexOf(card.card_id) + 1) : '';
+}
+
+function renderHarvestTable() {
+  const h = state.phase === PHASE.HARVEST ? state.harvest : null;
+  const unit = h && h.stage === 'DRAW' ? state.units_by_id[h.unit_id ?? h.remaining_unit_ids[0]] : null;
+  const visible = unit && !h.failsafe_pending;
+  dom.harvestTable.hidden = !visible;
+  if (!visible) { dom.harvestTable.innerHTML = ''; harvestChoice = null; lastHarvestTap = null; return; }
+  if (!h.offer_ids.includes(harvestChoice)) harvestChoice = null;
+  const actionable = onlinePlayerCanAct() && privateViewer() === state.current_actor;
+  const row = 8 - Number(unit.square[1]);
+  const file = unit.square.charCodeAt(0) - 97;
+  dom.harvestTable.className = `harvest-table ${file < 4 ? 'from-left' : 'from-right'} ${row < 4 ? 'below-unit' : 'above-unit'}`;
+  dom.harvestTable.style?.setProperty('--harvest-row', row < 4 ? row + 1 : 8 - row);
+  const decks = isCorner(unit.square) ? [DECK.BLACK, DECK.RED] : [deckForSquare(unit.square)];
+  dom.harvestTable.innerHTML = `<div class="harvest-tray-heading"><strong>${title(unit.unit_type)} · ${unit.square}</strong><span>Draw ${drawCountOf(unit)} · keep 1</span></div>${h.offer_ids.length ? `<div class="harvest-cards">${h.offer_ids.map(id => {
+    const card = state.resources_by_id[id];
+    const details = harvestCardDetails(card, unit, state);
+    return `<button class="harvest-card ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(card.suit) ? 'red-card' : ''} ${id === harvestChoice ? 'selected' : ''}" data-harvest-card="${id}" aria-pressed="${id === harvestChoice}" aria-label="Select ${physicalResourceLabel(card)}; ${details.explanation}" title="${details.explanation}" ${actionable ? '' : 'disabled'}><strong>${formatResource({...card, has_counter: false})}</strong>${details.card.has_counter ? '<span class="card-counter" aria-hidden="true"></span>' : ''}<span>Worth ${details.effective_value}</span>${duplicateCardLabel(card) ? `<small>Card ${duplicateCardLabel(card)}</small>` : ''}</button>`;
+  }).join('')}</div><p id="harvest-choice-detail" class="harvest-choice-detail">${harvestChoice ? escapeHtml(harvestCardDetails(state.resources_by_id[harvestChoice], unit, state).explanation) : 'Select one card. Rejected cards wait face down.'}</p><button id="keep-harvest-selection" class="button primary full" ${actionable && harvestChoice ? '' : 'disabled'}>Keep selected card</button><button id="cancel-harvest-selection" class="button full" ${harvestChoice ? '' : 'disabled'}>Cancel selection</button>` : `<div class="harvest-decks">${decks.map(deck => `<button class="button harvest-draw deck-${deck.toLowerCase()}" data-unit-id="${unit.unit_id}" data-deck="${deck}" ${actionable ? '' : 'disabled'}><strong>${title(deck)}</strong><span>${deck === DECK.BLACK ? '♧ ♤' : '◇ ♡'}</span><small>${deckSize(state, deck)} in deck</small></button>`).join('')}</div>`}`;
+}
+
+function selectHarvestCard(id, event = {}) {
+  const h = state.harvest;
+  if (!dom.handoff.hidden || !onlinePlayerCanAct() || state.phase !== PHASE.HARVEST || h?.stage !== 'DRAW' || !h.offer_ids.includes(id)) return;
+  const key = `${state.match_id}:${state.year_number}:${state.current_actor}:${h.unit_id}:${h.offer_ids.join(',')}`;
+  const double = event.detail !== 0 && harvestChoice === id && lastHarvestTap?.id === id && lastHarvestTap.key === key && Date.now() - lastHarvestTap.time < 450;
+  harvestChoice = id;
+  lastHarvestTap = { id, key, time: Date.now() };
+  if (double) { lastHarvestTap = null; run({ type: 'KEEP_HARVEST_CARD', player: activePlayer(), card_id: id }); return; }
+  document.querySelectorAll('[data-harvest-card]').forEach(button => {
+    button.classList.toggle('selected', button.dataset.harvestCard === id);
+    button.setAttribute('aria-pressed', String(button.dataset.harvestCard === id));
+  });
+  const keep = document.querySelector('#keep-harvest-selection');
+  if (keep) keep.disabled = false;
+  const cancel = document.querySelector('#cancel-harvest-selection');
+  if (cancel) cancel.disabled = false;
+  const detail = document.querySelector('#harvest-choice-detail');
+  if (detail) detail.textContent = harvestCardDetails(state.resources_by_id[id], state.units_by_id[h.unit_id], state).explanation;
+  renderActionSummary();
+}
+
+function cancelResourceSelection() {
+  harvestChoice = null;
+  lastHarvestTap = null;
+  selectedResourceIds = new Set();
+  boardCandidate = null;
+  interaction = emptyInteraction();
+  render();
 }
 
 function renderBuildActions() {
@@ -844,6 +950,11 @@ function renderExecuteActions() {
 
 function renderStockpileActions() {
   const player = activePlayer();
+  if (state.rules.resource_flow_v2) {
+    const plan = stockpilePlan(state, player);
+    dom.actionControls.innerHTML = `<div class="phase-heading"><p class="eyebrow">Year end · ${playerName(player)}</p><h2>Choose your Stockpile</h2><p>${escapeHtml(plan.error ?? 'Review the exact cards to keep.')}</p><p>Use the Stockpile panel in your Resource area. Saving a legal selection now commits the returns and advances play.</p></div><button id="open-stockpile-action" class="button primary">Open Stockpile</button>`;
+    return;
+  }
   const bonus = storageBonusCount(state, player);
   const selectionError = validateStockpile(state, player, [...selectedResourceIds]);
   dom.actionControls.innerHTML = `
@@ -858,12 +969,78 @@ function renderStockpileActions() {
 }
 
 function passButton() {
-  return `<div class="choice-grid">${onlinePayload?.viewer.can_undo ? `<button id="online-undo" class="button quiet">Undo latest action</button>` : ""}<button id="pass-phase" class="button quiet full">Pass ${title(state.phase)}${onlinePayload ? " and publish" : ""}</button></div>`;
+  const lastFall = state.phase === PHASE.EXECUTE || (state.phase === PHASE.VASSALIZE && !state.players[activePlayer()].dungeon_noble_id);
+  const plan = state.rules.resource_flow_v2 && lastFall ? stockpilePlan(state, activePlayer()) : null;
+  return `<div class="choice-grid">${onlinePayload?.viewer.can_undo ? `<button id="online-undo" class="button quiet">Undo latest action</button>` : ""}<button id="pass-phase" class="button quiet full">Pass ${title(state.phase)}${onlinePayload ? " and publish" : ""}</button>${plan?.mode === 'MANUAL' && !plan.submitted ? '<button id="open-stockpile-action" class="button">Plan Stockpile · optional</button>' : ''}</div>`;
 }
 
 function renderPlayerSummary() {
+  syncStockpileEditor();
   const names = onlinePayload ? Object.fromEntries(Object.entries(onlinePayload.room.seats).filter(([, seat]) => seat).map(([player, seat]) => [player, seat.name])) : {};
-  dom.playerSummary.innerHTML = tabletopRegionsHtml(state, { viewer: privateViewer(), names, resourceHtml: resourceCheckbox, canAct: onlinePlayerCanAct() });
+  dom.playerSummary.innerHTML = tabletopRegionsHtml(state, { viewer: dom.handoff.hidden ? privateViewer() : null, names, resourceHtml: resourceCheckbox, canAct: onlinePlayerCanAct(), stockpileHtml: stockpilePanelHtml });
+}
+
+function syncStockpileEditor() {
+  const player = privateViewer();
+  const key = player && state.rules.resource_flow_v2 && state.status === 'ACTIVE' && !state.players[player]?.eliminated ? `${state.match_id}:${player}:${state.year_number}` : null;
+  if (!key) { stockpileEditor = { key: null, open: false, dirty: false, instructions: null, cards: [] }; return; }
+  const saved = stockpileInstructions(state, player);
+  if (stockpileEditor.key !== key || !stockpileEditor.dirty) {
+    stockpileEditor = { key, open: stockpileEditor.key === key && stockpileEditor.open, dirty: false,
+      instructions: structuredClone(saved), cards: saved.manual_plan?.year === state.year_number ? [...saved.manual_plan.card_ids] : [] };
+  }
+  const plan = stockpilePlan(state, player);
+  if (state.phase === PHASE.STOCKPILE && state.current_actor === player && plan.error && dom.handoff.hidden) stockpileEditor.open = true;
+}
+
+function stockpilePriorityCards(suit) {
+  const order = stockpileEditor.instructions.card_order[suit] ?? [];
+  return sortResourceCards(state.players[privateViewer()].resource_hand_ids.map(id => state.resources_by_id[id])
+    .filter(card => card.suit === suit && !card.tapped && card.mandatory_spend_year !== state.year_number))
+    .sort((a, b) => {
+      const rank = id => order.includes(id) ? order.indexOf(id) : Infinity;
+      return rank(a.card_id) - rank(b.card_id) || b.face_value + Number(b.has_counter) - a.face_value - Number(a.has_counter) || b.face_value - a.face_value || a.card_id.localeCompare(b.card_id);
+    }).map(card => card.card_id);
+}
+
+function stockpilePanelHtml(player) {
+  if (!stockpileEditor.key || player !== privateViewer()) return '';
+  const saved = stockpilePlan(state, player);
+  const editor = stockpileEditor;
+  const instructions = editor.instructions;
+  const draft = stockpilePlan(state, player, { ...instructions, manual_plan: { year: state.year_number, card_ids: editor.cards } });
+  const savedText = saved.submitted ? `${saved.mode === 'AUTO' ? 'Saved Auto instructions' : `Saved exact plan: keep ${saved.card_ids.length}`}${saved.error ? ' · needs correction' : ''}` : 'Manual · no saved plan';
+  const now = state.phase === PHASE.STOCKPILE && state.current_actor === player;
+  return `<div class="stockpile-entry"><button id="toggle-stockpile" class="button" aria-expanded="${editor.open}" aria-controls="stockpile-panel">Stockpile</button><span>${savedText}</span></div>${editor.open ? `<section id="stockpile-panel" class="stockpile-panel" aria-label="Private Stockpile instructions"><h3>Stockpile · Year ${state.year_number}</h3><p>One card per suit + ${storageBonusCount(state, player)} bonus slot${storageBonusCount(state, player) === 1 ? '' : 's'}. At most two per suit. ! cards must return.</p><div class="stockpile-modes"><button class="button ${draft.mode === 'MANUAL' ? 'chosen' : ''}" data-stockpile-mode="MANUAL">Manual</button><button class="button ${draft.mode === 'AUTO' ? 'chosen' : ''}" data-stockpile-mode="AUTO">Auto · opt in</button></div>
+    ${draft.mode === 'AUTO' ? `<p>Keep one eligible card per suit, then assign bonus slots in this order. Within each suit, use effective value, then printed value; arrows below cards override that order.</p><ol class="suit-priorities">${instructions.suit_order.map((suit, index) => `<li><strong>${SUIT_GLYPH[suit]} ${title(suit)}</strong><button data-suit-priority="${suit}" data-direction="-1" aria-label="Raise ${title(suit)} priority" ${index === 0 ? 'disabled' : ''}>↑</button><button data-suit-priority="${suit}" data-direction="1" aria-label="Lower ${title(suit)} priority" ${index === 3 ? 'disabled' : ''}>↓</button></li>`).join('')}</ol><div class="choice-grid"><button id="stockpile-card-order-reset" class="button">Use value order</button><button id="stockpile-manual-year" class="button">Choose manually this Year</button></div>` : `<p>Select the exact cards to keep in your hand below. You may keep fewer cards, including none.${instructions.mode === 'AUTO' ? ' This Year is Manual; saved Auto priorities resume next Year.' : ''}</p><button id="stockpile-keep-none" class="button">Select none</button>`}
+    <p class="stockpile-save-state" role="status">${editor.dirty ? 'Unsaved edits · the saved instructions still apply.' : savedText}${saved.error && saved.submitted ? ` · ${escapeHtml(saved.error)}` : ''}</p>${draft.error ? `<p class="selection-error">${escapeHtml(draft.error)}</p>` : ''}<p>${now ? 'Saving now returns the unkept cards and finishes your Stockpile.' : 'Saved instructions stay private and editable. Returns happen at normal Year-end timing.'}</p><div class="choice-grid"><button id="save-stockpile" class="button primary" ${draft.error ? 'disabled' : ''}>${draft.mode === 'AUTO' ? 'Save Auto instructions' : `Save plan: keep ${editor.cards.length || 'none'}`}</button><button id="reset-stockpile-edits" class="button">Restore saved instructions</button><button id="close-stockpile" class="button">Close</button></div></section>` : ''}`;
+}
+
+function refreshStockpilePanel() {
+  renderPlayerSummary();
+  bindDynamicControls();
+}
+
+function openStockpilePanel() {
+  syncStockpileEditor();
+  if (!stockpileEditor.key || !dom.handoff.hidden) return;
+  stockpileEditor.open = true;
+  refreshStockpilePanel();
+  document.querySelector('#stockpile-panel')?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+}
+
+async function saveStockpilePlan() {
+  const editor = stockpileEditor;
+  if (!editor.key) return;
+  const instructions = structuredClone(editor.instructions);
+  if (stockpilePlan(state, privateViewer(), instructions).mode === 'MANUAL') instructions.manual_plan = { year: state.year_number, card_ids: [...editor.cards] };
+  else instructions.manual_plan = null;
+  const result = await run({ type: 'SET_STOCKPILE_INSTRUCTIONS', player: privateViewer(), instructions }, { keepSelection: true });
+  if (!result) return;
+  stockpileEditor.dirty = false;
+  stockpileEditor.open = false;
+  render();
+  showToast('Stockpile instructions saved.', true);
 }
 
 function visibleChronicle() {
@@ -891,15 +1068,55 @@ function bindDynamicControls() {
       renderActionControls();
       bindDynamicControls();
       updateTapPreview();
+      renderActionSummary();
     };
     if (checkbox.parentElement) checkbox.parentElement.ondblclick = event => {
-      if (checkbox.disabled || !onlinePlayerCanAct() || state.current_actor !== privateViewer() || !dom.handoff.hidden) return;
+      if (stockpileEditor.open || checkbox.disabled || !onlinePlayerCanAct() || state.current_actor !== privateViewer() || !dom.handoff.hidden) return;
       const card = state.resources_by_id[checkbox.dataset.resourceId];
       if (ACTIVE_SUIT_BY_PHASE[state.phase] !== card?.suit || card.tapped) return;
       event.preventDefault();
       run({type: 'TAP_RESOURCES', player: activePlayer(), card_ids: [card.card_id]});
     };
   });
+  document.querySelectorAll('[data-stockpile-id]').forEach(checkbox => {
+    checkbox.onchange = () => {
+      const ids = new Set(stockpileEditor.cards);
+      if (checkbox.checked) ids.add(checkbox.dataset.stockpileId); else ids.delete(checkbox.dataset.stockpileId);
+      stockpileEditor.cards = [...ids];
+      stockpileEditor.dirty = true;
+      refreshStockpilePanel();
+    };
+  });
+  document.querySelectorAll('[data-stockpile-mode]').forEach(button => { button.onclick = () => {
+    stockpileEditor.instructions.mode = button.dataset.stockpileMode;
+    stockpileEditor.instructions.manual_year = null;
+    stockpileEditor.dirty = true;
+    refreshStockpilePanel();
+  }; });
+  document.querySelectorAll('[data-suit-priority], [data-card-priority]').forEach(button => { button.onclick = () => {
+    const suit = button.dataset.suitPriority ?? state.resources_by_id[button.dataset.cardPriority].suit;
+    const values = button.dataset.suitPriority ? [...stockpileEditor.instructions.suit_order] : stockpilePriorityCards(suit);
+    const index = values.indexOf(button.dataset.suitPriority ?? button.dataset.cardPriority);
+    const next = index + Number(button.dataset.direction);
+    if (next < 0 || next >= values.length) return;
+    [values[index], values[next]] = [values[next], values[index]];
+    if (button.dataset.suitPriority) stockpileEditor.instructions.suit_order = values;
+    else stockpileEditor.instructions.card_order[suit] = values;
+    stockpileEditor.dirty = true;
+    refreshStockpilePanel();
+  }; });
+  onClick('toggle-stockpile', () => { stockpileEditor.open = !stockpileEditor.open; refreshStockpilePanel(); });
+  onClick('close-stockpile', () => { stockpileEditor.open = false; refreshStockpilePanel(); });
+  onClick('reset-stockpile-edits', () => { stockpileEditor.dirty = false; refreshStockpilePanel(); });
+  onClick('stockpile-keep-none', () => { stockpileEditor.cards = []; stockpileEditor.dirty = true; refreshStockpilePanel(); });
+  onClick('stockpile-card-order-reset', () => { stockpileEditor.instructions.card_order = {}; stockpileEditor.dirty = true; refreshStockpilePanel(); });
+  onClick('stockpile-manual-year', () => {
+    stockpileEditor.cards = stockpilePlan(state, privateViewer(), stockpileEditor.instructions).card_ids;
+    stockpileEditor.instructions.manual_year = state.year_number;
+    stockpileEditor.dirty = true;
+    refreshStockpilePanel();
+  });
+  onClick('save-stockpile', saveStockpilePlan);
   bindActionControlsOnly();
   updateTapPreview();
 }
@@ -929,8 +1146,19 @@ function bindActionControlsOnly() {
   onClick("online-pass", passOnlineTurn);
   onClick("online-undo", undoLastAction);
   document.querySelectorAll(".sovereign-choice").forEach((button) => button.addEventListener("click", () => run({ type: "CHOOSE_SOVEREIGN", player: activePlayer(), noble_id: button.dataset.nobleId })));
-  document.querySelectorAll(".harvest-draw").forEach((button) => button.addEventListener("click", () => run({ type: "DRAW_HARVEST", player: activePlayer(), unit_id: button.dataset.unitId, deck: button.dataset.deck, auto_harvest: true })));
-  document.querySelectorAll(".harvest-keep").forEach((button) => button.addEventListener("click", () => run({ type: "KEEP_HARVEST_CARD", player: activePlayer(), card_id: button.dataset.cardId, auto_harvest: true })));
+  document.querySelectorAll(".harvest-draw").forEach(button => { button.onclick = () => run({ type: "DRAW_HARVEST", player: activePlayer(), unit_id: button.dataset.unitId, deck: button.dataset.deck, auto_harvest: true }); });
+  document.querySelectorAll('[data-harvest-card]').forEach(button => { button.onclick = event => selectHarvestCard(button.dataset.harvestCard, event); });
+  onClick('keep-harvest-selection', () => { if (harvestChoice && state.harvest?.offer_ids.includes(harvestChoice)) run({ type: 'KEEP_HARVEST_CARD', player: activePlayer(), card_id: harvestChoice }); });
+  onClick('cancel-harvest-selection', cancelResourceSelection);
+  document.querySelectorAll('[data-poker-proposal]').forEach(button => { button.onclick = () => {
+    const hand = availablePokerHands(state, activePlayer())[Number(button.dataset.pokerProposal)];
+    if (!hand) return;
+    selectedResourceIds = new Set(hand.card_ids);
+    render();
+  }; });
+  onClick('cancel-poker', () => { selectedResourceIds = new Set(); render(); });
+  onClick('poker-undo', undoLastAction);
+  onClick('open-stockpile-action', openStockpilePanel);
   document.querySelectorAll(".upgrade-action").forEach((button) => button.addEventListener("click", () => run({ type: "UPGRADE_UNIT", player: activePlayer(), unit_id: button.dataset.unitId, to_type: button.dataset.toType })));
   document.querySelectorAll(".select-move").forEach((button) => button.addEventListener("click", () => selectMovement(button.dataset.unitId)));
   document.querySelectorAll(".select-siege").forEach((button) => button.addEventListener("click", () => selectSiege(button.dataset.unitId)));
@@ -990,6 +1218,11 @@ function bindInspectionControls() {
 
 onClick('close-inspection', closeInspection);
 dom.inspection.addEventListener('close', () => { dom.inspectionContent.innerHTML = ''; });
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || !dom.handoff.hidden || dom.inspection.open) return;
+  if (event.target?.closest?.('dialog, input, select, textarea')) return;
+  cancelResourceSelection();
+});
 
 function commandLabel(command) {
   const labels = {
@@ -1054,7 +1287,7 @@ async function undoLastAction() {
   if (!window.confirm(`Undo ${commandLabel(snapshot.command)}?`)) return;
   const previousActor = state.current_actor;
   undoStack.pop();
-  state = snapshot.state;
+  state = preserveStockpileInstructions(snapshot.state, state);
   selectedResourceIds = snapshot.selectedResourceIds;
   interaction = snapshot.interaction;
   stockpileSelectionKey = snapshot.stockpileSelectionKey;

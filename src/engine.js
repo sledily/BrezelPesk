@@ -6,6 +6,7 @@ import {
   PHASE_ORDER,
   PLAYER,
   SUIT,
+  SUITS,
   UNIT_TYPE,
 } from "./constants.js";
 import {
@@ -44,6 +45,9 @@ import {
   orderedHarvestUnits,
   phaseAllowsTap,
   pokerKindForCards,
+  pokerSelectionError,
+  stockpileInstructions,
+  stockpilePlan,
   sovereignCandidates,
   unitAt,
   validBuildTargets,
@@ -259,6 +263,9 @@ function nextActorInOrder(state, player, excluded = new Set()) {
 
 function initializeHarvestActor(state, player) {
   state.current_actor = player;
+  state.harvest.stage = "DRAW";
+  state.harvest.rejects = [];
+  state.harvest.poker_used_ids = [];
   state.harvest.standard_order = usesStandardHarvestOrder(state);
   state.harvest.ordered_unit_ids = orderedHarvestUnits(state, player).map((unit) => unit.unit_id);
   state.harvest.remaining_unit_ids = [...state.harvest.ordered_unit_ids];
@@ -289,6 +296,14 @@ function startHarvest(state) {
 
 function completeHarvestDrawForActor(state) {
   const player = state.current_actor;
+  if (state.rules.resource_flow_v2) {
+    returnHarvestRejects(state);
+    state.harvest.completed_draw_players.push(player);
+    recordEvent(state, "HarvestActorCompleted", { player });
+    state.harvest.stage = "POKER";
+    recordEvent(state, "PokerDeclarationsStarted", { player, actor_order: [player] });
+    return;
+  }
   state.harvest.completed_draw_players.push(player);
   recordEvent(state, "HarvestActorCompleted", { player });
   if (state.harvest.completed_draw_players.length < state.phase_actor_order.length) {
@@ -299,6 +314,27 @@ function completeHarvestDrawForActor(state) {
   state.harvest.poker_used_ids = [];
   state.current_actor = state.phase_actor_order[0];
   recordEvent(state, "PokerDeclarationsStarted", { actor_order: state.phase_actor_order });
+}
+
+function returnHarvestRejects(state, onlyDeck = null) {
+  const returning = (state.harvest.rejects ?? []).filter(item => !onlyDeck || item.deck === onlyDeck);
+  const ids = new Set(returning.map(item => item.card_id));
+  for (const { card_id, deck } of returning) {
+    state.resources_by_id[card_id].location = `${deck}_DECK`;
+    state.decks[deck].push(card_id);
+  }
+  state.harvest.rejects = (state.harvest.rejects ?? []).filter(item => !ids.has(item.card_id));
+  for (const deck of new Set(returning.map(item => item.deck))) shuffleDeck(state, deck);
+  if (ids.size) recordEvent(state, onlyDeck ? "HarvestRejectsRecycled" : "HarvestRejectsReturned", {
+    player: state.current_actor, card_ids: [...ids], deck: onlyDeck,
+  });
+}
+
+function finishEmptyHarvest(state, unit) {
+  state.harvest.remaining_unit_ids = state.harvest.remaining_unit_ids.filter(id => id !== unit.unit_id);
+  state.harvest.unit_id = null;
+  state.harvest.deck = null;
+  if (!state.harvest.remaining_unit_ids.length) completeHarvestDrawForActor(state);
 }
 
 function cleanupSeason(state, suit) {
@@ -313,6 +349,8 @@ function cleanupSeason(state, suit) {
         card.tapped = false;
         card.has_counter = false;
         card.mandatory_spend_year = null;
+        card.poker_used_year = null;
+        card.counter_sources = [];
         card.location = `${deckName}_DECK`;
         state.decks[deckName].push(cardId);
         returned.push(cardId);
@@ -456,13 +494,24 @@ function drawHarvest(state, command) {
   requireCondition([DECK.BLACK, DECK.RED].includes(deck), "INVALID_DECK", "Select the Red or Black Resource Deck");
   requireCondition(isCorner(unit.square) || deck === requiredDeck, "INVALID_HARVEST_DECK", "Only corner Units may choose either Resource Deck");
   const count = drawCountOf(unit);
-  requireCondition(state.decks[deck].length >= count, "DECK_EXHAUSTED", `${deck} does not contain ${count} cards`, { deck, required: count });
+  if (!state.rules.resource_flow_v2) requireCondition(state.decks[deck].length >= count, "DECK_EXHAUSTED", `${deck} does not contain ${count} cards`, { deck, required: count });
   const cardIds = state.decks[deck].splice(0, count);
+  // Exhaust the existing deck before recycling only earlier rejects. The current
+  // offer is never in the reject pool and cannot be drawn twice.
+  if (state.rules.resource_flow_v2 && cardIds.length < count) {
+    returnHarvestRejects(state, deck);
+    cardIds.push(...state.decks[deck].splice(0, count - cardIds.length));
+  }
   for (const cardId of cardIds) state.resources_by_id[cardId].location = "HARVEST_OFFER";
   state.harvest.offer_ids = cardIds;
   state.harvest.unit_id = unit.unit_id;
   state.harvest.deck = deck;
   recordEvent(state, "HarvestCardsDrawn", { player: command.player, unit_id: unit.unit_id, deck, card_ids: cardIds }, state.rules.automatic_passes ? "PUBLIC" : command.player);
+  if (state.rules.resource_flow_v2 && cardIds.length < count) recordEvent(state, "HarvestSupplyShortage", {
+    player: command.player, unit_id: unit.unit_id, requested: count, available: cardIds.length, deck,
+    message: cardIds.length ? `Short Harvest: ${cardIds.length} of ${count} cards at ${unit.square}.` : `No Resource card available at ${unit.square}.`,
+  });
+  if (!cardIds.length && state.rules.resource_flow_v2) { finishEmptyHarvest(state, unit); return; }
   if (state.rules.automatic_passes && cardIds.length === 1) keepHarvestCard(state, { player: command.player, card_id: cardIds[0] });
 }
 
@@ -477,6 +526,7 @@ function keepHarvestCard(state, command) {
   const vassal = unit.vassal_noble_id ? state.nobles_by_id[unit.vassal_noble_id] : null;
   const counterFromVassal = vassal?.suit === kept.suit;
   kept.has_counter = Boolean(counterFromCenter || counterFromVassal);
+  kept.counter_sources = [counterFromCenter ? "CENTER" : null, counterFromVassal ? "VASSAL" : null].filter(Boolean);
   kept.location = playerLocation(command.player, "HAND");
   state.players[command.player].resource_hand_ids.push(kept.card_id);
 
@@ -484,8 +534,13 @@ function keepHarvestCard(state, command) {
   const deck = state.harvest.deck;
   for (const cardId of returned) {
     const card = state.resources_by_id[cardId];
-    card.location = `${deck}_DECK`;
-    state.decks[deck].push(cardId);
+    if (state.rules.resource_flow_v2) {
+      card.location = "HARVEST_REJECT";
+      state.harvest.rejects.push({ card_id: cardId, unit_id: unit.unit_id, deck });
+    } else {
+      card.location = `${deck}_DECK`;
+      state.decks[deck].push(cardId);
+    }
   }
   if (returned.length && state.rules.harvest_returns_immediately) shuffleDeck(state, deck);
   state.harvest.remaining_unit_ids = state.harvest.remaining_unit_ids.filter((id) => id !== unit.unit_id);
@@ -526,13 +581,16 @@ function continueForcedHarvest(state, player) {
 
 function declarePoker(state, command) {
   requirePhase(state, PHASE.HARVEST);
-  requireCondition(state.harvest?.stage === "POKER", "WRONG_HARVEST_STAGE", "Poker declarations occur after every player draws");
+  requireCondition(state.harvest?.stage === "POKER", "WRONG_HARVEST_STAGE", "The Poker window is not open");
   requireActor(state, command.player);
   const ids = [...new Set(command.card_ids ?? [])];
   requireCondition(ids.length === (command.card_ids ?? []).length, "DUPLICATE_CARD", "A card cannot appear twice in one declaration");
   requireCondition(ids.every((id) => state.players[command.player].resource_hand_ids.includes(id)), "CARD_NOT_OWNED", "Every declared card must be in your hand");
   const kind = pokerKindForCards(state, ids);
-  if (state.rules.automatic_passes) {
+  if (state.rules.resource_flow_v2) {
+    const error = pokerSelectionError(state, command.player, ids);
+    requireCondition(!error, "INVALID_POKER_HAND", error);
+  } else if (state.rules.automatic_passes) {
     requireCondition(availablePokerHands(state, command.player).some((hand) => hand.card_ids.length === ids.length && hand.card_ids.every((id) => ids.includes(id))),
       "POKER_HAND_UNAVAILABLE", "Choose an available Poker Hand which adds a bonus.");
   }
@@ -543,6 +601,8 @@ function declarePoker(state, command) {
   for (const id of ids) {
     const card = state.resources_by_id[id];
     card.has_counter = true;
+    if (state.rules.resource_flow_v2) card.poker_used_year = state.year_number;
+    card.counter_sources = [...new Set([...(card.counter_sources ?? []), "POKER"])];
     card.mandatory_spend_year = state.year_number;
   }
   state.harvest.poker_used_ids.push(...ids);
@@ -556,7 +616,11 @@ function finishPoker(state, command) {
   requireActor(state, command.player);
   state.harvest.completed_poker_players.push(command.player);
   recordEvent(state, "PokerDeclarationsFinished", { player: command.player });
-  if (state.harvest.completed_poker_players.length < state.phase_actor_order.length) {
+  if (state.rules.resource_flow_v2 && state.harvest.completed_draw_players.length < state.phase_actor_order.length) {
+    initializeHarvestActor(state, nextActorInOrder(state, command.player, new Set(state.harvest.completed_draw_players)));
+    return;
+  }
+  if (!state.rules.resource_flow_v2 && state.harvest.completed_poker_players.length < state.phase_actor_order.length) {
     state.current_actor = nextActorInOrder(state, command.player, new Set(state.harvest.completed_poker_players));
     state.harvest.poker_used_ids = [];
     return;
@@ -1147,7 +1211,7 @@ function chooseStockpile(state, command) {
   requireActor(state, command.player);
   const kept = command.card_ids ?? [];
   const hand = state.players[command.player].resource_hand_ids;
-  if (state.rules.automatic_passes && !validateStockpile(state, command.player, hand)) {
+  if (!state.rules.resource_flow_v2 && state.rules.automatic_passes && !validateStockpile(state, command.player, hand)) {
     requireCondition(kept.length === hand.length && hand.every((id) => kept.includes(id)), "VOLUNTARY_DISCARD_DISABLED", "All remaining cards fit and are retained automatically in the digital game.");
   }
   const validation = validateStockpile(state, command.player, kept);
@@ -1161,6 +1225,8 @@ function chooseStockpile(state, command) {
     card.has_counter = false;
     card.tapped = false;
     card.mandatory_spend_year = null;
+    card.poker_used_year = null;
+    card.counter_sources = [];
     card.location = `${deck}_DECK`;
     state.decks[deck].push(cardId);
     affectedDecks.add(deck);
@@ -1180,6 +1246,49 @@ function chooseStockpile(state, command) {
   recordEvent(state, "ButtonPassed", { button_holder: state.button_holder });
   recordEvent(state, "YearStarted", { year: state.year_number, button_holder: state.button_holder });
   startHarvest(state);
+}
+
+function setStockpileInstructions(state, command) {
+  requireCondition(state.rules.resource_flow_v2 && state.status === "ACTIVE" && state.players[command.player] && !state.players[command.player].eliminated,
+    "STOCKPILE_UNAVAILABLE", "Only a surviving player in an active V2 game can plan Stockpile");
+  const input = command.instructions;
+  requireCondition(input && ["MANUAL", "AUTO"].includes(input.mode), "INVALID_STOCKPILE_INSTRUCTIONS", "Choose Manual or Auto");
+  requireCondition(Array.isArray(input.suit_order) && input.suit_order.length === 4 && SUITS.every(s => input.suit_order.includes(s)), "INVALID_SUIT_ORDER", "Rank each of the four suits once");
+  const cardOrder = {};
+  for (const suit of SUITS) {
+    const ids = input.card_order?.[suit] ?? [];
+    requireCondition(Array.isArray(ids) && ids.length <= 20 && new Set(ids).size === ids.length
+      && ids.every(id => state.resources_by_id[id]?.suit === suit), "INVALID_CARD_ORDER", "Card priorities must identify distinct physical cards of that suit");
+    cardOrder[suit] = [...ids];
+  }
+  const plan = input.manual_plan ?? null;
+  requireCondition(plan === null || (plan.year === state.year_number && Array.isArray(plan.card_ids)
+    && plan.card_ids.length <= 8 && new Set(plan.card_ids).size === plan.card_ids.length
+    && plan.card_ids.every(id => Boolean(state.resources_by_id[id]))), "INVALID_MANUAL_PLAN", "Save an exact selection of up to eight cards for this Year");
+  requireCondition(input.manual_year == null || input.manual_year === state.year_number, "INVALID_MANUAL_YEAR", "A Manual override applies only to this Year");
+  state.players[command.player].stockpile_instructions = {
+    mode: input.mode, suit_order: [...input.suit_order], card_order: cardOrder,
+    manual_year: input.manual_year ?? null, manual_plan: plan ? deepClone(plan) : null,
+  };
+  recordEvent(state, "StockpileInstructionsSaved", { player: command.player, instructions: deepClone(state.players[command.player].stockpile_instructions) }, command.player);
+}
+
+// Planning is independent of reversible gameplay. An Undo keeps the latest saved
+// private instructions, recording them again so command replay stays exact.
+export function preserveStockpileInstructions(restored, latest) {
+  for (const player of matchPlayers(latest)) {
+    const instructions = latest.players[player].stockpile_instructions;
+    if (!instructions || JSON.stringify(instructions) === JSON.stringify(restored.players[player].stockpile_instructions)) continue;
+    const result = dispatch(restored, { type: "SET_STOCKPILE_INSTRUCTIONS", player, instructions });
+    if (!result.ok) throw new RuleError(result.error.code, result.error.message);
+    restored = result.state;
+  }
+  return restored;
+}
+
+export function reversibleAction(before, after, command) {
+  return ["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "MOBILIZE_UNIT", "VASSALIZE_NOBLE", "DECLARE_POKER"].includes(command.type)
+    && JSON.stringify(before.rng_state) === JSON.stringify(after.rng_state);
 }
 
 function queueAutomaticNotice(state, reason, section = state.phase, player = state.current_actor) {
@@ -1203,9 +1312,15 @@ export function settleAutomaticPhases(state) {
     if (state.phase === PHASE.HARVEST) {
       if (state.harvest.stage === "DRAW") return;
       if (availablePokerHands(state, player).length) return;
-      queueAutomaticNotice(state, "No available Poker Hand can add a bonus.", "POKER");
+      if (!state.rules.resource_flow_v2) queueAutomaticNotice(state, "No available Poker Hand can add a bonus.", "POKER");
       finishPoker(state, { player });
     } else if (state.phase === PHASE.STOCKPILE) {
+      if (state.rules.resource_flow_v2) {
+        const plan = stockpilePlan(state, player);
+        if (!plan.submitted || plan.error) return;
+        chooseStockpile(state, { player, card_ids: plan.card_ids });
+        continue;
+      }
       const cards = state.players[player].resource_hand_ids;
       if (validateStockpile(state, player, cards)) return;
       queueAutomaticNotice(state, "Every remaining card fits your Stockpile. All were retained automatically.");
@@ -1235,8 +1350,8 @@ export function settleAutomaticPhases(state) {
 export function turnBoundaryCrossed(before, after, events = []) {
   return before.status !== after.status || before.phase !== after.phase
     || before.current_actor !== after.current_actor || before.year_number !== after.year_number
-    || before.harvest?.stage !== after.harvest?.stage || before.active_ransom?.stage !== after.active_ransom?.stage
-    || events.some((event) => ["ActorPassed", "HarvestActorCompleted", "PokerDeclarationsFinished", "ResourceStockpileCommitted", "PhaseAutomaticallyPassed"].includes(event.type));
+    || (!before.rules.resource_flow_v2 && before.harvest?.stage !== after.harvest?.stage) || before.active_ransom?.stage !== after.active_ransom?.stage
+    || events.some((event) => ["ActorPassed", ...(!before.rules.resource_flow_v2 ? ["HarvestActorCompleted"] : []), "PokerDeclarationsFinished", "ResourceStockpileCommitted", "PhaseAutomaticallyPassed"].includes(event.type));
 }
 
 function applyV15Usability(state) {
@@ -1288,6 +1403,7 @@ const HANDLERS = Object.freeze({
   ACKNOWLEDGE_PHASE_NOTICE: acknowledgePhaseNotice,
   PASS_PHASE: passPhase,
   CHOOSE_STOCKPILE: chooseStockpile,
+  SET_STOCKPILE_INSTRUCTIONS: setStockpileInstructions,
 });
 
 export function dispatch(state, command) {
@@ -1296,13 +1412,14 @@ export function dispatch(state, command) {
   try {
     requireCondition(command && typeof command.type === "string", "INVALID_COMMAND", "Command type is required");
     requireCondition(!(working.status === "COMPLETE" && !["NEW_MATCH", "APPLY_V15_USABILITY"].includes(command.type)), "MATCH_COMPLETE", "No commands are accepted after victory");
-    if (working.phase_notice && !["ACKNOWLEDGE_PHASE_NOTICE", "APPLY_V15_USABILITY"].includes(command.type)) {
+    const planning = command.type === "SET_STOCKPILE_INSTRUCTIONS";
+    if (working.phase_notice && !planning && !["ACKNOWLEDGE_PHASE_NOTICE", "APPLY_V15_USABILITY"].includes(command.type)) {
       fail("PHASE_NOTICE_PENDING", "Acknowledge the unavailable phase before taking another action");
     }
-    if (working.pending_combat && !["CHOOSE_QUARTER", "APPLY_V15_USABILITY"].includes(command.type)) {
+    if (working.pending_combat && !planning && !["CHOOSE_QUARTER", "APPLY_V15_USABILITY"].includes(command.type)) {
       fail("PENDING_DECISION", "Resolve the Quarter decision before taking another action");
     }
-    if (working.pending_conquest && !["CHOOSE_CONQUEST", "APPLY_V15_USABILITY"].includes(command.type)) {
+    if (working.pending_conquest && !planning && !["CHOOSE_CONQUEST", "APPLY_V15_USABILITY"].includes(command.type)) {
       fail("PENDING_DECISION", "Resolve the Conquest choice before taking another action");
     }
     const handler = HANDLERS[command.type];
@@ -1318,7 +1435,9 @@ export function dispatch(state, command) {
     const ordinaryAction = ["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "RECRUIT_NOBLE",
       "MOBILIZE_UNIT", "LAY_SIEGE", "VASSALIZE_NOBLE", "EXECUTE_HOSTAGE", "DECLARE_POKER"].includes(command.type);
     const sameOpportunity = working.current_actor === state.current_actor && working.phase === state.phase;
-    if (working.rules.automatic_passes) {
+    if (planning && !(working.phase === PHASE.STOCKPILE && working.current_actor === command.player)) {
+      // Saving while waiting must never advance somebody else's opportunity.
+    } else if (working.rules.automatic_passes) {
       if (!(working.rules.explicit_action_pass && ordinaryAction && sameOpportunity)) settleAutomaticPhases(working);
     }
     else refreshPhaseNotice(working);

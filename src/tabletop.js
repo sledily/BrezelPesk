@@ -26,7 +26,7 @@ export function constantsHtml(state, viewer, defenderId = null) {
   </div>`;
 }
 
-export function tabletopRegionsHtml(state, { viewer = null, names = {}, resourceHtml = null, canAct = false } = {}) {
+export function tabletopRegionsHtml(state, { viewer = null, names = {}, resourceHtml = null, canAct = false, stockpileHtml = null } = {}) {
   const suit = ACTIVE_SUIT_BY_PHASE[state.phase];
   const regions = { WHITE: 'south-west', GREEN: 'south-east', BLACK: 'north-east', RED: 'north-west' };
   return (state.player_order ?? Object.keys(state.players)).map(player => {
@@ -38,7 +38,8 @@ export function tabletopRegionsHtml(state, { viewer = null, names = {}, resource
     const hostage = state.nobles_by_id[p.dungeon_noble_id];
     return `<section class="corner-region ${regions[player]} ${player.toLowerCase()} ${p.eliminated ? 'defeated' : ''}" aria-label="${title(player)} player area">
       <div class="realm-hand"><header><div><span class="player-dot ${player.toLowerCase()}"></span><h2>${escapeMarkup(names[player] || title(player))}</h2><span class="realm-caption">${title(player)}${player === viewer ? ' · You' : ''}${p.eliminated ? ' · Defeated' : state.current_actor === player ? ' · Acting' : ''}${state.button_holder === player ? ' · Button' : ''}</span></div>${suit ? `<div class="table-pool" aria-label="${title(player)} seasonal pool"><span>Pool</span><strong>${SUIT_GLYPH[suit]} ${p.seasonal_pools[suit]}</strong></div>` : ''}</header>
-      <div class="suit-groups">${SUITS.map(group => `<div class="suit-group" aria-label="${title(group)} Resources"><span class="suit-heading ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(group) ? 'red-suit' : ''}">${SUIT_GLYPH[group]}</span><div class="suit-cards">${hand.filter(card => card.suit === group).map(card => resourceHtml ? resourceHtml(card, mode) : `<span class="card-token">${formatResource(card)}</span>`).join('') || '<span class="empty-suit">—</span>'}</div></div>`).join('')}</div>
+      ${privateOwner && stockpileHtml ? stockpileHtml(player) : ''}
+      <div class="suit-groups">${SUITS.map(group => `<div class="suit-group" aria-label="${title(group)} Resources"><span class="suit-heading ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(group) ? 'red-suit' : ''}">${SUIT_GLYPH[group]}</span><div class="suit-cards">${hand.filter(card => card.suit === group).map(card => resourceHtml ? resourceHtml(card, mode, player) : `<span class="card-token">${formatResource(card)}</span>`).join('') || '<span class="empty-suit">—</span>'}</div></div>`).join('')}</div>
       ${actionable && suit ? '<div class="resource-actions"><button id="tap-selected" class="button" disabled>Select cards to tap</button><span id="tap-preview" class="payment-preview" aria-live="polite"></span></div>' : ''}</div>
       <div class="realm-side"><div class="court-heading"><h3>Court</h3><span>${p.court_noble_ids.length} private</span></div><div class="court-fan" aria-label="${title(player)} face-down Court">${p.court_noble_ids.map((id, i) => `<button class="court-back" ${privateOwner ? `data-inspect-court="${escapeMarkup(id)}"` : 'disabled'} aria-label="${privateOwner ? 'Privately inspect' : 'Face-down'} ${title(player)} Court card ${i + 1}"><span aria-hidden="true">◇</span></button>`).join('') || '<span class="empty-state">No Court cards</span>'}</div>
       <h3>Dungeon</h3><div class="dungeon-slot ${hostage && !hostage.hidden ? 'occupied' : ''}">${hostage && !hostage.hidden ? `<button class="hostage-card" data-inspect-noble="${escapeMarkup(hostage.noble_id)}" aria-label="Inspect Hostage ${escapeMarkup(formatNoble(hostage))}">${nobleCardHtml(hostage)}</button>` : '<span>Empty</span>'}</div>
