@@ -1328,7 +1328,8 @@ function renderOnlineChrome() {
   const identity = viewer.role === "PLAYER"
     ? `You are <strong>${playerName(viewer.seat)}</strong> · ${escapeHtml(onlineRoomName(viewer.seat))}`
     : "<strong>Spectator view</strong>";
-  dom.onlineStripText.innerHTML = `<strong>BrezelPesk</strong> · Room <strong>${room.code}</strong> · ${identity} · ${room.spectator_count} spectator${room.spectator_count === 1 ? "" : "s"}`;
+  dom.onlineStripText.innerHTML = `<strong>${escapeHtml(room.name ?? 'BrezelPesk')}</strong> · Room <strong>${room.code}</strong> · ${identity} · ${room.spectator_count} spectator${room.spectator_count === 1 ? "" : "s"}${onlineClient.token && viewer.role !== 'PLAYER' ? ' · This browser no longer controls the seat. Use Recover seat to take control again.' : ''}`;
+  for (const id of ['rename-online-game', 'lobby-rename-game']) document.querySelector(`#${id}`).hidden = !viewer.is_host || !['LOBBY', 'ACTIVE'].includes(room.status);
   dom.onlineStrip.hidden = false;
   if (room.status === "LOBBY") renderOnlineLobby();
   else dom.onlineLobby.hidden = true;
@@ -1336,7 +1337,7 @@ function renderOnlineChrome() {
 
 function renderOnlineLobby() {
   const { room, viewer } = onlinePayload;
-  dom.onlineLobbyTitle.textContent = `Room ${room.code}`;
+  dom.onlineLobbyTitle.textContent = `${room.name ?? 'Game'} · ${room.code}`;
   const occupied = Object.values(room.seats).filter(Boolean).length;
   dom.onlineLobbyStatus.textContent = viewer.role === "PLAYER"
     ? `You have joined as ${playerName(viewer.seat)}. ${occupied} of ${room.player_count} player seats are occupied.`
@@ -1520,6 +1521,46 @@ document.querySelector("#online-game").addEventListener("click", () => {
   dom.onlineCreateName.value = OnlineClient.rememberedName();
   dom.onlineJoinName.value = OnlineClient.rememberedName();
   dom.onlineDialog.showModal();
+  refreshActiveGames();
+});
+let activeGamesRefresh = 0;
+function renderActiveGames(games, refreshing = false) {
+  const active = games.filter(game => !['COMPLETE', 'ABANDONED'].includes(game.status));
+  const finished = games.filter(game => ['COMPLETE', 'ABANDONED'].includes(game.status));
+  const entry = game => `<article class="remembered-game"><div><strong>${escapeHtml(game.name ?? `Game ${game.code}`)}</strong><span class="field-note">${escapeHtml(game.code)}${game.seat ? ` · ${playerName(game.seat)}` : ''}</span></div><p>${(game.players ?? []).map(p => `${playerName(p.seat)}: ${escapeHtml(p.name)}`).join(' · ')}</p><p>${game.status === 'LOBBY' ? 'Waiting in lobby' : game.year ? `Year ${game.year} · ${escapeHtml(title(game.phase ?? ''))}` : 'Open to check the current state'}${['COMPLETE', 'ABANDONED'].includes(game.status) ? ` · ${title(game.status)} · read-only` : !refreshing && !game.error && !game.needs_recovery && game.is_your_turn ? ' · Your turn' : ''}</p>${game.error ? `<p role="status">${escapeHtml(game.error)}</p>` : refreshing ? '<p class="field-note">Checking current status…</p>' : ''}${game.needs_recovery ? '<p class="field-note">This browser no longer controls the seat. Recover it or open the public view.</p>' : ''}<div class="choice-grid"><button type="button" class="button" data-resume-game="${game.code}">${game.needs_recovery ? 'Open public view' : ['COMPLETE', 'ABANDONED'].includes(game.status) ? 'View record' : 'Resume'}</button>${game.needs_recovery ? `<button type="button" class="button" data-recover-game="${game.code}">Recover seat</button>` : ''}</div></article>`;
+  document.querySelector('#active-games-list').innerHTML = (active.map(entry).join('') || '<p class="empty-state">No active games remembered by this browser yet.</p>')
+    + (finished.length ? `<details><summary>Finished games · read-only access</summary>${finished.map(entry).join('')}</details>` : '');
+  document.querySelectorAll('[data-resume-game]').forEach(button => { button.onclick = () => enterOnlineRoom(button.dataset.resumeGame); });
+  document.querySelectorAll('[data-recover-game]').forEach(button => { button.onclick = () => {
+    dom.onlineRoomCode.value = button.dataset.recoverGame;
+    document.querySelector('#online-recovery-code').focus();
+  }; });
+}
+async function refreshActiveGames() {
+  const request = ++activeGamesRefresh;
+  renderActiveGames(OnlineClient.rememberedGames(), true);
+  const games = await OnlineClient.refreshRememberedGames();
+  if (request === activeGamesRefresh) renderActiveGames(games);
+}
+onClick('refresh-active-games', refreshActiveGames);
+function openRenameGame() {
+  if (!onlinePayload?.viewer.is_host || onlineRequestPending) return;
+  document.querySelector('#game-name-input').value = onlinePayload.room.name ?? '';
+  document.querySelector('#rename-game-dialog').showModal();
+}
+onClick('rename-online-game', openRenameGame);
+onClick('lobby-rename-game', openRenameGame);
+onClick('save-game-name', async () => {
+  if (!onlineClient || onlineRequestPending) return;
+  const client = onlineClient;
+  onlineRequestPending = true;
+  try {
+    const payload = await client.rename(document.querySelector('#game-name-input').value);
+    if (onlineClient === client) applyOnlinePayload(payload, { force: true });
+    document.querySelector('#rename-game-dialog').close();
+    showToast('Game name saved.', true);
+  } catch (error) { showToast(error.message); }
+  finally { onlineRequestPending = false; }
 });
 document.querySelector("#create-online-room").addEventListener("click", createOnlineRoom);
 document.querySelector("#open-online-room").addEventListener("click", () => enterOnlineRoom(dom.onlineRoomCode.value));

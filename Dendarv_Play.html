@@ -595,6 +595,10 @@ body { background: radial-gradient(ellipse at top, #f5eedf, #d9ccb2); }
 .button.danger { background: #853c31; color: #fff5e8; }
 .button.tiny { min-height: 36px; font-size: 12px; }
 button:disabled { opacity: .6; }
+.remembered-game { padding: 14px; margin: 10px 0; border: 1px solid #b9a176; border-radius: 4px; background: #f7edd6; }
+.remembered-game > div:first-child { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.remembered-game strong { overflow-wrap: anywhere; }
+.remembered-game p { margin: 8px 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .year-heading h2 { margin: 4px 0; font: 25px Georgia, serif; }
 .year-heading p { margin: 0; font-size: 12px; }
 .year-calendar { width: 86px; flex: 0 0 86px; }
@@ -877,6 +881,7 @@ button:disabled { opacity: .6; }
         <div id="online-strip-text"></div>
         <div class="online-strip-actions">
           <button id="copy-recovery-code" class="button tiny">Copy recovery code</button>
+          <button id="rename-online-game" class="button tiny" hidden>Rename game</button>
           <button id="copy-room-link" class="button tiny">Copy spectator link</button>
           <button id="leave-online" class="button tiny quiet">Return to local game</button>
         </div>
@@ -974,6 +979,13 @@ button:disabled { opacity: .6; }
       <form method="dialog" id="online-form">
         <p class="eyebrow">BrezelPesk · Remote table</p>
         <h2>Play or watch online</h2>
+        <section class="online-form-section" aria-labelledby="active-games-title">
+          <h3 id="active-games-title">Your Active Games</h3>
+          <p class="field-note">Don’t see your game here? That does not mean the game is gone. This list only shows games remembered by this browser. Use the room code to find the match again, then your recovery code to reclaim your seat.</p>
+          <p class="field-note">Clearing or blocking site data, private browsing, or changing browser/device may remove this list without deleting the online game.</p>
+          <div id="active-games-list" aria-live="polite"></div>
+          <button id="refresh-active-games" type="button" class="button quiet">Refresh games</button>
+        </section>
         <section class="online-form-section">
           <h3>Create a room</h3>
           <label for="online-create-name">Your name</label>
@@ -996,7 +1008,7 @@ button:disabled { opacity: .6; }
           <label for="online-recovery-code">Private recovery code</label>
           <input id="online-recovery-code" maxlength="128" autocomplete="off" type="password">
           <button id="recover-online-seat" type="button" class="button full">Recover seat</button>
-          <p class="field-note">Opening a room starts in spectator mode. If the match has not begun, you may claim any open player color.</p>
+          <p class="field-note">The room code finds the game. The private recovery code reclaims your seat on this device. Opening a room resumes a remembered seat when available; otherwise you enter as a spectator.</p>
         </section>
         <div class="dialog-actions">
           <button value="cancel" class="button quiet">Cancel</button>
@@ -1017,6 +1029,7 @@ button:disabled { opacity: .6; }
         </div>
         <div class="choice-grid online-lobby-actions">
           <button id="start-online-match" class="button primary" hidden>Start match</button>
+          <button id="lobby-rename-game" class="button" hidden>Rename game</button>
           <button id="lobby-copy-recovery" class="button">Copy recovery code</button>
           <button id="lobby-copy-link" class="button">Copy spectator link</button>
           <button id="lobby-close" class="button quiet">Return to local game</button>
@@ -1024,6 +1037,15 @@ button:disabled { opacity: .6; }
       </div>
     </div>
 
+    <dialog id="rename-game-dialog" class="game-dialog">
+      <form method="dialog">
+        <h2>Rename game</h2>
+        <label for="game-name-input">Game name</label>
+        <input id="game-name-input" maxlength="60" required>
+        <p class="field-note">The room code, invitation link and recovery codes stay the same.</p>
+        <div class="dialog-actions"><button value="cancel" class="button quiet">Cancel</button><button id="save-game-name" type="button" class="button primary">Save name</button></div>
+      </form>
+    </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <script>
 (() => {
@@ -4048,6 +4070,42 @@ const RECOVERY_PREFIX = 'dendarv.online.recovery.';
 const PENDING_PREFIX = 'dendarv.online.pending.';
 const NAME_KEY = 'dendarv.online.name';
 const SPECTATOR_KEY = 'dendarv.online.spectator';
+const GAME_LIST_KEY = 'dendarv.online.games';
+function siteRead(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function siteWrite(key, value) {
+  try { localStorage.setItem(key, value); }
+  catch { throw new OnlineError('SITE_STORAGE_UNAVAILABLE', 'Allow this site to store browser data before joining or changing an online game. Your saved game has not been deleted.'); }
+}
+function rememberedGames() {
+  let saved = {};
+  try {
+    const parsed = JSON.parse(siteRead(GAME_LIST_KEY) ?? '{}');
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) saved = parsed;
+  } catch { /* A damaged convenience list never invalidates a seat. */ }
+  const result = Object.fromEntries(Object.entries(saved).filter(([code, item]) => /^[A-Z2-9]{6}$/.test(code) && item && typeof item === 'object'));
+  try {
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith(ROOM_KEY_PREFIX)) continue;
+      const code = key.slice(ROOM_KEY_PREFIX.length);
+      if (/^[A-Z2-9]{6}$/.test(code)) result[code] ??= { code, name: `Game ${code}`, status: 'UNKNOWN' };
+    }
+  } catch { /* Existing remembered entries remain usable. */ }
+  return result;
+}
+function rememberGameSummary(summary) {
+  const games = rememberedGames(), code = summary.code;
+  if (!/^[A-Z2-9]{6}$/.test(code)) return;
+  games[code] = { code, name: summary.name, status: summary.status,
+    players: (summary.players ?? []).map(({ seat, name }) => ({ seat, name })),
+    year: summary.year, phase: summary.phase, actor: summary.actor,
+    seat: summary.seat ?? games[code]?.seat ?? null,
+    is_your_turn: Boolean(summary.is_your_turn), needs_recovery: Boolean(summary.needs_recovery),
+    checked_at: new Date().toISOString() };
+  // This is a convenience index. Failing to cache a view must not turn an
+  // already-accepted server action into an apparent save failure.
+  try { localStorage.setItem(GAME_LIST_KEY, JSON.stringify(games)); } catch { /* no-op */ }
+}
 class OnlineError extends Error {
   constructor(code,message,status=0){super(message);this.name='OnlineError';this.code=code;this.status=status;}
 }
@@ -4071,9 +4129,9 @@ async function api(path,{method='GET',token=null,body=null,spectatorId=null,requ
 }
 async function durableRequest(key,path,options){
   // Retain the SAME request and identity across connection loss and page reload.
-  const existing=localStorage.getItem(PENDING_PREFIX+key);
+  const existing=siteRead(PENDING_PREFIX+key);
   const pending=existing?JSON.parse(existing):{path,options:{...options,method:'POST',requestId:randomId()}};
-  if(!existing)localStorage.setItem(PENDING_PREFIX+key,JSON.stringify(pending));
+  if(!existing)siteWrite(PENDING_PREFIX+key,JSON.stringify(pending));
   try{
     const {payload}=await api(pending.path,pending.options);
     localStorage.removeItem(PENDING_PREFIX+key);return payload;
@@ -4085,19 +4143,43 @@ async function durableRequest(key,path,options){
 class OnlineClient {
   constructor(code,{spectate=false}={}){
     this.code=normalizeCode(code);this.spectate=spectate;
-    this.token=spectate?null:localStorage.getItem(ROOM_KEY_PREFIX+this.code);
-    this.spectatorId=localStorage.getItem(SPECTATOR_KEY)??randomId();
-    localStorage.setItem(SPECTATOR_KEY,this.spectatorId);this.lastView=null;this.etag=null;this.busy=false;
+    this.token=spectate?null:siteRead(ROOM_KEY_PREFIX+this.code);
+    this.spectatorId=siteRead(SPECTATOR_KEY)??randomId();
+    try { localStorage.setItem(SPECTATOR_KEY,this.spectatorId); } catch {}
+    this.lastView=null;this.etag=null;this.busy=false;
   }
-  static rememberedName(){return localStorage.getItem(NAME_KEY)??'';}
-  static rememberName(name){localStorage.setItem(NAME_KEY,String(name??'').trim());}
+  static rememberedName(){return siteRead(NAME_KEY)??'';}
+  static rememberName(name){try { localStorage.setItem(NAME_KEY,String(name??'').trim()); } catch {}}
+  static rememberedGames() { return Object.values(rememberedGames()); }
+  static async refreshRememberedGames() {
+    return Promise.all(OnlineClient.rememberedGames().map(async old => {
+      try {
+        const { payload } = await api(`/api/rooms/${old.code}/summary`, { token: siteRead(ROOM_KEY_PREFIX + old.code) });
+        rememberGameSummary(payload);
+        return { ...old, ...payload, error: null };
+      } catch (error) {
+        return { ...old, is_your_turn: false, error: error.code === 'ROOM_ACCESS_EXPIRED'
+          ? 'The 30-day viewing period has ended.' : error.code === 'ROOM_NOT_FOUND'
+            ? 'This room could not be found. Check the code or ask the host.'
+            : 'Could not refresh. These are the last remembered details; try opening the game.' };
+      }
+    }));
+  }
+  rememberView() {
+    const view = this.lastView;
+    if (this.spectate || !this.token || !view?.room) return;
+    rememberGameSummary({ code: this.code, name: view.room.name ?? `Game ${this.code}`, status: view.room.status,
+      players: Object.entries(view.room.seats).filter(([, p]) => p).map(([seat, p]) => ({ seat, name: p.name })),
+      ...view.room.summary, seat: view.viewer.seat, is_your_turn: view.viewer.is_your_turn,
+      needs_recovery: view.viewer.role !== 'PLAYER' });
+  }
   accept(payload){
     if(payload.token){
       this.token=payload.token;this.spectate=false;
       localStorage.setItem(ROOM_KEY_PREFIX+this.code,payload.token);
       if(payload.recoveryCode)localStorage.setItem(RECOVERY_PREFIX+this.code,payload.recoveryCode);
     }
-    this.lastView=payload.view??payload;this.etag=null;return this.lastView;
+    this.lastView=payload.view??payload;this.etag=null;this.rememberView();return this.lastView;
   }
   static async create({playerCount,playerName,seat}){
     const payload=await durableRequest('create','/api/rooms',{body:{playerCount,playerName,seat,credentials:{token:randomId(),recoveryCode:randomId()}}});
@@ -4119,7 +4201,7 @@ class OnlineClient {
     }
     const response=await api(`/api/rooms/${this.code}`,{token:this.token,spectatorId:this.token?null:this.spectatorId,etag:this.etag});
     if(response.unchanged&&this.lastView)return this.lastView;
-    this.lastView=response.payload;this.etag=response.etag;return this.lastView;
+    this.lastView=response.payload;this.etag=response.etag;this.rememberView();return this.lastView;
   }
   recoveryCode(){return localStorage.getItem(RECOVERY_PREFIX+this.code);}
   async recover(recoveryCode){return this.mutate('recover',{recoveryCode:String(recoveryCode).trim(),token:randomId()});}
@@ -4128,6 +4210,7 @@ class OnlineClient {
   undo(){return this.mutate('undo');}
   pass(){return this.mutate('pass');}
   abandon(){return this.mutate('abandon',{confirmed:true});}
+  rename(name){return this.mutate('rename',{name});}
   async export(){return (await api(`/api/rooms/${this.code}/export`,{token:this.token})).payload;}
 }
 function roomCodeFromLocation(){return normalizeCode(new URLSearchParams(location.search).get('room'));}
@@ -5580,7 +5663,8 @@ function renderOnlineChrome() {
   const identity = viewer.role === "PLAYER"
     ? `You are <strong>${playerName(viewer.seat)}</strong> · ${escapeHtml(onlineRoomName(viewer.seat))}`
     : "<strong>Spectator view</strong>";
-  dom.onlineStripText.innerHTML = `<strong>BrezelPesk</strong> · Room <strong>${room.code}</strong> · ${identity} · ${room.spectator_count} spectator${room.spectator_count === 1 ? "" : "s"}`;
+  dom.onlineStripText.innerHTML = `<strong>${escapeHtml(room.name ?? 'BrezelPesk')}</strong> · Room <strong>${room.code}</strong> · ${identity} · ${room.spectator_count} spectator${room.spectator_count === 1 ? "" : "s"}${onlineClient.token && viewer.role !== 'PLAYER' ? ' · This browser no longer controls the seat. Use Recover seat to take control again.' : ''}`;
+  for (const id of ['rename-online-game', 'lobby-rename-game']) document.querySelector(`#${id}`).hidden = !viewer.is_host || !['LOBBY', 'ACTIVE'].includes(room.status);
   dom.onlineStrip.hidden = false;
   if (room.status === "LOBBY") renderOnlineLobby();
   else dom.onlineLobby.hidden = true;
@@ -5588,7 +5672,7 @@ function renderOnlineChrome() {
 
 function renderOnlineLobby() {
   const { room, viewer } = onlinePayload;
-  dom.onlineLobbyTitle.textContent = `Room ${room.code}`;
+  dom.onlineLobbyTitle.textContent = `${room.name ?? 'Game'} · ${room.code}`;
   const occupied = Object.values(room.seats).filter(Boolean).length;
   dom.onlineLobbyStatus.textContent = viewer.role === "PLAYER"
     ? `You have joined as ${playerName(viewer.seat)}. ${occupied} of ${room.player_count} player seats are occupied.`
@@ -5772,6 +5856,46 @@ document.querySelector("#online-game").addEventListener("click", () => {
   dom.onlineCreateName.value = OnlineClient.rememberedName();
   dom.onlineJoinName.value = OnlineClient.rememberedName();
   dom.onlineDialog.showModal();
+  refreshActiveGames();
+});
+let activeGamesRefresh = 0;
+function renderActiveGames(games, refreshing = false) {
+  const active = games.filter(game => !['COMPLETE', 'ABANDONED'].includes(game.status));
+  const finished = games.filter(game => ['COMPLETE', 'ABANDONED'].includes(game.status));
+  const entry = game => `<article class="remembered-game"><div><strong>${escapeHtml(game.name ?? `Game ${game.code}`)}</strong><span class="field-note">${escapeHtml(game.code)}${game.seat ? ` · ${playerName(game.seat)}` : ''}</span></div><p>${(game.players ?? []).map(p => `${playerName(p.seat)}: ${escapeHtml(p.name)}`).join(' · ')}</p><p>${game.status === 'LOBBY' ? 'Waiting in lobby' : game.year ? `Year ${game.year} · ${escapeHtml(title(game.phase ?? ''))}` : 'Open to check the current state'}${['COMPLETE', 'ABANDONED'].includes(game.status) ? ` · ${title(game.status)} · read-only` : !refreshing && !game.error && !game.needs_recovery && game.is_your_turn ? ' · Your turn' : ''}</p>${game.error ? `<p role="status">${escapeHtml(game.error)}</p>` : refreshing ? '<p class="field-note">Checking current status…</p>' : ''}${game.needs_recovery ? '<p class="field-note">This browser no longer controls the seat. Recover it or open the public view.</p>' : ''}<div class="choice-grid"><button type="button" class="button" data-resume-game="${game.code}">${game.needs_recovery ? 'Open public view' : ['COMPLETE', 'ABANDONED'].includes(game.status) ? 'View record' : 'Resume'}</button>${game.needs_recovery ? `<button type="button" class="button" data-recover-game="${game.code}">Recover seat</button>` : ''}</div></article>`;
+  document.querySelector('#active-games-list').innerHTML = (active.map(entry).join('') || '<p class="empty-state">No active games remembered by this browser yet.</p>')
+    + (finished.length ? `<details><summary>Finished games · read-only access</summary>${finished.map(entry).join('')}</details>` : '');
+  document.querySelectorAll('[data-resume-game]').forEach(button => { button.onclick = () => enterOnlineRoom(button.dataset.resumeGame); });
+  document.querySelectorAll('[data-recover-game]').forEach(button => { button.onclick = () => {
+    dom.onlineRoomCode.value = button.dataset.recoverGame;
+    document.querySelector('#online-recovery-code').focus();
+  }; });
+}
+async function refreshActiveGames() {
+  const request = ++activeGamesRefresh;
+  renderActiveGames(OnlineClient.rememberedGames(), true);
+  const games = await OnlineClient.refreshRememberedGames();
+  if (request === activeGamesRefresh) renderActiveGames(games);
+}
+onClick('refresh-active-games', refreshActiveGames);
+function openRenameGame() {
+  if (!onlinePayload?.viewer.is_host || onlineRequestPending) return;
+  document.querySelector('#game-name-input').value = onlinePayload.room.name ?? '';
+  document.querySelector('#rename-game-dialog').showModal();
+}
+onClick('rename-online-game', openRenameGame);
+onClick('lobby-rename-game', openRenameGame);
+onClick('save-game-name', async () => {
+  if (!onlineClient || onlineRequestPending) return;
+  const client = onlineClient;
+  onlineRequestPending = true;
+  try {
+    const payload = await client.rename(document.querySelector('#game-name-input').value);
+    if (onlineClient === client) applyOnlinePayload(payload, { force: true });
+    document.querySelector('#rename-game-dialog').close();
+    showToast('Game name saved.', true);
+  } catch (error) { showToast(error.message); }
+  finally { onlineRequestPending = false; }
 });
 document.querySelector("#create-online-room").addEventListener("click", createOnlineRoom);
 document.querySelector("#open-online-room").addEventListener("click", () => enterOnlineRoom(dom.onlineRoomCode.value));

@@ -55,6 +55,18 @@ test("the HTTP server exposes room creation, joining, spectator views, and stati
   assert.match(created.code, /^[A-Z2-9]{6}$/);
   assert.ok(created.token);
 
+  assert.match(created.view.room.name, /^[A-Za-z]+ [A-Za-z]+$/);
+  const renameResponse=await fetch(`${origin}/api/rooms/${created.code}/rename`,{
+    method:'POST',headers:{Authorization:`Bearer ${created.token}`,'Content-Type':'application/json','Idempotency-Key':'r'.repeat(32)},
+    body:JSON.stringify({name:'The Breton Table',expectedRevision:created.view.viewer.private_revision}),
+  });
+  assert.equal(renameResponse.status,200);
+  const summary=await fetch(`${origin}/api/rooms/${created.code}/summary`,{headers:{Authorization:`Bearer ${created.token}`}}).then(r=>r.json());
+  assert.equal(summary.name,'The Breton Table');
+  assert.equal(summary.seat,'WHITE');
+  assert.equal(summary.game,undefined);
+  assert.equal(summary.needs_recovery,false);
+
   const spectatorResponse = await fetch(`${origin}/api/rooms/${created.code}`, {
     headers: { "X-Dendarv-Spectator": "test-spectator" },
   });

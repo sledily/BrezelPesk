@@ -40,7 +40,7 @@ function loadUI() {
     window: { setTimeout() {}, clearTimeout() {}, setInterval() {}, clearInterval() {}, confirm() { return true; } },
     navigator: {}, crypto: { getRandomValues(array) { return array; } },
   });
-  const expose = 'globalThis.ui = { render, run, selectHarvestCard, cancelResourceSelection, openStockpilePanel, saveStockpilePlan, undoLastAction, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); } };';
+  const expose = 'globalThis.ui = { render, renderActiveGames, run, selectHarvestCard, cancelResourceSelection, openStockpilePanel, saveStockpilePlan, undoLastAction, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); } };';
   new Script(code.replace(/\}\)\(\);\s*$/, `${expose}\n})();`)).runInContext(context);
   return { ui: context.ui, elements, app, html };
 }
@@ -180,4 +180,20 @@ test("a local Stockpile plan closes at handover and does not reveal the incoming
   assert.equal(ui.getState().players.WHITE.stockpile_instructions.manual_plan.card_ids.length, 0);
   ui.showHandoff(PLAYER.BLACK);
   assert.doesNotMatch(elements.get('player-summary').innerHTML, /Private Stockpile instructions|Saved exact plan/);
+});
+
+
+test('Active Games escapes names, separates terminal records and distinguishes missing control from a missing game', () => {
+  const {ui,elements}=loadUI();
+  ui.renderActiveGames([
+    {code:'ABC234',name:'<img src=x onerror=alert(1)>',status:'ACTIVE',year:4,phase:'SIEGE',players:[{seat:'WHITE',name:'<script>bad</script>'}],needs_recovery:true},
+    {code:'DEF567',name:'Finished table',status:'COMPLETE',year:8,phase:'SIEGE',players:[]}
+  ]);
+  const html=elements.get('active-games-list').innerHTML;
+  assert.doesNotMatch(html,/<img|<script>/);
+  assert.match(html,/&lt;img/);
+  assert.match(html,/Recover seat/);
+  assert.match(html,/Open public view/);
+  assert.match(html,/Finished games · read-only access/);
+  assert.match(html,/View record/);
 });

@@ -3,6 +3,42 @@ const RECOVERY_PREFIX = 'dendarv.online.recovery.';
 const PENDING_PREFIX = 'dendarv.online.pending.';
 const NAME_KEY = 'dendarv.online.name';
 const SPECTATOR_KEY = 'dendarv.online.spectator';
+const GAME_LIST_KEY = 'dendarv.online.games';
+function siteRead(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function siteWrite(key, value) {
+  try { localStorage.setItem(key, value); }
+  catch { throw new OnlineError('SITE_STORAGE_UNAVAILABLE', 'Allow this site to store browser data before joining or changing an online game. Your saved game has not been deleted.'); }
+}
+function rememberedGames() {
+  let saved = {};
+  try {
+    const parsed = JSON.parse(siteRead(GAME_LIST_KEY) ?? '{}');
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) saved = parsed;
+  } catch { /* A damaged convenience list never invalidates a seat. */ }
+  const result = Object.fromEntries(Object.entries(saved).filter(([code, item]) => /^[A-Z2-9]{6}$/.test(code) && item && typeof item === 'object'));
+  try {
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith(ROOM_KEY_PREFIX)) continue;
+      const code = key.slice(ROOM_KEY_PREFIX.length);
+      if (/^[A-Z2-9]{6}$/.test(code)) result[code] ??= { code, name: `Game ${code}`, status: 'UNKNOWN' };
+    }
+  } catch { /* Existing remembered entries remain usable. */ }
+  return result;
+}
+function rememberGameSummary(summary) {
+  const games = rememberedGames(), code = summary.code;
+  if (!/^[A-Z2-9]{6}$/.test(code)) return;
+  games[code] = { code, name: summary.name, status: summary.status,
+    players: (summary.players ?? []).map(({ seat, name }) => ({ seat, name })),
+    year: summary.year, phase: summary.phase, actor: summary.actor,
+    seat: summary.seat ?? games[code]?.seat ?? null,
+    is_your_turn: Boolean(summary.is_your_turn), needs_recovery: Boolean(summary.needs_recovery),
+    checked_at: new Date().toISOString() };
+  // This is a convenience index. Failing to cache a view must not turn an
+  // already-accepted server action into an apparent save failure.
+  try { localStorage.setItem(GAME_LIST_KEY, JSON.stringify(games)); } catch { /* no-op */ }
+}
 export class OnlineError extends Error {
   constructor(code,message,status=0){super(message);this.name='OnlineError';this.code=code;this.status=status;}
 }
@@ -26,9 +62,9 @@ async function api(path,{method='GET',token=null,body=null,spectatorId=null,requ
 }
 async function durableRequest(key,path,options){
   // Retain the SAME request and identity across connection loss and page reload.
-  const existing=localStorage.getItem(PENDING_PREFIX+key);
+  const existing=siteRead(PENDING_PREFIX+key);
   const pending=existing?JSON.parse(existing):{path,options:{...options,method:'POST',requestId:randomId()}};
-  if(!existing)localStorage.setItem(PENDING_PREFIX+key,JSON.stringify(pending));
+  if(!existing)siteWrite(PENDING_PREFIX+key,JSON.stringify(pending));
   try{
     const {payload}=await api(pending.path,pending.options);
     localStorage.removeItem(PENDING_PREFIX+key);return payload;
@@ -40,19 +76,43 @@ async function durableRequest(key,path,options){
 export class OnlineClient {
   constructor(code,{spectate=false}={}){
     this.code=normalizeCode(code);this.spectate=spectate;
-    this.token=spectate?null:localStorage.getItem(ROOM_KEY_PREFIX+this.code);
-    this.spectatorId=localStorage.getItem(SPECTATOR_KEY)??randomId();
-    localStorage.setItem(SPECTATOR_KEY,this.spectatorId);this.lastView=null;this.etag=null;this.busy=false;
+    this.token=spectate?null:siteRead(ROOM_KEY_PREFIX+this.code);
+    this.spectatorId=siteRead(SPECTATOR_KEY)??randomId();
+    try { localStorage.setItem(SPECTATOR_KEY,this.spectatorId); } catch {}
+    this.lastView=null;this.etag=null;this.busy=false;
   }
-  static rememberedName(){return localStorage.getItem(NAME_KEY)??'';}
-  static rememberName(name){localStorage.setItem(NAME_KEY,String(name??'').trim());}
+  static rememberedName(){return siteRead(NAME_KEY)??'';}
+  static rememberName(name){try { localStorage.setItem(NAME_KEY,String(name??'').trim()); } catch {}}
+  static rememberedGames() { return Object.values(rememberedGames()); }
+  static async refreshRememberedGames() {
+    return Promise.all(OnlineClient.rememberedGames().map(async old => {
+      try {
+        const { payload } = await api(`/api/rooms/${old.code}/summary`, { token: siteRead(ROOM_KEY_PREFIX + old.code) });
+        rememberGameSummary(payload);
+        return { ...old, ...payload, error: null };
+      } catch (error) {
+        return { ...old, is_your_turn: false, error: error.code === 'ROOM_ACCESS_EXPIRED'
+          ? 'The 30-day viewing period has ended.' : error.code === 'ROOM_NOT_FOUND'
+            ? 'This room could not be found. Check the code or ask the host.'
+            : 'Could not refresh. These are the last remembered details; try opening the game.' };
+      }
+    }));
+  }
+  rememberView() {
+    const view = this.lastView;
+    if (this.spectate || !this.token || !view?.room) return;
+    rememberGameSummary({ code: this.code, name: view.room.name ?? `Game ${this.code}`, status: view.room.status,
+      players: Object.entries(view.room.seats).filter(([, p]) => p).map(([seat, p]) => ({ seat, name: p.name })),
+      ...view.room.summary, seat: view.viewer.seat, is_your_turn: view.viewer.is_your_turn,
+      needs_recovery: view.viewer.role !== 'PLAYER' });
+  }
   accept(payload){
     if(payload.token){
       this.token=payload.token;this.spectate=false;
       localStorage.setItem(ROOM_KEY_PREFIX+this.code,payload.token);
       if(payload.recoveryCode)localStorage.setItem(RECOVERY_PREFIX+this.code,payload.recoveryCode);
     }
-    this.lastView=payload.view??payload;this.etag=null;return this.lastView;
+    this.lastView=payload.view??payload;this.etag=null;this.rememberView();return this.lastView;
   }
   static async create({playerCount,playerName,seat}){
     const payload=await durableRequest('create','/api/rooms',{body:{playerCount,playerName,seat,credentials:{token:randomId(),recoveryCode:randomId()}}});
@@ -74,7 +134,7 @@ export class OnlineClient {
     }
     const response=await api(`/api/rooms/${this.code}`,{token:this.token,spectatorId:this.token?null:this.spectatorId,etag:this.etag});
     if(response.unchanged&&this.lastView)return this.lastView;
-    this.lastView=response.payload;this.etag=response.etag;return this.lastView;
+    this.lastView=response.payload;this.etag=response.etag;this.rememberView();return this.lastView;
   }
   recoveryCode(){return localStorage.getItem(RECOVERY_PREFIX+this.code);}
   async recover(recoveryCode){return this.mutate('recover',{recoveryCode:String(recoveryCode).trim(),token:randomId()});}
@@ -83,6 +143,7 @@ export class OnlineClient {
   undo(){return this.mutate('undo');}
   pass(){return this.mutate('pass');}
   abandon(){return this.mutate('abandon',{confirmed:true});}
+  rename(name){return this.mutate('rename',{name});}
   async export(){return (await api(`/api/rooms/${this.code}/export`,{token:this.token})).payload;}
 }
 export function roomCodeFromLocation(){return normalizeCode(new URLSearchParams(location.search).get('room'));}

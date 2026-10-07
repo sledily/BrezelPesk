@@ -584,6 +584,10 @@ body { background: radial-gradient(ellipse at top, #f5eedf, #d9ccb2); }
 .button.danger { background: #853c31; color: #fff5e8; }
 .button.tiny { min-height: 36px; font-size: 12px; }
 button:disabled { opacity: .6; }
+.remembered-game { padding: 14px; margin: 10px 0; border: 1px solid #b9a176; border-radius: 4px; background: #f7edd6; }
+.remembered-game > div:first-child { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.remembered-game strong { overflow-wrap: anywhere; }
+.remembered-game p { margin: 8px 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .year-heading h2 { margin: 4px 0; font: 25px Georgia, serif; }
 .year-heading p { margin: 0; font-size: 12px; }
 .year-calendar { width: 86px; flex: 0 0 86px; }

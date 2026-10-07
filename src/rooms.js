@@ -30,6 +30,13 @@ function cleanName(value) {
   return name;
 }
 
+function generatedRoomName() {
+  const words = randomBytes(2);
+  const qualities = ['Amber', 'Quiet', 'Silver', 'Golden', 'Misty', 'Emerald', 'Autumn', 'Winter'];
+  const places = ['Harbour', 'Keep', 'Orchard', 'Valley', 'Tower', 'Forest', 'Bridge', 'Meadow'];
+  return `${qualities[words[0] % qualities.length]} ${places[words[1] % places.length]}`;
+}
+
 export function tokenHash(token) {
   return createHash("sha256").update(String(token)).digest("hex");
 }
@@ -175,6 +182,7 @@ export class RoomStore {
     const room = {
       schema_version: ROOM_SCHEMA_VERSION,
       code,
+      name: generatedRoomName(),
       player_count: count,
       seat_order: seatOrder,
       status: "LOBBY",
@@ -231,6 +239,21 @@ export class RoomStore {
     return this.view(room.code, token);
   }
 
+  rename(code, token, { name } = {}) {
+    const room = this.get(code);
+    if (identifySeat(room, token) !== room.host_seat) roomFail('HOST_REQUIRED', 'Only the host can rename this game', 403);
+    if (!['LOBBY', 'ACTIVE'].includes(room.status)) roomFail('MATCH_TERMINAL', 'A finished game cannot be renamed', 409);
+    const value = typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : '';
+    if (!value || value.length > 60 || /[\u0000-\u001f\u007f]/.test(value)) roomFail('INVALID_GAME_NAME', 'Use a game name of 1–60 characters');
+    room.name = value;
+    // Renaming publishes metadata, never the acting player's private draft.
+    room.revision = Math.max(room.revision, room.draft_revision) + 1;
+    room.draft_revision = room.revision;
+    room.updated_at = this.now().toISOString();
+    this.persist();
+    return this.view(code, token);
+  }
+
   view(code, token = null, spectatorId = null) {
     const room = this.get(code);
     const seat = identifySeat(room, token);
@@ -258,7 +281,10 @@ export class RoomStore {
     return {
       room: {
         code: room.code,
+        name: room.name ?? `Game ${room.code}`,
         status: room.status,
+        summary: { year: room.committed_state?.year_number ?? null,
+          phase: room.committed_state?.phase ?? null, actor: publicActor },
         player_count: room.player_count,
         seats: publicSeats(room, now.getTime()),
         spectator_count: recentSpectators?.size ?? 0,

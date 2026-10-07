@@ -24,6 +24,7 @@ function makeCode(key) {
 }
 export function gameRecord(room) {
   return { file_type: 'DENDARV_GAME_RECORD', schema_version: 2, code: room.code, status: room.status,
+    name: room.name ?? `Game ${room.code}`,
     ended_at: room.ended_at ?? null,
     seats: Object.fromEntries(room.seat_order.map(seat => [seat, { name: room.seats[seat]?.name }])),
     state: room.draft_state ?? room.committed_state, published_state: room.committed_state };
@@ -70,6 +71,17 @@ export class PersistentRooms {
     if (!data) fail('ROOM_NOT_FOUND', 'No online room has that code', 404);
     return this.project(data, token, spectatorId);
   }
+  async summary(code, token) {
+    // Listing remembered games must not announce presence or fetch private game
+    // contents into the browser merely to render a link.
+    const data = await this.storage.read(codeOf(code));
+    if (!data) fail('ROOM_NOT_FOUND', 'No online room has that code', 404);
+    const view = this.reducer(data).view(data.room.code, token);
+    return { code: view.room.code, name: view.room.name, status: view.room.status,
+      players: Object.entries(view.room.seats).filter(([, p]) => p).map(([seat, p]) => ({ seat, name: p.name })),
+      ...view.room.summary, seat: view.viewer.seat,
+      is_your_turn: view.viewer.is_your_turn, needs_recovery: view.viewer.role !== 'PLAYER' };
+  }
   async mutate(action, code, token, body = {}, id) {
     requestId(id);
     const credentials = body.credentials;
@@ -114,6 +126,7 @@ export class PersistentRooms {
             if (body.confirmed !== true || room.status !== 'ACTIVE') fail('CONFIRM_REQUIRED','Confirm abandonment of a started game',409);
             room.status = 'ABANDONED'; room.ended_at = this.now().toISOString(); room.revision += 1;
           }
+          else if (action === 'rename') core.rename(code, token, body);
           else if (['start','undo','pass'].includes(action)) core[action](code, token);
           else fail('UNKNOWN_ACTION', 'Unknown room action', 404);
           const room = cloneForStorage(core.get(code));

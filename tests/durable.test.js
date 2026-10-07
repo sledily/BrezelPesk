@@ -335,3 +335,42 @@ test('private waiting-player Stockpile plans survive failed saves, restart, take
     assert.equal(view.game.players.BLACK.stockpile_instructions, undefined);
   }
 });
+
+test('host rename survives restart and lost acknowledgement without publishing a private draft', async t => {
+  const db = await fileStore(t);
+  const { service, host, black } = await setup(db);
+  await db.transact(host.code, data => {
+    forcePhase(data.room.committed_state, PHASE.BUILD);
+    giveResource(data.room.committed_state, PLAYER.WHITE, SUIT.CLOVERS, 8);
+    return {write:data};
+  });
+  const rooms=new PersistentRooms(db);
+  let view=await rooms.view(host.code,host.token);
+  const card=view.game.players.WHITE.resource_hand_ids[0];
+  await rooms.mutate('command',host.code,host.token,{expectedRevision:view.viewer.private_revision,command:{type:'TAP_RESOURCES',card_ids:[card]}},id());
+  const before=await db.read(host.code);
+  view=await rooms.view(host.code,host.token);
+  const request=id(), body={name:'  The   Breton Table  ',expectedRevision:view.viewer.private_revision};
+  const original=db.transact.bind(db);
+  db.transact=async(...args)=>{await original(...args);throw new Error('lost rename response');};
+  await assert.rejects(()=>rooms.mutate('rename',host.code,host.token,body,request),e=>e.code==='SAVE_UNAVAILABLE');
+  db.transact=original;
+  const restarted=new PersistentRooms(db);
+  const renamed=await restarted.mutate('rename',host.code,host.token,body,request);
+  assert.equal(renamed.room.name,'The Breton Table');
+  const after=await db.read(host.code);
+  for(const field of ['committed_state','draft_state','draft_history','draft_owner','seats','code']) assert.deepEqual(after.room[field],before.room[field]);
+  const summary=await restarted.summary(host.code,black.token);
+  assert.equal(summary.name,'The Breton Table');
+  assert.equal(summary.phase,PHASE.BUILD);
+  assert.equal(summary.seat,PLAYER.BLACK);
+  assert.doesNotMatch(JSON.stringify(summary),/resource_hand_ids|token_hash|recovery_hash|rng_state|command_log|private_revision/);
+  assert.equal((await restarted.view(host.code,black.token)).game.resources_by_id[card].tapped,false);
+  const blackView=await restarted.view(host.code,black.token);
+  await assert.rejects(()=>restarted.mutate('rename',host.code,black.token,{name:'Other',expectedRevision:blackView.viewer.private_revision},id()),e=>e.code==='HOST_REQUIRED');
+  const fresh=await restarted.view(host.code,host.token);
+  await assert.rejects(()=>restarted.mutate('rename',host.code,host.token,{name:' ',expectedRevision:fresh.viewer.private_revision},id()),e=>e.code==='INVALID_GAME_NAME');
+  await restarted.admin(host.code,'abandon',{requestId:id(),confirmed:true});
+  const terminal=await restarted.view(host.code,host.token);
+  await assert.rejects(()=>restarted.mutate('rename',host.code,host.token,{name:'Closed',expectedRevision:terminal.viewer.private_revision},id()),e=>e.code==='MATCH_TERMINAL');
+});

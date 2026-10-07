@@ -36,6 +36,7 @@
         <div id="online-strip-text"></div>
         <div class="online-strip-actions">
           <button id="copy-recovery-code" class="button tiny">Copy recovery code</button>
+          <button id="rename-online-game" class="button tiny" hidden>Rename game</button>
           <button id="copy-room-link" class="button tiny">Copy spectator link</button>
           <button id="leave-online" class="button tiny quiet">Return to local game</button>
         </div>
@@ -133,6 +134,13 @@
       <form method="dialog" id="online-form">
         <p class="eyebrow">BrezelPesk · Remote table</p>
         <h2>Play or watch online</h2>
+        <section class="online-form-section" aria-labelledby="active-games-title">
+          <h3 id="active-games-title">Your Active Games</h3>
+          <p class="field-note">Don’t see your game here? That does not mean the game is gone. This list only shows games remembered by this browser. Use the room code to find the match again, then your recovery code to reclaim your seat.</p>
+          <p class="field-note">Clearing or blocking site data, private browsing, or changing browser/device may remove this list without deleting the online game.</p>
+          <div id="active-games-list" aria-live="polite"></div>
+          <button id="refresh-active-games" type="button" class="button quiet">Refresh games</button>
+        </section>
         <section class="online-form-section">
           <h3>Create a room</h3>
           <label for="online-create-name">Your name</label>
@@ -155,7 +163,7 @@
           <label for="online-recovery-code">Private recovery code</label>
           <input id="online-recovery-code" maxlength="128" autocomplete="off" type="password">
           <button id="recover-online-seat" type="button" class="button full">Recover seat</button>
-          <p class="field-note">Opening a room starts in spectator mode. If the match has not begun, you may claim any open player color.</p>
+          <p class="field-note">The room code finds the game. The private recovery code reclaims your seat on this device. Opening a room resumes a remembered seat when available; otherwise you enter as a spectator.</p>
         </section>
         <div class="dialog-actions">
           <button value="cancel" class="button quiet">Cancel</button>
@@ -176,6 +184,7 @@
         </div>
         <div class="choice-grid online-lobby-actions">
           <button id="start-online-match" class="button primary" hidden>Start match</button>
+          <button id="lobby-rename-game" class="button" hidden>Rename game</button>
           <button id="lobby-copy-recovery" class="button">Copy recovery code</button>
           <button id="lobby-copy-link" class="button">Copy spectator link</button>
           <button id="lobby-close" class="button quiet">Return to local game</button>
@@ -183,6 +192,15 @@
       </div>
     </div>
 
+    <dialog id="rename-game-dialog" class="game-dialog">
+      <form method="dialog">
+        <h2>Rename game</h2>
+        <label for="game-name-input">Game name</label>
+        <input id="game-name-input" maxlength="60" required>
+        <p class="field-note">The room code, invitation link and recovery codes stay the same.</p>
+        <div class="dialog-actions"><button value="cancel" class="button quiet">Cancel</button><button id="save-game-name" type="button" class="button primary">Save name</button></div>
+      </form>
+    </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <script type="module" src="./src/ui.js"></script>
   </body>
