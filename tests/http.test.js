@@ -101,6 +101,21 @@ test("the HTTP server exposes room creation, joining, spectator views, and stati
   assert.equal((await fetch(recoverPath,{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json','X-Admin-CSRF':csrf},body:JSON.stringify(adminBody)})).status,200);
   const revoked=await fetch(origin+`/api/rooms/${created.code}`,{headers:{Authorization:`Bearer ${created.token}`}}).then(r=>r.json());
   assert.equal(revoked.viewer.role,'SPECTATOR');
+  const lobbyResponse=await fetch(origin+'/api/rooms',{
+    method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':'l'.repeat(32)},
+    body:JSON.stringify({playerCount:2,playerName:'Random host',seatingMode:'RANDOM',credentials:{token:'1'.repeat(48),recoveryCode:'2'.repeat(48)}}),
+  });
+  assert.equal(lobbyResponse.status,201);
+  const lobby=await lobbyResponse.json();
+  assert.equal(lobby.view.viewer.seat,null);
+  assert.deepEqual(lobby.view.room.seats,{});
+  const cancellation=await fetch(origin+`/api/rooms/${lobby.code}/cancel`,{
+    method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${lobby.token}`,'Idempotency-Key':'m'.repeat(32)},
+    body:JSON.stringify({confirmed:true,expectedRevision:lobby.view.viewer.private_revision}),
+  });
+  assert.equal(cancellation.status,200);
+  assert.equal((await cancellation.json()).cancelled,true);
+  assert.equal((await fetch(origin+`/api/rooms/${lobby.code}`)).status,410);
   const html = await fetch(origin).then((response) => response.text());
   assert.match(html, /Play or watch online/);
 });

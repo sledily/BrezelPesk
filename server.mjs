@@ -65,7 +65,7 @@ async function handleApi(request,response,url) {
     }
     if(request.method==='GET' && action==='export') return json(response,200,await rooms.export(code,token));
     if(request.method==='GET' && action==='summary') return json(response,200,await rooms.summary(code,token));
-    if(request.method==='POST' && ['join','start','command','undo','pass','recover','abandon','rename'].includes(action)) {
+    if(request.method==='POST' && ['join','start','command','undo','pass','recover','abandon','rename','assign','remove','leave','cancel'].includes(action)) {
       if(action==='recover') limitRecovery(request);
       return json(response,200,await rooms.mutate(action,code,token,await readJson(request),request.headers['idempotency-key']));
     }

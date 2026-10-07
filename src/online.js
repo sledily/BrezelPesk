@@ -92,7 +92,8 @@ export class OnlineClient {
         return { ...old, ...payload, error: null };
       } catch (error) {
         return { ...old, is_your_turn: false, error: error.code === 'ROOM_ACCESS_EXPIRED'
-          ? 'The 30-day viewing period has ended.' : error.code === 'ROOM_NOT_FOUND'
+          ? 'The 30-day viewing period has ended.' : error.code === 'ROOM_CANCELLED'
+            ? 'The host cancelled this unstarted room. Its invitation is closed.' : error.code === 'ROOM_NOT_FOUND'
             ? 'This room could not be found. Check the code or ask the host.'
             : 'Could not refresh. These are the last remembered details; try opening the game.' };
       }
@@ -102,11 +103,22 @@ export class OnlineClient {
     const view = this.lastView;
     if (this.spectate || !this.token || !view?.room) return;
     rememberGameSummary({ code: this.code, name: view.room.name ?? `Game ${this.code}`, status: view.room.status,
-      players: Object.entries(view.room.seats).filter(([, p]) => p).map(([seat, p]) => ({ seat, name: p.name })),
+      players: view.room.seating_mode === 'RANDOM' && view.room.status === 'LOBBY'
+        ? view.room.participants.map(p => ({seat:null, name:p.name}))
+        : Object.entries(view.room.seats).filter(([, p]) => p).map(([seat, p]) => ({ seat, name: p.name })),
       ...view.room.summary, seat: view.viewer.seat, is_your_turn: view.viewer.is_your_turn,
       needs_recovery: view.viewer.role !== 'PLAYER' });
   }
+  forgetSeat() {
+    this.token = null;
+    localStorage.removeItem(ROOM_KEY_PREFIX + this.code);
+    localStorage.removeItem(RECOVERY_PREFIX + this.code);
+    const games = rememberedGames();
+    delete games[this.code];
+    try { localStorage.setItem(GAME_LIST_KEY, JSON.stringify(games)); } catch {}
+  }
   accept(payload){
+    if (payload.left || payload.cancelled) { this.forgetSeat(); return payload; }
     if(payload.token){
       this.token=payload.token;this.spectate=false;
       localStorage.setItem(ROOM_KEY_PREFIX+this.code,payload.token);
@@ -114,8 +126,8 @@ export class OnlineClient {
     }
     this.lastView=payload.view??payload;this.etag=null;this.rememberView();return this.lastView;
   }
-  static async create({playerCount,playerName,seat}){
-    const payload=await durableRequest('create','/api/rooms',{body:{playerCount,playerName,seat,credentials:{token:randomId(),recoveryCode:randomId()}}});
+  static async create({playerCount,playerName,seat,seatingMode='FREE'}){
+    const payload=await durableRequest('create','/api/rooms',{body:{playerCount,playerName,seat,seatingMode,credentials:{token:randomId(),recoveryCode:randomId()}}});
     const client=new OnlineClient(payload.code);OnlineClient.rememberName(playerName);
     return {client,payload:client.accept(payload)};
   }
@@ -130,7 +142,7 @@ export class OnlineClient {
     const pending=localStorage.getItem(PENDING_PREFIX+this.code);
     if(pending&&!this.busy&&!this.spectate){
       this.busy=true;
-      try{this.accept(await durableRequest(this.code,null,null));}finally{this.busy=false;}
+      try{const accepted=this.accept(await durableRequest(this.code,null,null)); if(accepted.cancelled)throw new OnlineError('ROOM_CANCELLED','This unstarted room was cancelled',410);}finally{this.busy=false;}
     }
     const response=await api(`/api/rooms/${this.code}`,{token:this.token,spectatorId:this.token?null:this.spectatorId,etag:this.etag});
     if(response.unchanged&&this.lastView)return this.lastView;
@@ -144,6 +156,7 @@ export class OnlineClient {
   pass(){return this.mutate('pass');}
   abandon(){return this.mutate('abandon',{confirmed:true});}
   rename(name){return this.mutate('rename',{name});}
+  lobby(action,body={}) { return this.mutate(action,body); }
   async export(){return (await api(`/api/rooms/${this.code}/export`,{token:this.token})).payload;}
 }
 export function roomCodeFromLocation(){return normalizeCode(new URLSearchParams(location.search).get('room'));}

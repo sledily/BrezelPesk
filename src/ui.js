@@ -1312,6 +1312,14 @@ function updateOnlineCreateSeats() {
   const seats = onlineSeatOrder(Number(dom.onlineCreateCount.value));
   dom.onlineCreateSeat.innerHTML = seats.map((seat) => `<option value="${seat}">${playerName(seat)}</option>`).join("");
   if (seats.includes(current)) dom.onlineCreateSeat.value = current;
+  const mode = document.querySelector('#online-create-mode').value || 'FREE';
+  dom.onlineCreateSeat.hidden = mode !== 'FREE';
+  document.querySelector('#online-create-seat-label').hidden = mode !== 'FREE';
+  document.querySelector('#online-mode-help').textContent = {
+    FREE: 'Players choose their colours; the host starts when all seats are filled.',
+    HOST: 'Players receive provisional random seats. You may rearrange them before starting.',
+    RANDOM: 'Everyone joins without choosing a colour. When enough players join, colours are randomized and the game starts automatically.'
+  }[mode];
 }
 
 function onlineRoomName(seat) {
@@ -1326,7 +1334,7 @@ function renderOnlineChrome() {
   }
   const { room, viewer } = onlinePayload;
   const identity = viewer.role === "PLAYER"
-    ? `You are <strong>${playerName(viewer.seat)}</strong> · ${escapeHtml(onlineRoomName(viewer.seat))}`
+    ? `You are <strong>${viewer.seat ? playerName(viewer.seat) : "a participant"}</strong> · ${escapeHtml(onlineRoomName(viewer.seat))}`
     : "<strong>Spectator view</strong>";
   dom.onlineStripText.innerHTML = `<strong>${escapeHtml(room.name ?? 'BrezelPesk')}</strong> · Room <strong>${room.code}</strong> · ${identity} · ${room.spectator_count} spectator${room.spectator_count === 1 ? "" : "s"}${onlineClient.token && viewer.role !== 'PLAYER' ? ' · This browser no longer controls the seat. Use Recover seat to take control again.' : ''}`;
   for (const id of ['rename-online-game', 'lobby-rename-game']) document.querySelector(`#${id}`).hidden = !viewer.is_host || !['LOBBY', 'ACTIVE'].includes(room.status);
@@ -1337,30 +1345,55 @@ function renderOnlineChrome() {
 
 function renderOnlineLobby() {
   const { room, viewer } = onlinePayload;
+  const mode = room.seating_mode ?? 'FREE';
+  const people = room.participants ?? Object.entries(room.seats).filter(([,p]) => p).map(([seat,p]) => ({...p,seat}));
   dom.onlineLobbyTitle.textContent = `${room.name ?? 'Game'} · ${room.code}`;
-  const occupied = Object.values(room.seats).filter(Boolean).length;
-  dom.onlineLobbyStatus.textContent = viewer.role === "PLAYER"
-    ? `You have joined as ${playerName(viewer.seat)}. ${occupied} of ${room.player_count} player seats are occupied.`
-    : `You are watching the lobby. ${occupied} of ${room.player_count} player seats are occupied; claim an open color to play.`;
-  dom.onlineSeatList.innerHTML = onlineSeatOrder(room.player_count).map((seat) => {
-    const occupant = room.seats[seat];
-    const open = !occupant && viewer.role === "SPECTATOR";
-    const tag = open ? "button" : "div";
-    return `
-      <${tag} class="online-seat ${open ? "open" : ""}" ${open ? `data-join-seat="${seat}"` : ""}>
-        <span class="player-seal ${seat.toLowerCase()}">${playerCode(seat)}</span>
-        <strong>${playerName(seat)}</strong>
-        <small>${occupant ? `${escapeHtml(occupant.name)}${occupant.connected ? ` · <span class="presence-dot">connected</span>` : ""}` : open ? "Open · click to join" : "Open"}</small>
-      </${tag}>`;
-  }).join("");
-  dom.onlineJoinControls.hidden = viewer.role === "PLAYER";
-  dom.startOnlineMatch.hidden = !viewer.is_host;
+  const descriptions = { FREE: 'Free choice · choose an available colour. The host starts the game.',
+    HOST: 'Host chooses · provisional seats can be rearranged by the host before Start.',
+    RANDOM: 'Random · colours will be assigned and play will start automatically when everyone has joined.' };
+  dom.onlineLobbyStatus.textContent = `${people.length} of ${room.player_count} players joined. ${descriptions[mode]} Sovereigns are chosen after Start.`;
+  dom.onlineSeatList.innerHTML = mode === 'RANDOM' ? people.map(person => `<div class="online-seat"><strong>${escapeHtml(person.name)}</strong><small>${person.is_host ? 'Host' : 'Participant'} · colour assigned at Start</small>${viewer.is_host && !person.is_host ? `<button class="button tiny" data-remove-participant="${person.participant_id}">Remove</button>` : ''}</div>`).join('')
+    : onlineSeatOrder(room.player_count).map(seat => {
+      const occupant = room.seats[seat];
+      const open = !occupant && viewer.role === 'SPECTATOR' && mode === 'FREE';
+      const manage = viewer.is_host && occupant;
+      return `<div class="online-seat ${open ? 'open' : ''}"><span class="player-seal ${seat.toLowerCase()}">${playerCode(seat)}</span><strong>${playerName(seat)}</strong><small>${occupant ? escapeHtml(occupant.name) + (seat === room.host_seat ? ' · Host' : '') : 'Open'}</small>${open ? `<button class="button" data-join-seat="${seat}">Join as ${playerName(seat)}</button>` : ''}
+      ${manage && mode === 'HOST' ? `<label>Assign colour<select data-seat-for="${occupant.participant_id}" aria-label="Colour for ${escapeHtml(occupant.name)}">${onlineSeatOrder(room.player_count).map(target => `<option value="${target}" ${target === seat ? 'selected' : ''}>${playerName(target)}</option>`).join('')}</select></label><button class="button tiny" data-assign-participant="${occupant.participant_id}">Assign / swap</button>` : ''}
+      ${manage && seat !== room.host_seat ? `<button class="button tiny" data-remove-participant="${occupant.participant_id}">Remove</button>` : ''}</div>`;
+    }).join('');
+  dom.onlineJoinControls.hidden = viewer.role === 'PLAYER';
+  document.querySelector('#join-online-participant').hidden = viewer.role === 'PLAYER' || mode === 'FREE' || people.length >= room.player_count;
+  document.querySelector('#online-join-help').textContent = mode === 'FREE' ? 'Enter your name, then choose an open colour.' : 'Enter your name and join as a participant.';
+  dom.startOnlineMatch.hidden = !viewer.is_host || mode === 'RANDOM';
   dom.startOnlineMatch.disabled = !viewer.can_start;
-  dom.startOnlineMatch.textContent = viewer.can_start ? "Start match" : "Waiting for every seat";
+  dom.startOnlineMatch.textContent = viewer.can_start ? 'Start match' : 'Waiting for every player';
+  document.querySelector('#lobby-leave-seat').hidden = viewer.role !== 'PLAYER' || viewer.is_host;
+  document.querySelector('#lobby-cancel-room').hidden = !viewer.is_host;
+  document.querySelector('#lobby-copy-recovery').hidden = viewer.role !== 'PLAYER';
   dom.onlineLobby.hidden = false;
-  dom.onlineSeatList.querySelectorAll("[data-join-seat]").forEach((button) => {
-    button.addEventListener("click", () => joinOnlineSeat(button.dataset.joinSeat));
-  });
+  dom.onlineSeatList.querySelectorAll('[data-join-seat]').forEach(button => { button.onclick = () => joinOnlineSeat(button.dataset.joinSeat); });
+  dom.onlineSeatList.querySelectorAll('[data-remove-participant]').forEach(button => { button.onclick = () => lobbyAction('remove', {participantId:button.dataset.removeParticipant}); });
+  dom.onlineSeatList.querySelectorAll('[data-assign-participant]').forEach(button => { button.onclick = () => {
+    const participantId = button.dataset.assignParticipant;
+    lobbyAction('assign', {participantId, seat:document.querySelector(`[data-seat-for="${participantId}"]`).value});
+  }; });
+}
+
+async function lobbyAction(action, body = {}) {
+  if (!onlineClient || onlineRequestPending) return;
+  if (action === 'cancel' && !window.confirm('Cancel this unstarted room? Its invitation will stop working for everyone.')) return;
+  if (action === 'cancel') body.confirmed = true;
+  onlineRequestPending = true;
+  const client = onlineClient;
+  try {
+    const payload = await client.lobby(action, body);
+    if (onlineClient !== client) return;
+    if (payload.left || payload.cancelled) {
+      leaveOnlineMode({restoreLocal:true});
+      showToast(payload.cancelled ? 'Room cancelled.' : 'You left the lobby. Your old recovery code no longer claims that place.', true);
+    } else applyOnlinePayload(payload, {force:true});
+  } catch (error) { showToast(error.message); }
+  finally { onlineRequestPending = false; }
 }
 
 function rememberOnlineLocation(code) {
@@ -1385,6 +1418,9 @@ function beginOnlinePolling() {
         delay = before === payload ? Math.min(delay * 1.5, 20000) : 3000;
         applyOnlinePayload(payload);
       } catch (error) {
+        if (error.code === 'ROOM_CANCELLED' && onlineClient === client) {
+          client.forgetSeat(); leaveOnlineMode({restoreLocal:true}); showToast(error.message); return;
+        }
         delay = Math.min(delay * 2, 30000);
         if (error.code !== "SERVER_UNREACHABLE") showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
       }
@@ -1399,7 +1435,12 @@ document.addEventListener?.("visibilitychange", async () => {
     try {
       const payload = await client.view();
       if (onlineClient === client) applyOnlinePayload(payload);
-    } catch (error) { if (onlineClient === client) showToast(error.message); }
+    } catch (error) {
+      if (onlineClient === client) {
+        if (error.code === 'ROOM_CANCELLED') { client.forgetSeat(); leaveOnlineMode({restoreLocal:true}); }
+        showToast(error.message);
+      }
+    }
     if (onlineClient === client) beginOnlinePolling();
   }
 });
@@ -1433,6 +1474,7 @@ async function createOnlineRoom() {
       playerCount: Number(dom.onlineCreateCount.value),
       playerName: playerNameValue,
       seat: dom.onlineCreateSeat.value,
+      seatingMode: document.querySelector("#online-create-mode").value || "FREE",
     });
     onlineClient = client;
     dismissedOnlineNotice = null;
@@ -1456,7 +1498,7 @@ async function joinOnlineSeat(seat) {
   try {
     const payload = await onlineClient.join({ playerName: dom.onlineJoinName.value.trim(), seat });
     applyOnlinePayload(payload, { resetSelection: true, force: true });
-    showToast(`Joined as ${playerName(seat)}.`, true);
+    showToast(payload.viewer.seat ? `Joined as ${playerName(payload.viewer.seat)}.` : "Joined the game. Colours are assigned at Start.", true);
   } catch (error) {
     showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
   } finally {
@@ -1527,7 +1569,7 @@ let activeGamesRefresh = 0;
 function renderActiveGames(games, refreshing = false) {
   const active = games.filter(game => !['COMPLETE', 'ABANDONED'].includes(game.status));
   const finished = games.filter(game => ['COMPLETE', 'ABANDONED'].includes(game.status));
-  const entry = game => `<article class="remembered-game"><div><strong>${escapeHtml(game.name ?? `Game ${game.code}`)}</strong><span class="field-note">${escapeHtml(game.code)}${game.seat ? ` · ${playerName(game.seat)}` : ''}</span></div><p>${(game.players ?? []).map(p => `${playerName(p.seat)}: ${escapeHtml(p.name)}`).join(' · ')}</p><p>${game.status === 'LOBBY' ? 'Waiting in lobby' : game.year ? `Year ${game.year} · ${escapeHtml(title(game.phase ?? ''))}` : 'Open to check the current state'}${['COMPLETE', 'ABANDONED'].includes(game.status) ? ` · ${title(game.status)} · read-only` : !refreshing && !game.error && !game.needs_recovery && game.is_your_turn ? ' · Your turn' : ''}</p>${game.error ? `<p role="status">${escapeHtml(game.error)}</p>` : refreshing ? '<p class="field-note">Checking current status…</p>' : ''}${game.needs_recovery ? '<p class="field-note">This browser no longer controls the seat. Recover it or open the public view.</p>' : ''}<div class="choice-grid"><button type="button" class="button" data-resume-game="${game.code}">${game.needs_recovery ? 'Open public view' : ['COMPLETE', 'ABANDONED'].includes(game.status) ? 'View record' : 'Resume'}</button>${game.needs_recovery ? `<button type="button" class="button" data-recover-game="${game.code}">Recover seat</button>` : ''}</div></article>`;
+  const entry = game => `<article class="remembered-game"><div><strong>${escapeHtml(game.name ?? `Game ${game.code}`)}</strong><span class="field-note">${escapeHtml(game.code)}${game.seat ? ` · ${playerName(game.seat)}` : ''}</span></div><p>${(game.players ?? []).map(p => `${p.seat ? playerName(p.seat) + ": " : ""}${escapeHtml(p.name)}`).join(' · ')}</p><p>${game.status === 'LOBBY' ? 'Waiting in lobby' : game.year ? `Year ${game.year} · ${escapeHtml(title(game.phase ?? ''))}` : 'Open to check the current state'}${['COMPLETE', 'ABANDONED'].includes(game.status) ? ` · ${title(game.status)} · read-only` : !refreshing && !game.error && !game.needs_recovery && game.is_your_turn ? ' · Your turn' : ''}</p>${game.error ? `<p role="status">${escapeHtml(game.error)}</p>` : refreshing ? '<p class="field-note">Checking current status…</p>' : ''}${game.needs_recovery ? '<p class="field-note">This browser no longer controls the seat. Recover it or open the public view.</p>' : ''}<div class="choice-grid"><button type="button" class="button" data-resume-game="${game.code}">${game.needs_recovery ? 'Open public view' : ['COMPLETE', 'ABANDONED'].includes(game.status) ? 'View record' : 'Resume'}</button>${game.needs_recovery ? `<button type="button" class="button" data-recover-game="${game.code}">Recover seat</button>` : ''}</div></article>`;
   document.querySelector('#active-games-list').innerHTML = (active.map(entry).join('') || '<p class="empty-state">No active games remembered by this browser yet.</p>')
     + (finished.length ? `<details><summary>Finished games · read-only access</summary>${finished.map(entry).join('')}</details>` : '');
   document.querySelectorAll('[data-resume-game]').forEach(button => { button.onclick = () => enterOnlineRoom(button.dataset.resumeGame); });
@@ -1565,6 +1607,10 @@ onClick('save-game-name', async () => {
 document.querySelector("#create-online-room").addEventListener("click", createOnlineRoom);
 document.querySelector("#open-online-room").addEventListener("click", () => enterOnlineRoom(dom.onlineRoomCode.value));
 dom.onlineCreateCount.addEventListener("change", updateOnlineCreateSeats);
+ document.querySelector('#online-create-mode').addEventListener('change', updateOnlineCreateSeats);
+ onClick('join-online-participant', () => joinOnlineSeat(null));
+ onClick('lobby-leave-seat', () => lobbyAction('leave'));
+ onClick('lobby-cancel-room', () => lobbyAction('cancel'));
 dom.onlineRoomCode.addEventListener("input", () => { dom.onlineRoomCode.value = dom.onlineRoomCode.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
 dom.startOnlineMatch.addEventListener("click", startOnlineMatch);
 async function copyRecoveryCode() {

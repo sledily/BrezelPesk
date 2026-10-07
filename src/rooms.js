@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomInt } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { FOUR_PLAYER_COUNTERCLOCKWISE, PLAYER, TWO_PLAYER_ORDER, V2_RULES } from "./constants.js";
@@ -56,6 +56,7 @@ function publicSeats(room, now = Date.now()) {
     const occupant = room.seats[seat];
     return [seat, occupant ? {
       name: occupant.name,
+      participant_id: occupant.participant_id,
       connected: Boolean(occupant.last_seen_at && now - Date.parse(occupant.last_seen_at) < 60_000),
     } : null];
   }));
@@ -168,12 +169,18 @@ export class RoomStore {
     const normalized = String(code ?? "").trim().toUpperCase();
     const room = this.rooms[normalized];
     if (!room) roomFail("ROOM_NOT_FOUND", "No online room has that code", 404);
+    // Upgrade old room records deterministically, including read-only projections.
+    for (const occupant of Object.values(room.seats)) if (occupant && !occupant.participant_id) {
+      occupant.participant_id = createHash('sha256').update(`participant:${room.code}:${occupant.recovery_hash}`).digest('hex').slice(0,24);
+    }
     return room;
   }
 
-  create({ playerCount = 4, playerName, seat = PLAYER.WHITE, seed = null, credentials = {} } = {}) {
+  create({ playerCount = 4, playerName, seat = PLAYER.WHITE, seatingMode = "FREE", seed = null, credentials = {} } = {}) {
     const count = Number(playerCount);
     const seatOrder = seatsForCount(count);
+    if (!['FREE', 'HOST', 'RANDOM'].includes(seatingMode)) roomFail('INVALID_SEATING_MODE', 'Choose Host chooses, Free choice or Random');
+    if (seatingMode !== 'FREE') seat = seatOrder[randomInt(seatOrder.length)];
     if (!seatOrder.includes(seat)) roomFail("INVALID_SEAT", `${seat} is not used in a ${count}-player game`);
     const token = credentials.token ?? newToken();
     const recoveryCode = credentials.recoveryCode ?? newToken();
@@ -184,6 +191,8 @@ export class RoomStore {
       code,
       name: generatedRoomName(),
       player_count: count,
+      seating_mode: seatingMode,
+      ready_sequence: 0,
       seat_order: seatOrder,
       status: "LOBBY",
       seed: String(seed || randomBytes(12).toString("hex")),
@@ -199,7 +208,7 @@ export class RoomStore {
       revision: 0,
       draft_revision: 0,
     };
-    room.seats[seat] = { name: cleanName(playerName), token_hash: tokenHash(token), recovery_hash: tokenHash(recoveryCode), joined_at: createdAt, last_seen_at: createdAt };
+    room.seats[seat] = { participant_id: randomBytes(12).toString("hex"), name: cleanName(playerName), token_hash: tokenHash(token), recovery_hash: tokenHash(recoveryCode), joined_at: createdAt, last_seen_at: createdAt };
     this.rooms[code] = room;
     this.persist();
     return { code, token, recoveryCode, seat, view: this.view(code, token) };
@@ -207,25 +216,46 @@ export class RoomStore {
 
   join(code, { playerName, seat, credentials = {} } = {}) {
     const room = this.get(code);
+    if (room.status === 'CANCELLED') roomFail('ROOM_CANCELLED', 'This unstarted room was cancelled', 410);
     if (room.status !== "LOBBY") roomFail("MATCH_ALREADY_STARTED", "This match has already started", 409);
+    const available = room.seat_order.filter(s => !room.seats[s]);
+    if (!available.length) roomFail('ROOM_FULL', 'All places are occupied', 409);
+    if (room.seating_mode !== 'FREE' && room.seating_mode) seat = available[randomInt(available.length)];
     if (!room.seat_order.includes(seat)) roomFail("INVALID_SEAT", "Choose an available player color");
     if (room.seats[seat]) roomFail("SEAT_TAKEN", `${seat} is already occupied`, 409);
     const token = credentials.token ?? newToken();
     const recoveryCode = credentials.recoveryCode ?? newToken();
     const joinedAt = this.now().toISOString();
-    room.seats[seat] = { name: cleanName(playerName), token_hash: tokenHash(token), recovery_hash: tokenHash(recoveryCode), joined_at: joinedAt, last_seen_at: joinedAt };
+    room.seats[seat] = { participant_id: randomBytes(12).toString("hex"), name: cleanName(playerName), token_hash: tokenHash(token), recovery_hash: tokenHash(recoveryCode), joined_at: joinedAt, last_seen_at: joinedAt };
     room.revision += 1;
     room.updated_at = joinedAt;
+    if (room.seat_order.every(s => room.seats[s])) {
+      if (room.seating_mode === 'RANDOM') {
+        const host = room.seats[room.host_seat];
+        const people = room.seat_order.map(s => room.seats[s]);
+        for (let i = people.length - 1; i > 0; i--) { const j = randomInt(i + 1); [people[i], people[j]] = [people[j], people[i]]; }
+        room.seat_order.forEach((s, i) => { room.seats[s] = people[i]; });
+        room.host_seat = room.seat_order.find(s => room.seats[s] === host);
+        this.beginMatch(room);
+      } else room.ready_sequence = (room.ready_sequence ?? 0) + 1;
+    }
     this.persist();
-    return { code: room.code, token, recoveryCode, seat, view: this.view(room.code, token) };
+    return { code: room.code, token, recoveryCode, seat: identifySeat(room, token), view: this.view(room.code, token) };
   }
 
   start(code, token) {
     const room = this.get(code);
     if (identifySeat(room, token) !== room.host_seat) roomFail("HOST_REQUIRED", "Only the room host can start the match", 403);
     if (room.status !== "LOBBY") roomFail("MATCH_ALREADY_STARTED", "This match has already started", 409);
+    if (room.seating_mode === 'RANDOM') roomFail('AUTOMATIC_START', 'Random games start automatically when everyone joins', 409);
     const empty = room.seat_order.filter((seat) => !room.seats[seat]);
     if (empty.length) roomFail("EMPTY_SEATS", `Waiting for ${empty.join(", ")}`, 409);
+    this.beginMatch(room);
+    this.persist();
+    return this.view(room.code, token);
+  }
+
+  beginMatch(room) {
     room.committed_state = newMatch({
       seed: room.seed,
       playerCount: room.player_count,
@@ -235,8 +265,41 @@ export class RoomStore {
     room.status = "ACTIVE";
     room.revision += 1;
     room.updated_at = this.now().toISOString();
+  }
+
+  lobby(code, token, action, { participantId, seat: targetSeat, confirmed } = {}) {
+    const room = this.get(code), actor = identifySeat(room, token);
+    if (room.status !== 'LOBBY') roomFail('LOBBY_CLOSED', 'Seating can only change before Start', 409);
+    if (!actor) roomFail('PLAYER_TOKEN_REQUIRED', 'Join the room first', 403);
+    const host = room.seats[room.host_seat];
+    if (action === 'leave') {
+      if (actor === room.host_seat) roomFail('HOST_CANNOT_LEAVE', 'The host may cancel the room; host status cannot be transferred', 409);
+      room.seats[actor] = null;
+    } else {
+      if (actor !== room.host_seat) roomFail('HOST_REQUIRED', 'Only the host can manage this lobby', 403);
+      if (action === 'cancel') {
+        if (confirmed !== true) roomFail('CONFIRM_REQUIRED', 'Confirm cancellation of this unstarted room', 409);
+        room.status = 'CANCELLED';
+        room.cancelled_at = this.now().toISOString();
+      } else {
+        const from = room.seat_order.find(s => room.seats[s] && typeof participantId === 'string' && room.seats[s].participant_id === participantId);
+        if (!from) roomFail('PARTICIPANT_NOT_FOUND', 'That participant is no longer in this lobby', 409);
+        if (action === 'remove') {
+          if (from === room.host_seat) roomFail('HOST_CANNOT_LEAVE', 'The host cannot remove themselves', 409);
+          room.seats[from] = null;
+        } else if (action === 'assign') {
+          if (room.seating_mode !== 'HOST') roomFail('SEATING_MODE', 'Seat reassignment is available only in Host chooses', 409);
+          if (!room.seat_order.includes(targetSeat)) roomFail('INVALID_SEAT', 'Choose a valid color');
+          [room.seats[from], room.seats[targetSeat]] = [room.seats[targetSeat], room.seats[from]];
+          room.host_seat = room.seat_order.find(s => room.seats[s] === host);
+        } else roomFail('UNKNOWN_ACTION', 'Unknown lobby action');
+      }
+    }
+    room.revision += 1;
+    room.updated_at = this.now().toISOString();
     this.persist();
-    return this.view(room.code, token);
+    if (action === 'cancel' || action === 'leave') return { code, [action === 'cancel' ? 'cancelled' : 'left']: true };
+    return this.view(code, token);
   }
 
   rename(code, token, { name } = {}) {
@@ -256,7 +319,9 @@ export class RoomStore {
 
   view(code, token = null, spectatorId = null) {
     const room = this.get(code);
+    if (room.status === 'CANCELLED') roomFail('ROOM_CANCELLED', 'This unstarted room was cancelled', 410);
     const seat = identifySeat(room, token);
+    const hiddenSeats = room.status === 'LOBBY' && room.seating_mode === 'RANDOM';
     const now = this.now();
     if (room.ended_at && now.getTime() >= Date.parse(room.ended_at) + 30 * 86400000) {
       roomFail("ROOM_ACCESS_EXPIRED", "The ordinary access window for this game has ended", 410);
@@ -286,15 +351,21 @@ export class RoomStore {
         summary: { year: room.committed_state?.year_number ?? null,
           phase: room.committed_state?.phase ?? null, actor: publicActor },
         player_count: room.player_count,
-        seats: publicSeats(room, now.getTime()),
+        seating_mode: room.seating_mode ?? 'FREE',
+        host_seat: hiddenSeats ? null : room.host_seat,
+        ready_sequence: room.ready_sequence ?? 0,
+        participants: room.seat_order.filter(s => room.seats[s]).map(s => ({ participant_id: room.seats[s].participant_id,
+          name: room.seats[s].name, is_host: s === room.host_seat })),
+        seats: hiddenSeats ? {} : publicSeats(room, now.getTime()),
         spectator_count: recentSpectators?.size ?? 0,
         revision: room.revision,
       },
       viewer: {
         role: seat ? "PLAYER" : "SPECTATOR",
-        seat,
+        seat: hiddenSeats ? null : seat,
+        participant_id: seat ? room.seats[seat].participant_id : null,
         is_host: isHost,
-        can_start: isHost && room.status === "LOBBY" && room.seat_order.every((player) => room.seats[player]),
+        can_start: isHost && room.seating_mode !== 'RANDOM' && room.status === "LOBBY" && room.seat_order.every((player) => room.seats[player]),
         is_your_turn: Boolean(seat && room.status === "ACTIVE" && (room.draft_state?.current_actor ?? publicActor) === seat),
         waiting_for_pass: draftAdvanced,
         can_undo: Boolean(room.status === "ACTIVE" && seat && room.draft_owner === seat && room.draft_history.length),
@@ -436,7 +507,7 @@ export class RoomStore {
 
 // The synchronous reducer must never retain an unaccepted mutation after an error.
 // PersistentRooms stages this reducer inside a database transaction for online use.
-for (const method of ["create", "join", "start", "command", "undo", "pass", "recover"]) {
+for (const method of ["create", "join", "start", "command", "undo", "pass", "recover", "rename", "lobby"]) {
   const original = RoomStore.prototype[method];
   RoomStore.prototype[method] = function (...args) {
     const before = deepClone(this.rooms);

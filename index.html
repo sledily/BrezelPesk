@@ -150,7 +150,10 @@
             <option value="4" selected>Four players</option>
             <option value="2">Two players</option>
           </select>
-          <label for="online-create-seat">Your color</label>
+          <label for="online-create-mode">Seating</label>
+          <select id="online-create-mode"><option value="FREE">Free choice</option><option value="HOST">Host chooses</option><option value="RANDOM">Random</option></select>
+          <p id="online-mode-help" class="field-note">Players choose their colours; the host starts when all seats are filled.</p>
+          <label id="online-create-seat-label" for="online-create-seat">Your color</label>
           <select id="online-create-seat"></select>
           <button id="create-online-room" type="button" class="button primary full">Create room</button>
         </section>
@@ -180,13 +183,16 @@
         <div id="online-join-controls" class="online-join-controls">
           <label for="online-join-name">Your name</label>
           <input id="online-join-name" maxlength="40" autocomplete="name">
-          <p class="field-note">Choose an open color below to take that seat.</p>
+          <p id="online-join-help" class="field-note">Choose an open color to take that seat.</p>
+          <button id="join-online-participant" class="button primary" hidden>Join game</button>
         </div>
         <div class="choice-grid online-lobby-actions">
           <button id="start-online-match" class="button primary" hidden>Start match</button>
           <button id="lobby-rename-game" class="button" hidden>Rename game</button>
           <button id="lobby-copy-recovery" class="button">Copy recovery code</button>
           <button id="lobby-copy-link" class="button">Copy spectator link</button>
+          <button id="lobby-leave-seat" class="button" hidden>Leave lobby</button>
+          <button id="lobby-cancel-room" class="button danger" hidden>Cancel room</button>
           <button id="lobby-close" class="button quiet">Return to local game</button>
         </div>
       </div>

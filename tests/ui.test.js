@@ -40,7 +40,7 @@ function loadUI() {
     window: { setTimeout() {}, clearTimeout() {}, setInterval() {}, clearInterval() {}, confirm() { return true; } },
     navigator: {}, crypto: { getRandomValues(array) { return array; } },
   });
-  const expose = 'globalThis.ui = { render, renderActiveGames, run, selectHarvestCard, cancelResourceSelection, openStockpilePanel, saveStockpilePlan, undoLastAction, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); } };';
+  const expose = 'globalThis.ui = { render, renderActiveGames, renderOnlineLobby, run, selectHarvestCard, cancelResourceSelection, openStockpilePanel, saveStockpilePlan, undoLastAction, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); } };';
   new Script(code.replace(/\}\)\(\);\s*$/, `${expose}\n})();`)).runInContext(context);
   return { ui: context.ui, elements, app, html };
 }
@@ -197,3 +197,24 @@ test('Active Games escapes names, separates terminal records and distinguishes m
   assert.match(html,/Finished games · read-only access/);
   assert.match(html,/View record/);
 });
+
+ test('lobby UI hides Random colours and exposes only role-appropriate controls',()=>{
+  const {ui,elements}=loadUI();
+  const host={participant_id:'host',name:'Host',is_host:true};
+  const guest={participant_id:'guest',name:'Guest',is_host:false};
+  const room={code:'ABC234',name:'Test room',status:'LOBBY',player_count:2,seating_mode:'RANDOM',participants:[host],seats:{},host_seat:null};
+  ui.setViewer({room,viewer:{role:'PLAYER',is_host:true,can_start:false}});
+  ui.renderOnlineLobby();
+  assert.equal(elements.get('start-online-match').hidden,true);
+  assert.equal(elements.get('lobby-cancel-room').hidden,false);
+  assert.equal(elements.get('lobby-leave-seat').hidden,true);
+  assert.doesNotMatch(elements.get('online-seat-list').innerHTML,/WHITE|BLACK|data-seat-for/);
+  room.seating_mode='HOST';room.host_seat='WHITE';room.seats={WHITE:host,BLACK:guest};room.participants.push(guest);
+  ui.setViewer({room,viewer:{role:'PLAYER',is_host:true,can_start:true}});ui.renderOnlineLobby();
+  assert.equal(elements.get('start-online-match').hidden,false);
+  assert.match(elements.get('online-seat-list').innerHTML,/data-assign-participant="guest"/);
+  assert.doesNotMatch(elements.get('online-seat-list').innerHTML,/data-remove-participant="host"/);
+  ui.setViewer({room,viewer:{role:'PLAYER',is_host:false,can_start:false}});ui.renderOnlineLobby();
+  assert.equal(elements.get('lobby-leave-seat').hidden,false);
+  assert.equal(elements.get('lobby-cancel-room').hidden,true);
+ });

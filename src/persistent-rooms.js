@@ -78,7 +78,9 @@ export class PersistentRooms {
     if (!data) fail('ROOM_NOT_FOUND', 'No online room has that code', 404);
     const view = this.reducer(data).view(data.room.code, token);
     return { code: view.room.code, name: view.room.name, status: view.room.status,
-      players: Object.entries(view.room.seats).filter(([, p]) => p).map(([seat, p]) => ({ seat, name: p.name })),
+      players: view.room.seating_mode === 'RANDOM' && view.room.status === 'LOBBY'
+        ? view.room.participants.map(p => ({seat:null, name:p.name}))
+        : Object.entries(view.room.seats).filter(([, p]) => p).map(([seat, p]) => ({ seat, name: p.name })),
       ...view.room.summary, seat: view.viewer.seat,
       is_your_turn: view.viewer.is_your_turn, needs_recovery: view.viewer.role !== 'PLAYER' };
   }
@@ -96,6 +98,11 @@ export class PersistentRooms {
       const result = await this.storage.transact(code, async stored => {
         let data = stored ? structuredClone(stored) : null;
         if (!data && action !== 'create') fail('ROOM_NOT_FOUND', 'No online room has that code', 404);
+        const old = data?.receipts[receiptId];
+        // Leaving revokes the caller's seat; cancellation closes ordinary views.
+        // The exact recorded request may still acknowledge its durable outcome.
+        if (old && old.fingerprint === fingerprint && ['leave', 'cancel'].includes(action)) return { result: { code, [action === 'leave' ? 'left' : 'cancelled']: true } };
+        if (data?.room.status === 'CANCELLED') fail('ROOM_CANCELLED', 'This unstarted room was cancelled', 410);
         const core = this.reducer(data);
         // Revalidate current control BEFORE replaying an earlier receipt.
         if (data && !['create','join','recover'].includes(action) && !identifySeat(data.room, token)) {
@@ -104,7 +111,6 @@ export class PersistentRooms {
         if (data && action === 'recover' && !data.room.seat_order.some(s => data.room.seats[s]?.recovery_hash === tokenHash(body.recoveryCode))) {
           fail('RECOVERY_DENIED', 'The recovery code does not match a seat', 403);
         }
-        const old = data?.receipts[receiptId];
         if (old && old.fingerprint !== fingerprint) fail('REQUEST_REUSED', 'A request identity cannot be reused for different data', 409);
         if (!old) {
           if (action !== 'create' && !['join','recover'].includes(action)) {
@@ -117,7 +123,10 @@ export class PersistentRooms {
             if (data) fail('ROOM_CODE_COLLISION', 'Please create the room again with a fresh request', 409);
             core.codeFactory = () => code;
             core.create({ ...body, seed: undefined }); // online outcomes are never seeded by a player
-          } else if (action === 'join') core.join(code, body);
+          } else if (action === 'join') {
+            if (identifySeat(data.room, token)) fail('ALREADY_JOINED', 'This browser already has a place in the room', 409);
+            core.join(code, body);
+          }
           else if (action === 'recover') core.recover(code, body);
           else if (action === 'command') core.command(code, token, body.command);
           else if (action === 'abandon') {
@@ -126,6 +135,7 @@ export class PersistentRooms {
             if (body.confirmed !== true || room.status !== 'ACTIVE') fail('CONFIRM_REQUIRED','Confirm abandonment of a started game',409);
             room.status = 'ABANDONED'; room.ended_at = this.now().toISOString(); room.revision += 1;
           }
+          else if (['assign','remove','leave','cancel'].includes(action)) core.lobby(code, token, action, body);
           else if (action === 'rename') core.rename(code, token, body);
           else if (['start','undo','pass'].includes(action)) core[action](code, token);
           else fail('UNKNOWN_ACTION', 'Unknown room action', 404);
@@ -138,6 +148,7 @@ export class PersistentRooms {
             data.archive = { status: 'pending', record: gameRecord(room), attempts: 0, next_attempt: 0 };
           }
         }
+        if (['leave','cancel'].includes(action)) return { write: data, result: { code, [action === 'leave' ? 'left' : 'cancelled']: true } };
         let responseToken = token;
         if (['create','join'].includes(action)) responseToken = credentials.token;
         if (action === 'recover') responseToken = body.token;
@@ -152,7 +163,7 @@ export class PersistentRooms {
       });
       this.paused = false;
       this.cache.delete(code);
-      (result.view ?? result).viewer.saving_paused = false;
+      if ((result.view ?? result).viewer) (result.view ?? result).viewer.saving_paused = false;
       return result;
     } catch (error) {
       if (error instanceof RoomError) { if (error.code === 'STORAGE_CAPACITY' && action !== 'create') this.paused = true; throw error; }

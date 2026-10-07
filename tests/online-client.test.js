@@ -81,3 +81,15 @@ test('corrupt convenience data does not hide remembered credentials; blocked sto
   await assert.rejects(()=>OnlineClient.create({playerCount:2,playerName:'Sammy',seat:'WHITE'}),error=>error.code==='SITE_STORAGE_UNAVAILABLE');
   assert.equal(sent,false);
 });
+
+for (const action of ['leave','cancel']) test(`${action} acknowledgement clears only this browser's room credentials and remembered entry`, async t=>{
+  const data=browser(t), client=new OnlineClient('ABC234');
+  client.accept({token:'a'.repeat(64),recoveryCode:'b'.repeat(64),view:view()});
+  const other=new OnlineClient('DEF567');
+  other.accept({token:'c'.repeat(64),view:view('DEF567')});
+  globalThis.fetch=async()=>response({code:'ABC234',[action==='leave'?'left':'cancelled']:true});
+  await client.lobby(action,{confirmed:true});
+  assert.equal(client.token,null);
+  for(const prefix of ['room','recovery','pending']) assert.equal(data.has(`dendarv.online.${prefix}.ABC234`),false);
+  assert.deepEqual(OnlineClient.rememberedGames().map(g=>g.code),['DEF567']);
+});
