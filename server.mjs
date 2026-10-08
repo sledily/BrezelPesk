@@ -1,25 +1,35 @@
 import { createReadStream } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { extname, resolve } from 'node:path';
 import { RoomError } from './src/rooms.js';
 import { PersistentRooms } from './src/persistent-rooms.js';
 import { openRoomStorage } from './src/room-storage.js';
+import {pushConfiguration} from './src/web-push.js';
+import {NotificationDelivery} from './src/notifications.js';
 import { AdminAuth } from './src/admin-auth.js';
 
 const root = resolve(import.meta.dirname);
 const port = Number(process.env.PORT ?? process.env.DENDARV_PORT ?? 4173);
 const host = process.env.DENDARV_HOST ?? (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
 const storage = await openRoomStorage();
-const rooms = new PersistentRooms(storage);
+const push=pushConfiguration();
+const rooms = new PersistentRooms(storage,{notificationsEnabled:push.enabled});
+const delivery=new NotificationDelivery(storage,{send:push.send,publicOrigin:push.publicOrigin,isPresent:(...args)=>rooms.notificationPresent(...args)});
+const maintenanceSecret=process.env.DENDARV_MAINTENANCE_TOKEN;
+let lastMaintenance=0;
+function maintenanceAuthorized(token) {
+  if(!maintenanceSecret || maintenanceSecret.length<32 || typeof token!=='string') return false;
+  const a=Buffer.from(token),b=Buffer.from(maintenanceSecret);return a.length===b.length && timingSafeEqual(a,b);
+}
 const admin = new AdminAuth(process.env.DENDARV_ADMIN_PASSWORD);
-const publicFiles = new Set(['index.html','Dendarv_Play.html','src/styles.css',
-  ...['constants','rng','notation','model','rules','engine','projection','persistence','format','online','presentation','tabletop','ui'].map(n=>`src/${n}.js`)]);
+const publicFiles = new Set(['index.html','Dendarv_Play.html','notification-worker.js','src/styles.css',
+  ...['constants','rng','notation','model','rules','engine','projection','persistence','format','online','presentation','tabletop','browser-notifications','ui'].map(n=>`src/${n}.js`)]);
 const types = { '.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8' };
 const bearer = request => (request.headers.authorization ?? '').startsWith('Bearer ') ? request.headers.authorization.slice(7) : null;
 const security = { 'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer' };
-function json(response,status,body,headers={}) { response.writeHead(status,{'Content-Type':'application/json; charset=utf-8',...security,...headers}); response.end(JSON.stringify(body)); if (['COMPLETE','ABANDONED'].includes((body?.view ?? body)?.room?.status) || (body?.view ?? body)?.game?.pending_resignation) wakeArchives(); }
+function json(response,status,body,headers={}) { response.writeHead(status,{'Content-Type':'application/json; charset=utf-8',...security,...headers}); response.end(JSON.stringify(body)); if ((body?.view ?? body)?.room?.code) wakeArchives(); }
 async function readJson(request) {
   const chunks=[]; let size=0;
   for await (const chunk of request) {
@@ -40,6 +50,12 @@ function limitRecovery(request) {
 async function handleApi(request,response,url) {
   const segments=url.pathname.split('/').filter(Boolean), token=bearer(request);
   if(request.method==='GET' && url.pathname==='/api/health') return json(response,200,{ok:true,service:'brezelpesk',saving_paused:rooms.paused});
+  if(request.method==='GET' && url.pathname==='/api/notifications/config') return json(response,200,{enabled:push.enabled,publicKey:push.publicKey??null,origin:push.publicOrigin??null});
+  if(request.method==='POST' && url.pathname==='/api/maintenance') {
+    if(!maintenanceAuthorized(token)) throw new RoomError('FORBIDDEN','Maintenance authentication required',403);
+    if(Date.now()-lastMaintenance<10000) return json(response,202,{accepted:true});
+    lastMaintenance=Date.now();await archives();return json(response,200,{accepted:true});
+  }
   if(request.method==='POST' && url.pathname==='/api/admin/login') {
     const session=admin.login((await readJson(request)).password,request.socket.remoteAddress);
     return json(response,200,{csrf:session.csrf},{'Set-Cookie':`dendarv_admin=${session.token}; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=3600${process.env.NODE_ENV==='production'||process.env.RENDER?'; Secure':''}`});
@@ -58,14 +74,14 @@ async function handleApi(request,response,url) {
   if(segments[1]==='rooms' && segments[2]) {
     const code=segments[2], action=segments[3];
     if(request.method==='GET' && !action) {
-      const view=await rooms.view(code,token,request.headers['x-dendarv-spectator']);
+      const view=await rooms.view(code,token,request.headers['x-dendarv-spectator'],request.headers['x-dendarv-visible']==='1');
       const etag='"'+createHash('sha256').update(JSON.stringify(view)).digest('hex')+'"';
       if(request.headers['if-none-match']===etag) { response.writeHead(304,{...security,ETag:etag});return response.end(); }
       return json(response,200,view,{ETag:etag});
     }
     if(request.method==='GET' && action==='export') return json(response,200,await rooms.export(code,token));
     if(request.method==='GET' && action==='summary') return json(response,200,await rooms.summary(code,token));
-    if(request.method==='POST' && ['join','start','command','undo','pass','recover','abandon','rename','assign','remove','leave','cancel','resign','vote'].includes(action)) {
+    if(request.method==='POST' && ['join','start','command','undo','pass','recover','abandon','rename','assign','remove','leave','cancel','resign','vote','notifications'].includes(action)) {
       if(action==='recover') limitRecovery(request);
       return json(response,200,await rooms.mutate(action,code,token,await readJson(request),request.headers['idempotency-key']));
     }
@@ -96,7 +112,7 @@ async function archives(){
   if(archiving){archiveWakeRequested=true;return;}
   archiveWakeRequested=false;
   archiving=true;let pending=false;
-  try{pending=await rooms.processDeadlines();pending=(await rooms.processArchives()) || pending;}catch{pending=true;}
+  try{pending=await rooms.processDeadlines();pending=(await rooms.processArchives()) || pending;pending=(await delivery.process()) || pending;}catch{pending=true;}
   finally{archiving=false;}
   if(pending || archiveWakeRequested){archiveTimer=setTimeout(archives,archiveWakeRequested?0:60000);archiveTimer.unref();}
 }
@@ -104,8 +120,9 @@ function wakeArchives(){
   if(archiving){archiveWakeRequested=true;return;}
   clearTimeout(archiveTimer);archiveTimer=setTimeout(archives,0);archiveTimer.unref();
 }
-// Scan at startup, then only while work remains or a new terminal record arrives.
-await archives();
+// Do not hold health/startup behind a slow push provider. Requests independently
+// reconcile expired ballots before accepting gameplay.
+wakeArchives();
 server.listen(port,host,()=>process.stdout.write(`BrezelPesk is running at http://${host}:${server.address().port}\n`));
 let closing=false;
 process.on('SIGTERM',()=>{if(closing)return;closing=true;clearTimeout(archiveTimer);server.close(async()=>{await storage.close();});});

@@ -44,8 +44,9 @@ export class OnlineError extends Error {
 }
 function normalizeCode(code){return String(code??'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);}
 function randomId(){return Array.from(crypto.getRandomValues(new Uint8Array(32)),v=>v.toString(16).padStart(2,'0')).join('');}
-async function api(path,{method='GET',token=null,body=null,spectatorId=null,requestId=null,etag=null}={}){
+async function api(path,{method='GET',token=null,body=null,spectatorId=null,requestId=null,etag=null,visible=false}={}){
   const headers={Accept:'application/json'};
+  if(visible)headers['X-Dendarv-Visible']='1';
   if(token)headers.Authorization=`Bearer ${token}`;
   if(spectatorId)headers['X-Dendarv-Spectator']=spectatorId;
   if(body!==null)headers['Content-Type']='application/json';
@@ -144,7 +145,7 @@ export class OnlineClient {
       this.busy=true;
       try{const accepted=this.accept(await durableRequest(this.code,null,null)); if(accepted.cancelled)throw new OnlineError('ROOM_CANCELLED','This unstarted room was cancelled',410);}finally{this.busy=false;}
     }
-    const response=await api(`/api/rooms/${this.code}`,{token:this.token,spectatorId:this.token?null:this.spectatorId,etag:this.etag});
+    const response=await api(`/api/rooms/${this.code}`,{token:this.token,spectatorId:this.token?null:this.spectatorId,etag:this.etag,visible:typeof document!=='undefined'&&!document.hidden&&(!document.hasFocus||document.hasFocus())});
     if(response.unchanged&&this.lastView)return this.lastView;
     this.lastView=response.payload;this.etag=response.etag;this.rememberView();return this.lastView;
   }

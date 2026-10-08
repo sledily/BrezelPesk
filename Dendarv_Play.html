@@ -882,6 +882,8 @@ button:disabled { opacity: .6; }
         <div class="online-strip-actions">
           <button id="copy-recovery-code" class="button tiny">Copy recovery code</button>
           <button id="rename-online-game" class="button tiny" hidden>Rename game</button>
+          <button id="notifications-online" class="button tiny" hidden>Enable notifications</button>
+          <span id="notifications-help" class="field-note"></span>
           <button id="resign-online" class="button tiny" hidden>Resign</button>
           <button id="abandon-online" class="button tiny" hidden>Close as abandoned</button>
           <button id="copy-room-link" class="button tiny">Copy spectator link</button>
@@ -4263,8 +4265,9 @@ class OnlineError extends Error {
 }
 function normalizeCode(code){return String(code??'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);}
 function randomId(){return Array.from(crypto.getRandomValues(new Uint8Array(32)),v=>v.toString(16).padStart(2,'0')).join('');}
-async function api(path,{method='GET',token=null,body=null,spectatorId=null,requestId=null,etag=null}={}){
+async function api(path,{method='GET',token=null,body=null,spectatorId=null,requestId=null,etag=null,visible=false}={}){
   const headers={Accept:'application/json'};
+  if(visible)headers['X-Dendarv-Visible']='1';
   if(token)headers.Authorization=`Bearer ${token}`;
   if(spectatorId)headers['X-Dendarv-Spectator']=spectatorId;
   if(body!==null)headers['Content-Type']='application/json';
@@ -4363,7 +4366,7 @@ class OnlineClient {
       this.busy=true;
       try{const accepted=this.accept(await durableRequest(this.code,null,null)); if(accepted.cancelled)throw new OnlineError('ROOM_CANCELLED','This unstarted room was cancelled',410);}finally{this.busy=false;}
     }
-    const response=await api(`/api/rooms/${this.code}`,{token:this.token,spectatorId:this.token?null:this.spectatorId,etag:this.etag});
+    const response=await api(`/api/rooms/${this.code}`,{token:this.token,spectatorId:this.token?null:this.spectatorId,etag:this.etag,visible:typeof document!=='undefined'&&!document.hidden&&(!document.hasFocus||document.hasFocus())});
     if(response.unchanged&&this.lastView)return this.lastView;
     this.lastView=response.payload;this.etag=response.etag;this.rememberView();return this.lastView;
   }
@@ -4380,6 +4383,42 @@ class OnlineClient {
 }
 function roomCodeFromLocation(){return normalizeCode(new URLSearchParams(location.search).get('room'));}
 function onlineShareUrl(code){const url=new URL(location.href);url.search='';url.hash='';url.searchParams.set('room',normalizeCode(code));return url.href;}
+
+
+/* src/browser-notifications.js */
+function notificationSupport(scope=globalThis) {
+  return Boolean(scope.isSecureContext && scope.Notification && scope.navigator?.serviceWorker && scope.PushManager);
+}
+function applicationKey(value) {
+  const base64=value.replace(/-/g,'+').replace(/_/g,'/');
+  return Uint8Array.from(atob(base64),c=>c.charCodeAt(0));
+}
+async function notificationConfiguration() {
+  if(!notificationSupport()) return {enabled:false,reason:'This browser does not support push notifications here. Use a supported browser over HTTPS.'};
+  try {
+    const response=await fetch('/api/notifications/config',{cache:'no-store'});
+    if(!response.ok) throw Error('configuration');
+    const config=await response.json();
+    if(!config.enabled) return {enabled:false,reason:'Notifications are not yet configured on this server.'};
+    if(config.origin!==location.origin) return {enabled:false,reason:'Open the configured game address to enable notifications.'};
+    return config;
+  } catch {return {enabled:false,reason:'Notification settings could not be loaded. Reload the page to retry.'};}
+}
+async function enableGameNotifications(client,config) {
+  if(!config?.enabled || !notificationSupport()) throw Error(config?.reason??'Push notifications are unavailable here.');
+  // Must run directly from the user's click, before registration/network awaits.
+  const permission=await Notification.requestPermission();
+  if(permission!=='granted') throw Error('Notifications were not enabled. You can change this in your browser’s site permissions.');
+  await navigator.serviceWorker.register('/notification-worker.js',{scope:'/'});
+  const registration=await navigator.serviceWorker.ready;
+  let subscription=await registration.pushManager.getSubscription();
+  if(!subscription) subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:applicationKey(config.publicKey)});
+  return client.mutate('notifications',{subscription:subscription.toJSON()});
+}
+function disableGameNotifications(client) {
+  // One browser subscription may serve several games; disable only this game.
+  return client.mutate('notifications',{subscription:null});
+}
 
 
 /* src/presentation.js */
@@ -4613,6 +4652,7 @@ let undoStack = [];
 let acknowledgingPhaseNotice = false;
 let onlineClient = null;
 let onlinePayload = null;
+let notificationConfig=null,notificationConfigLoading=false;
 let onlinePollTimer = null;
 let onlineRequestPending = false;
 let dismissedOnlineNotice = null;
@@ -5852,6 +5892,15 @@ function renderOnlineChrome() {
     : "<strong>Spectator view</strong>";
   dom.onlineStripText.innerHTML = `<strong>${escapeHtml(room.name ?? 'BrezelPesk')}</strong> · Room <strong>${room.code}</strong> · ${identity} · ${room.spectator_count} spectator${room.spectator_count === 1 ? "" : "s"}${onlineClient.token && viewer.role !== 'PLAYER' ? ' · This browser no longer controls the seat. Use Recover seat to take control again.' : ''}`;
   for (const id of ['rename-online-game', 'lobby-rename-game']) document.querySelector(`#${id}`).hidden = !viewer.is_host || !['LOBBY', 'ACTIVE'].includes(room.status);
+  const notifyButton=document.querySelector('#notifications-online');
+  notifyButton.hidden=viewer.role!=='PLAYER';
+  notifyButton.textContent=viewer.notifications_enabled?'Disable notifications for this game':'Enable notifications for this game';
+  notifyButton.disabled=onlineRequestPending || (!viewer.notifications_enabled && (!notificationConfig?.enabled || !['LOBBY','ACTIVE'].includes(room.status)));
+  document.querySelector('#notifications-help').textContent=viewer.role!=='PLAYER'?'':viewer.notifications_enabled?'Opted in on this browser. Your device may display the game name.':notificationConfig?.reason??'Optional turn and game-ending alerts.';
+  if(!notificationConfig && !notificationConfigLoading) {
+    notificationConfigLoading=true;
+    notificationConfiguration().then(config=>{notificationConfig=config;notificationConfigLoading=false;renderOnlineChrome();});
+  }
   const terminal=onlinePayload.terminal_record;
   document.querySelector('#terminal-record').hidden=!terminal;
   if(terminal) {
@@ -5970,6 +6019,9 @@ function beginOnlinePolling() {
   onlinePollTimer = window.setTimeout(tick, 3000);
 }
 document.addEventListener?.("visibilitychange", async () => {
+  if(document.hidden && onlineClient && !onlineClient.busy && !onlineRequestPending) {
+    try {await onlineClient.view();}catch{/* Normal polling retries after return. */}
+  }
   if (!document.hidden && onlineClient && !onlineRequestPending && !onlineClient.busy) {
     const client = onlineClient;
     try {
@@ -6152,7 +6204,16 @@ document.querySelector("#open-online-room").addEventListener("click", () => ente
 dom.onlineCreateCount.addEventListener("change", updateOnlineCreateSeats);
  document.querySelector('#online-create-mode').addEventListener('change', updateOnlineCreateSeats);
  onClick('join-online-participant', () => joinOnlineSeat(null));
- onClick('resign-online',()=>onlineLifecycle('resign'));
+ onClick('notifications-online',async()=>{
+  if(!onlineClient || onlineRequestPending) return;
+  const client=onlineClient;onlineRequestPending=true;
+  try {
+    const payload=await (onlinePayload.viewer.notifications_enabled?disableGameNotifications(client):enableGameNotifications(client,notificationConfig));
+    if(onlineClient===client) applyOnlinePayload(payload,{force:true});
+  }catch(error){showToast(error.message);}
+  finally{onlineRequestPending=false;renderOnlineChrome();}
+ });
+ onClick('resign-online' ,()=>onlineLifecycle('resign'));
  onClick('abandon-online',()=>onlineLifecycle('abandon'));
  onClick('lobby-leave-seat', () => lobbyAction('leave'));
  onClick('lobby-cancel-room', () => lobbyAction('cancel'));
@@ -6275,6 +6336,10 @@ if (initialRoomCode) {
 } else {
   showHandoff(activePlayer());
 }
+
+navigator.serviceWorker?.addEventListener('message',event=>{
+  if(event.data?.type==='DENDARV_REFRESH' && event.data.code===onlineClient?.code) beginOnlinePolling();
+});
 
 })();
     </script>

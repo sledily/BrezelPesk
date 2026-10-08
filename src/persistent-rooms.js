@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { RoomStore, RoomError, tokenHash, identifySeat, cloneForStorage } from './rooms.js';
 import { formatGameRecord } from './notation.js';
+import {syncNotifications,setSubscription} from './notifications.js';
 import { validateInvariants } from './rules.js';
 
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -31,10 +32,11 @@ export function gameRecord(room) {
 }
 
 export class PersistentRooms {
-  constructor(storage, { now = () => new Date() } = {}) {
+  constructor(storage, { now = () => new Date(), notificationsEnabled = false } = {}) {
     this.storage = storage; this.now = now; this.paused = false;
     this.presence = new Map(); this.spectators = new Map(); this.archiveFailures = new Map();
     this.cache = new Map();
+    this.notificationsEnabled=notificationsEnabled;this.notificationPresence=new Map();
   }
   reducer(data) {
     const core = new RoomStore({ now: this.now });
@@ -55,9 +57,11 @@ export class PersistentRooms {
     for (const s of room.seat_order) if (room.seats[s]) room.seats[s].last_seen_at = this.presence.get(`${room.code}:${s}`);
     const result = core.view(room.code, token, spectatorId);
     result.viewer.saving_paused = this.paused;
+    const sub=data.notifications?.subscriptions[room.seats[seat]?.participant_id];
+    result.viewer.notifications_enabled=Boolean(sub && sub.token_hash===tokenHash(token));
     return result;
   }
-  async view(code, token, spectatorId) {
+  async view(code, token, spectatorId, visible = false) {
     code = codeOf(code);
     await this.reconcileDeadline(code);
     let data;
@@ -70,6 +74,11 @@ export class PersistentRooms {
       } else this.cache.delete(code);
     } else data = await this.storage.read(code);
     if (!data) fail('ROOM_NOT_FOUND', 'No online room has that code', 404);
+    const person=this.reducer(data).get(code).seats[identifySeat(data.room,token)];
+    if(person) {
+      const key=`${code}:${person.participant_id}:${tokenHash(token)}`;
+      if(visible) this.notificationPresence.set(key,this.now().getTime());else this.notificationPresence.delete(key);
+    }
     return this.project(data, token, spectatorId);
   }
   async summary(code, token) {
@@ -108,7 +117,8 @@ export class PersistentRooms {
         if (data?.room.status === 'CANCELLED') fail('ROOM_CANCELLED', 'This unstarted room was cancelled', 410);
         const core = this.reducer(data);
         if(data && core.expireBallot(code)) {
-          data.room=cloneForStorage(core.get(code));
+          const before=data.room;data.room=cloneForStorage(core.get(code));
+          syncNotifications(before,data,this.now().getTime());
           return {write:data,result:{deadline_reconciled:true}};
         }
         // Revalidate current control BEFORE replaying an earlier receipt.
@@ -143,6 +153,12 @@ export class PersistentRooms {
             room.status = 'ABANDONED'; room.ended_at = this.now().toISOString(); room.revision += 1;
           }
           else if (['assign','remove','leave','cancel'].includes(action)) core.lobby(code, token, action, body);
+          else if (action==='notifications') {
+            if(body.subscription!==null && !this.notificationsEnabled) fail('NOTIFICATIONS_UNAVAILABLE','Browser notifications are not configured on this server',409);
+            if(body.subscription!==null && !['LOBBY','ACTIVE'].includes(data.room.status)) fail('MATCH_TERMINAL','This game is read-only',409);
+            data.room=cloneForStorage(core.get(code));
+            setSubscription(data,identifySeat(data.room,token),tokenHash(token),body.subscription);
+          }
           else if (['resign','vote'].includes(action)) core.lifecycle(code,token,action,body);
           else if (action === 'rename') core.rename(code, token, body);
           else if (['start','undo','pass'].includes(action)) core[action](code, token);
@@ -150,6 +166,7 @@ export class PersistentRooms {
           const room = cloneForStorage(core.get(code));
           data ??= { room, receipts: {}, archive: null, audit: [] };
           data.room = room;
+          syncNotifications(stored?.room,data,this.now().getTime());
           if (action === 'abandon') data.audit.push({ action: 'ABANDON', actor: 'HOST', at: room.ended_at });
           data.receipts[receiptId] = { fingerprint, accepted_at: this.now().toISOString() };
           if (['COMPLETE','ABANDONED'].includes(room.status) && !data.archive) {
@@ -190,6 +207,7 @@ export class PersistentRooms {
         const core=this.reducer(current);
         if(!core.expireBallot(code)) return {result:null};
         const next=structuredClone(current);next.room=cloneForStorage(core.get(code));
+        syncNotifications(current.room,next,this.now().getTime());
         return {write:next,result:null};
       });
       this.cache.delete(code);this.paused=false;
@@ -198,6 +216,11 @@ export class PersistentRooms {
       if(error instanceof RoomError) throw error;
       fail('SAVE_UNAVAILABLE','The deadline result could not be saved. Reconnect to retry safely.',503);
     }
+  }
+  notificationPresent(code,person,tokenHash) {
+    const now=this.now().getTime();
+    for(const [key,time] of this.notificationPresence) if(now-time>45000) this.notificationPresence.delete(key);
+    return now-(this.notificationPresence.get(`${code}:${person}:${tokenHash}`)??0)<45000;
   }
   async processDeadlines() {
     let pending=false;
@@ -224,6 +247,8 @@ export class PersistentRooms {
       const data = await this.storage.read(code);
       if (!data) fail('ROOM_NOT_FOUND','No online room has that code',404);
       return { record: gameRecord(data.room), audit: data.audit, archive: data.archive,
+        notifications: {subscribers:Object.keys(data.notifications?.subscriptions??{}).length,
+          jobs:Object.values(data.notifications?.jobs??{}).map(({kind,status,attempts,next_attempt,lease_until})=>({kind,status,attempts,next_attempt,lease_until}))},
         archive_failure: this.archiveFailures.get(code) ?? null };
     }
     requestId(body.requestId);
@@ -246,6 +271,7 @@ export class PersistentRooms {
         next.room.status = 'ABANDONED'; next.room.ended_at = this.now().toISOString(); next.room.revision += 1;
         next.archive = { status: 'pending', record: gameRecord(next.room), attempts: 0, next_attempt: 0 };
       } else fail('UNKNOWN_ACTION','Unsupported administrator action',404);
+      syncNotifications(stored.room,next,this.now().getTime());
       next.audit.push({ action: action.toUpperCase(), actor: 'ADMIN', seat: body.seat ?? null, at: this.now().toISOString() });
       next.receipts[receipt] = { fingerprint };
       return { write: next, result: { ok: true } };

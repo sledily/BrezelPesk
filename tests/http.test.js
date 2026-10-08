@@ -33,6 +33,7 @@ test("the HTTP server exposes room creation, joining, spectator views, and stati
       NODE_ENV: "test",
       RENDER: "",
       DENDARV_ADMIN_PASSWORD: "synthetic-test-password-32-characters",
+      DENDARV_MAINTENANCE_TOKEN: "synthetic-maintenance-secret-for-tests-only",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -43,6 +44,14 @@ test("the HTTP server exposes room creation, joining, spectator views, and stati
 
   const health = await fetch(`${origin}/api/health`).then((response) => response.json());
   assert.equal(health.ok, true);
+  const pushConfig=await fetch(origin+'/api/notifications/config').then(r=>r.json());
+  assert.equal(pushConfig.enabled,false);assert.equal(pushConfig.publicKey,null);
+  assert.equal((await fetch(origin+'/notification-worker.js')).status,200);
+  assert.equal((await fetch(origin+'/src/notifications.js')).status,404);
+  assert.equal((await fetch(origin+'/src/web-push.js')).status,404);
+  assert.equal((await fetch(origin+'/api/maintenance',{method:'POST'})).status,403);
+  assert.equal((await fetch(origin+'/api/maintenance',{method:'POST',headers:{Authorization:'Bearer wrong'}})).status,403);
+  assert.equal((await fetch(origin+'/api/maintenance',{method:'POST',headers:{Authorization:'Bearer synthetic-maintenance-secret-for-tests-only'}})).status,200);
   assert.equal((await fetch(origin+'/src/tabletop.js')).status,200);
 
   const createdResponse = await fetch(`${origin}/api/rooms`, {

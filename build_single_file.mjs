@@ -16,6 +16,7 @@ const sourceOrder = [
   "src/persistence.js",
   "src/format.js",
   "src/online.js",
+  "src/browser-notifications.js",
   "src/presentation.js",
   "src/tabletop.js",
   "src/ui.js",
