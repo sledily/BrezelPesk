@@ -755,12 +755,7 @@ button:disabled { opacity: .6; }
 .suit-priorities strong { display: inline-block; min-width: 95px; }
 .suit-priorities button { margin-left: 5px; }
 .stockpile-save-state { color: #745627; }
-@media (prefers-reduced-motion: no-preference) {
-  .harvest-card { animation: resource-reveal 180ms ease-out; }
-  .card-counter { animation: counter-appear 220ms ease-out; }
-  @keyframes resource-reveal { from { opacity: 0; transform: translateY(-7px); } to { opacity: 1; transform: none; } }
-  @keyframes counter-appear { from { transform: scale(.5); } to { transform: scale(1); } }
-}
+
 .square-shell { position: relative; min-width: 0; min-height: 0; }
 .square { width: 100%; height: 100%; border-radius: 0; aspect-ratio: 1; }
 .square.light { background: #dfd3b8; }
@@ -853,6 +848,69 @@ button:disabled { opacity: .6; }
   *, *::before, *::after { animation-duration: .001ms !important; scroll-behavior: auto !important; }
 }
 
+/* Presentation changes only after a saved, entitled view changes. */
+.combat-presentation { position:absolute; z-index:12; inset:12% 4% auto; background:linear-gradient(145deg,#f7eedb,#dfcfad); color:#302417; border:2px solid #967235; border-radius:14px; padding:18px; box-shadow:0 18px 46px #20181099; text-align:center; }
+.combat-presentation[hidden] { display:none; }
+.combat-presentation h2 { margin:3px 0 14px; font:700 clamp(20px,2.4vw,32px)/1.15 Georgia,serif; }
+.combat-presentation .eyebrow { color:#6b5027; font-size:10px; }
+.combat-contest { display:grid; grid-template-columns:1fr 24px 1fr; gap:8px; align-items:center; }
+.combat-side { --dice-bg:#f5efe2; --dice-ink:#312c25; min-width:0; padding:10px 4px; border-radius:10px; }
+.combat-side.black { --dice-bg:#343434; --dice-ink:#fff7df; }
+.combat-side.green { --dice-bg:#38624c; --dice-ink:#fff7df; }
+.combat-side.red { --dice-bg:#943f32; --dice-ink:#fff7df; }
+.combat-unit { display:flex; gap:8px; justify-content:center; align-items:center; min-height:55px; text-align:left; }
+.combat-unit .realm-piece { width:38px; height:48px; flex:none; }
+.combat-unit strong { display:block; font-size:13px; }
+.combat-unit small { display:block; font-size:11px; color:#655b49; }
+.combat-dice { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; padding:14px 0; min-height:69px; }
+.combat-die { display:grid; place-items:center; width:39px; height:39px; color:var(--dice-ink); background:var(--dice-bg); border:1px solid #7c7057; border-radius:8px; box-shadow:2px 3px 0 #60452155; font:700 27px/1 Georgia,serif; }
+.die-pips { display:grid; grid-template-columns:repeat(3,1fr); gap:3px; width:25px; height:25px; }
+.die-pips i { border-radius:50%; width:6px; height:6px; }
+.die-pips .pip { background:currentColor; }
+.combat-die.discarded { opacity:.3; }
+.combat-die.retained { outline:3px solid #b28a30; outline-offset:3px; }
+.combat-versus { font:700 30px Georgia,serif; }
+.combat-arithmetic { font-size:12px; margin:6px 0; }
+.combat-arithmetic[hidden] { display:none; }
+.combat-general { display:inline-block; margin-top:3px; padding:2px 5px; border:1px solid #957432; border-radius:3px; font:700 12px Georgia,serif; }
+.combat-rank { display:inline-block; padding:2px 4px; border-radius:4px; background:#9a6e2930; }
+.combat-narration { min-height:40px; margin:12px 0; font-size:13px; line-height:1.4; }
+.combat-defeated { background:#77362b16; }
+.combat-presentation.resolved { position:static; margin-top:12px; padding:14px; box-shadow:none; }
+.combat-presentation.resolved .combat-unit .realm-piece { width:26px; height:32px; }
+.combat-presentation.resolved .combat-dice { padding:8px 0; min-height:0; }
+.ceremonial-victory.combat-result,.ceremonial-victory.resolved { border-color:#a67a18; background:radial-gradient(ellipse at top,#fff5cd,#e6d5b2); }
+@media (prefers-reduced-motion: no-preference) {
+  .combat-opening { animation:battle-open 1s ease-out both; }
+  .combat-rolling .combat-die { animation:die-tumble .38s ease-in-out infinite; animation-delay:calc(var(--die-index) * -110ms); }
+  .combat-highest .combat-die.retained { animation:highest-emphasis 1.4s ease both; }
+  .combat-bonus .combat-general,.combat-bonus .combat-rank,.combat-bonus .combat-die.retained { animation:rank-reveal 1.4s ease both; }
+  .combat-impact { animation:battle-impact .5s ease-out; }
+  .combat-impact .king-fallen .realm-piece { animation:king-fall 1.4s ease-in forwards; }
+  .combat-result .king-fallen .realm-piece { animation:king-fall 1.4s ease-in -.5s forwards; }
+  .pass-ready { animation:pass-invitation 1.8s ease-in-out 2; }
+  @keyframes battle-open { from { opacity:0; transform:scale(.94); } to { opacity:1; transform:scale(1); } }
+  @keyframes die-tumble { 0%,100% { transform:translateY(-5px) rotate(-14deg); } 50% { transform:translateY(4px) rotate(22deg); } }
+  @keyframes highest-emphasis { 0% { transform:scale(1); } 35% { transform:scale(1.18); } 100% { transform:scale(1.05); } }
+  @keyframes rank-reveal { 0% { background-color:#f0d985; transform:scale(1.12); } 100% { transform:scale(1); } }
+  @keyframes battle-impact { 0%,100% { transform:translateX(0); } 20% { transform:translateX(-5px); } 50% { transform:translateX(4px); } 75% { transform:translateX(-2px); } }
+  @keyframes king-fall { from { transform:rotate(0deg); } to { transform:translateY(6px) rotate(75deg); opacity:.4; } }
+  @keyframes pass-invitation { 0%,100% { box-shadow:0 0 0 3px #ac883a45; } 50% { box-shadow:0 0 0 6px #ac883a80; } }
+}
+@media (max-width:600px) {
+  .combat-presentation { inset:6% 2% auto; padding:10px; }
+  .combat-presentation.resolved { position:static; }
+  .combat-unit { flex-direction:column; gap:2px; text-align:center; }
+  .combat-contest { gap:4px; grid-template-columns:1fr 15px 1fr; }
+  .combat-die { width:30px; height:30px; font-size:22px; }
+  .combat-dice { gap:5px; }
+  .die-pips { width:20px; height:20px; gap:2px; }
+  .die-pips i { width:5px; height:5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,*::before,*::after { animation:none !important; scroll-behavior:auto !important; }
+}
+
     </style>
   </head>
   <body>
@@ -894,7 +952,7 @@ button:disabled { opacity: .6; }
       <section id="terminal-record" class="panel" hidden><h2>Complete game record</h2><p id="terminal-record-status"></p><pre id="terminal-record-text" class="chronicle-text" tabindex="0"></pre><details><summary>Full structured record</summary><pre id="terminal-record-json" class="chronicle-text" tabindex="0"></pre></details></section>
 
       <section class="current-action" aria-label="Current Action">
-        <div class="action-rubric"><span class="eyebrow">Current Action</span><strong id="current-action-summary"></strong></div>
+        <div class="action-rubric"><span class="eyebrow">Current Action</span><strong id="current-action-summary" role="status" aria-live="polite"></strong></div>
       </section>
       <section id="action-controls" class="panel action-panel" aria-label="Action controls"></section>
       <main class="game-layout">
@@ -903,6 +961,7 @@ button:disabled { opacity: .6; }
         <section class="board-column" aria-label="Game board">
           <div class="board-frame">
             <div id="board" class="board" role="grid" aria-label="Dendarv board"></div>
+            <section id="combat-presentation" class="combat-presentation" aria-label="Combat presentation" hidden></section>
             <div id="harvest-table" class="harvest-table" hidden></div>
           </div>
           <div id="turn-card" class="board-constants"></div>
@@ -3503,7 +3562,14 @@ function laySiege(state, command) {
   const outcome = attackerTotal === defenderTotal
     ? "TIE"
     : attackerTotal > defenderTotal ? "ATTACKER_WIN" : "DEFENDER_WIN";
+  const combatSnapshot = unit => ({ unit: { unit_id:unit.unit_id, owner:unit.owner,
+    piece_color:unit.piece_color ?? unit.owner, unit_type:unit.unit_type, square:unit.square,
+    vassal_noble_id:unit.vassal_noble_id, irreplaceable:Boolean(unit.irreplaceable) },
+    noble:unit.vassal_noble_id ? { noble_id:unit.vassal_noble_id,
+      face:state.nobles_by_id[unit.vassal_noble_id].face, suit:state.nobles_by_id[unit.vassal_noble_id].suit,
+      rank:state.nobles_by_id[unit.vassal_noble_id].rank } : null });
   recordEvent(state, "CombatResolved", {
+    attacker_snapshot:combatSnapshot(attacker), defender_snapshot:combatSnapshot(defender),
     attacker_id: attacker.unit_id,
     defender_id: defender.unit_id,
     cost,
@@ -4574,7 +4640,7 @@ function tabletopRegionsHtml(state, { viewer = null, names = {}, resourceHtml = 
     const hand = sortResourceCards(p.resource_hand_ids.map(id => state.resources_by_id[id]).filter(card => card && !card.hidden));
     const mode = actionable ? state.phase === PHASE.HARVEST && state.harvest?.stage === 'POKER' ? 'POKER' : state.phase === PHASE.STOCKPILE ? 'STOCKPILE' : suit ? 'TAP' : 'NONE' : 'NONE';
     const hostage = state.nobles_by_id[p.dungeon_noble_id];
-    return `<section class="corner-region ${regions[player]} ${player.toLowerCase()} ${p.eliminated ? 'defeated' : ''}" aria-label="${title(player)} player area">
+    return `<section data-player-region="${player}" class="corner-region ${regions[player]} ${player.toLowerCase()} ${p.eliminated ? 'defeated' : ''}" aria-label="${title(player)} player area">
       <div class="realm-hand"><header><div><span class="player-dot ${player.toLowerCase()}"></span><h2>${escapeMarkup(names[player] || title(player))}</h2><span class="realm-caption">${title(player)}${player === viewer ? ' · You' : ''}${p.eliminated ? ' · Defeated' : state.current_actor === player ? ' · Acting' : ''}${state.button_holder === player ? ' · Button' : ''}</span></div>${suit ? `<div class="table-pool" aria-label="${title(player)} seasonal pool"><span>Pool</span><strong>${SUIT_GLYPH[suit]} ${p.seasonal_pools[suit]}</strong></div>` : ''}</header>
       ${privateOwner && stockpileHtml ? stockpileHtml(player) : ''}
       <div class="suit-groups">${SUITS.map(group => `<div class="suit-group" aria-label="${title(group)} Resources"><span class="suit-heading ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(group) ? 'red-suit' : ''}">${SUIT_GLYPH[group]}</span><div class="suit-cards">${hand.filter(card => card.suit === group).map(card => resourceHtml ? resourceHtml(card, mode, player) : `<span class="card-token">${formatResource(card)}</span>`).join('') || '<span class="empty-suit">—</span>'}</div></div>`).join('')}</div>
@@ -4595,6 +4661,126 @@ function nobleInspectionHtml(state, noble) {
   if (!noble || noble.hidden) return '';
   const captor = Object.keys(state.players).find(p => state.players[p].dungeon_noble_id === noble.noble_id);
   return `${nobleCardHtml(noble)}<p>${escapeMarkup(formatNoble(noble))}</p><p>Matching ${SUIT_GLYPH[noble.suit]} Harvest gains a Counter. Combat bonus +${noble.rank}.</p>${captor ? `<p>Hostage · original owner ${title(noble.owner)} · held by ${title(captor)}.</p><p>Ransom: ${actionCost(state, 'RANSOM', {noble_id: noble.noble_id})} ◇ · Execution: ${actionCost(state, 'EXECUTE', {noble_id: noble.noble_id})} ♡ at current constants.</p>` : ''}`;
+}
+
+
+/* src/event-presentation.js */
+// Approved D82 beats; timers affect local presentation only, never the game engine.
+const COMBAT_BEATS = Object.freeze([
+  {at:0,stage:'opening'}, {at:1000,stage:'rolling'}, {at:3800,stage:'raw'},
+  {at:5400,stage:'highest'}, {at:6800,stage:'bonus'}, {at:8200,stage:'impact'},
+  {at:8700,stage:'result'},
+]);
+const COMBAT_DURATION = 11100;
+const KING_COMBAT_DURATION = 11900;
+
+function visibleSnapshot(state) {
+  const cards={};
+  for(const player of Object.values(state.players))for(const id of player.resource_hand_ids) {
+    const card=state.resources_by_id[id];if(card && !card.hidden)cards[id]={tapped:card.tapped,counter:card.has_counter};
+  }
+  const units=Object.fromEntries(Object.entries(state.units_by_id).map(([id,u])=>[id,{...u}]));
+  // Only assigned, public Nobles are needed. Never retain a private Court for motion.
+  const nobles={};for(const unit of Object.values(units)) {
+    const noble=state.nobles_by_id[unit.vassal_noble_id];if(noble && !noble.hidden)nobles[noble.noble_id]={...noble};
+  }
+  return {units,nobles,cards,sequence:state.event_log.reduce((n,e)=>Math.max(n,e.sequence),0),actor:state.current_actor,phase:state.phase,year:state.year_number,offer:state.harvest?.offer_ids?.length?JSON.stringify([state.harvest.unit_id,state.harvest.offer_ids]):null};
+}
+function combatFromEvent(event,state,old=visibleSnapshot(state),next=visibleSnapshot(state),battleCount=1) {
+  if(!event || event.payload.hidden)return null;
+  const p=event.payload;
+  const describe=(id,side)=>{
+    const snapshot=p[`${side}_snapshot`],unit=snapshot?.unit ?? old.units[id] ?? next.units[id];
+    const noble=snapshot?.noble ?? old.nobles[unit?.vassal_noble_id] ?? next.nobles[unit?.vassal_noble_id];
+    return unit?{unit:{...unit},noble:noble?{...noble}:null,rolls:[...p[`${side}_rolls`]],
+      high:p[`${side}_high`],bonus:p[`${side}_bonus`],total:p[`${side}_total`]}:null;
+  };
+  const attacker=describe(p.attacker_id,'attacker'),defender=describe(p.defender_id,'defender');
+  if(!attacker || !defender)return null;
+  const defeated=p.outcome==='TIE'?null:p.outcome==='ATTACKER_WIN'?defender:attacker;
+  return {eventId:event.event_id,attacker,defender,outcome:p.outcome,cost:p.cost,
+    kingFall:defeated?.unit.unit_type==='KING',victory:state.status==='COMPLETE'?state.winner:null,battleCount};
+}
+class PresentationTracker {
+  constructor(){this.reset();}
+  reset(){this.scope=null;this.previous=null;this.seen=new Set();}
+  read(state,scope) {
+    const next=visibleSnapshot(state),old=this.previous;
+    if(this.scope!==scope || !old){
+      this.scope=scope;this.previous=next;this.seen=new Set(state.event_log.filter(e=>e.type==='CombatResolved').map(e=>JSON.stringify([e.event_id,e.payload])));
+      const pending=state.pending_combat || state.pending_conquest || state.status==='COMPLETE' && ['KING_DEFEATED','LAST_KING_STANDING'].includes(state.victory_reason);
+      const restored=pending?combatFromEvent(state.event_log.findLast(e=>e.type==='CombatResolved'),state):null;
+      return {baseline:true,combat:null,restored,changes:[],events:[]};
+    }
+    const events=state.event_log.filter(e=>e.sequence>old.sequence);
+    const freshBattle=e=>!this.seen.has(JSON.stringify([e.event_id,e.payload]));
+    // Undo can rewind the log. Do not replay a previously seen dice outcome on retry.
+    const battles=events.filter(e=>e.type==='CombatResolved' && freshBattle(e));
+    for(const event of battles)this.seen.add(JSON.stringify([event.event_id,event.payload]));
+    const combat=combatFromEvent(battles.at(-1),state,old,next,battles.length);
+    const changes=[];
+    for(const [id,unit] of Object.entries(next.units)) {
+      const previous=old.units[id];
+      if(unit.defeated || !unit.square)continue;
+      if(!previous || previous.square!==unit.square || previous.unit_type!==unit.unit_type || previous.vassal_noble_id!==unit.vassal_noble_id)changes.push({kind:'unit',id,square:unit.square});
+    }
+    for(const [id,card] of Object.entries(next.cards)) {
+      const previous=old.cards[id];
+      if(!previous || previous.tapped!==card.tapped || previous.counter!==card.counter)changes.push({kind:'card',id});
+    }
+    this.previous=next;
+    return {baseline:false,combat,changes,events,offerChanged:next.offer!==null && old.offer!==next.offer,actionChanged:old.actor!==next.actor || old.phase!==next.phase || old.year!==next.year};
+  }
+}
+
+function combatConsequence(state,combat) {
+  if(state.status==='COMPLETE')return `${title(state.winner)} wins. The terminal board and full game record remain available.`;
+  if(state.pending_conquest)return 'The King has fallen. Resource spoils and other-Unit cleanup have resolved. The victor now chooses Card or Holding.';
+  if(state.pending_combat)return `${title(state.pending_combat.victor)} must choose Quarter or No Quarter. The final comparison remains here during the decision.`;
+  if(combat.outcome==='TIE')return 'Tie. Both Units stay in place; the attacker has paid the Siege cost.';
+  const defeated=combat.outcome==='ATTACKER_WIN'?combat.defender:combat.attacker;
+  const noble=defeated.noble?.noble_id;
+  const pieceFate=defeated.unit.irreplaceable?'The captured piece is removed permanently.':'The defeated piece returns to its reserve.';
+  if(noble && Object.values(state.players).some(p=>p.dungeon_noble_id===noble))return `The defeated Noble is in the victor’s Dungeon. ${pieceFate}`;
+  if(noble && state.nobles_by_id[noble]?.location==='NOBLE_DECK')return `The defeated Noble was returned to the Noble deck. ${pieceFate}`;
+  if(!noble)return pieceFate;
+  return combat.kingFall?'King defeat resolved. Review the Chronicle for the full consequences.':`${pieceFate} The Chronicle records the Noble’s disposition.`;
+}
+
+const pipPositions={1:[5],2:[1,9],3:[1,5,9],4:[1,3,7,9],5:[1,3,5,7,9],6:[1,3,4,6,7,9]};
+function dieFace(value) {
+  return `<span class="die-pips" aria-hidden="true">${Array.from({length:9},(_,i)=>`<i class="${pipPositions[value]?.includes(i+1)?'pip':'blank'}"></i>`).join('')}</span>`;
+}
+function combatHTML(combat,stage,consequence='') {
+  const stages=['opening','rolling','raw','highest','bonus','impact','result','complete'],index=stages.indexOf(stage);
+  const raw=index>=2,highest=index>=3,bonus=index>=4,result=index>=5;
+  const loser=combat.outcome==='TIE'?null:combat.outcome==='ATTACKER_WIN'?'defender':'attacker';
+  const sideHTML=(side,role)=>{
+    const u=side.unit,color=['WHITE','BLACK','RED','GREEN'].includes(u.owner)?u.owner.toLowerCase():'white';
+    const kept=side.rolls.indexOf(side.high),fall=role===loser && combat.kingFall && result;
+    return `<div class="combat-side ${color} ${role===loser && result?'combat-defeated':''}"><div class="combat-unit ${fall?'king-fallen':''}">${pieceIcon(u)}<div><strong>${title(u.owner)} · ${title(u.unit_type)}</strong><small>${role==='attacker'?'Attacker':'Defender'}${u.square?` · ${escapeMarkup(u.square)}`:''}</small>${side.noble?`<span class="combat-general">${NOBLE_DISPLAY_CODE[side.noble.face]}${SUIT_GLYPH[side.noble.suit]}</span>`:''}</div></div>
+      <div class="combat-dice" aria-label="${title(u.owner)} dice">${side.rolls.map((value,i)=>`<span class="combat-die ${highest && i===kept?'retained':highest?'discarded':''}" style="--die-index:${i}" aria-label="${!raw?'Rolling':highest && i===kept && bonus?`Highest die ${side.high} plus ${side.bonus} equals ${side.total}`:`Die ${i+1}: ${value}`}">${bonus && i===kept?`<strong>${side.total}</strong>`:dieFace(raw?value:5)}</span>`).join('')}</div>
+      <p class="combat-arithmetic" ${bonus?'':'hidden'}>Highest ${side.high} + <span class="combat-rank">${side.bonus?`${side.bonus} ${['','Vz','Dx','Rx'][side.bonus]} bonus`:'0 · no General'}</span> = <strong>${side.total}</strong></p></div>`;
+  };
+  const winner=combat.outcome==='TIE'?null:combat.outcome==='ATTACKER_WIN'?combat.attacker.unit.owner:combat.defender.unit.owner;
+  const heading=!result?'Siege':combat.victory?`${title(combat.victory)} wins`:combat.outcome==='TIE'?'A stand-off':`${title(winner)} wins the battle`;
+  const beat={opening:'The Levies face one another.',rolling:'Both players roll together.',raw:'Raw dice. Only the highest die counts.',highest:'Highest dice retained.',bonus:'Add each assigned General’s rank.',impact:combat.kingFall?'The King falls.':'The comparison resolves.',result:'Take a moment to absorb the result.',complete:consequence}[stage];
+  return `<header><p class="eyebrow">${combat.kingFall?'Fall of a King':'Siege'} · ${combat.cost} ♤ paid${combat.battleCount>1?` · Latest of ${combat.battleCount} published battles`:''}</p><h2>${heading}</h2></header><div class="combat-contest">${sideHTML(combat.attacker,'attacker')}<span class="combat-versus" aria-hidden="true">${result?combat.attacker.total===combat.defender.total?'=':combat.attacker.total>combat.defender.total?'›':'‹':'×'}</span>${sideHTML(combat.defender,'defender')}</div><p class="combat-narration" role="status" aria-live="polite">${escapeMarkup(beat)}</p>${stage==='complete'?'<button id="dismiss-combat" class="button tiny quiet">Return to board</button>':'<button id="skip-combat" class="button tiny quiet">Show result now</button>'}`;
+}
+
+class CombatPresenter {
+  constructor({render,onComplete=()=>{},setTimer=setTimeout,clearTimer=clearTimeout}){this.render=render;this.onComplete=onComplete;this.setTimer=setTimer;this.clearTimer=clearTimer;this.timers=[];this.busy=false;this.model=null;this.stage=null;this.generation=0;}
+  clear(){for(const timer of this.timers)this.clearTimer(timer);this.timers=[];this.busy=false;this.model=null;this.stage=null;this.generation++;}
+  show(model,{reducedMotion=false}={}) {
+    this.clear();this.model=model;this.busy=true;const generation=this.generation;
+    const finish=()=>{if(generation!==this.generation)return;for(const t of this.timers)this.clearTimer(t);this.timers=[];this.busy=false;this.stage='complete';this.render(model,'complete');this.onComplete(model);};
+    this.finish=finish;
+    if(reducedMotion){finish();return;}
+    this.stage='opening';this.render(model,'opening');
+    for(const beat of COMBAT_BEATS.slice(1))this.timers.push(this.setTimer(()=>{if(generation===this.generation){this.stage=beat.stage;this.render(model,beat.stage);}},beat.at));
+    this.timers.push(this.setTimer(finish,model.kingFall?KING_COMBAT_DURATION:COMBAT_DURATION));
+  }
+  skip(){if(this.busy)this.finish();}
 }
 
 
@@ -4662,6 +4848,64 @@ let harvestChoice = null;
 let lastHarvestTap = null;
 let stockpileEditor = { key: null, open: false, dirty: false, instructions: null, cards: [] };
 
+const presentationTracker = new PresentationTracker();
+const combatPanel = document.querySelector('#combat-presentation');
+let deferredCombatHandoff = null;
+let routineAnimations = [];
+const combatPresenter = new CombatPresenter({
+  setTimer: (fn,ms)=>window.setTimeout(fn,ms),clearTimer:id=>window.clearTimeout(id),
+  render:(model,stage)=>{
+    const wasSkipping=document.activeElement?.id==='skip-combat';
+    combatPanel.hidden=false;
+    combatPanel.className=`combat-presentation combat-${stage}${stage==='complete'?' resolved':''}${model.victory?' ceremonial-victory':''}`;
+    combatPanel.innerHTML=combatHTML(model,stage,combatConsequence(state,model));
+    dom.actionControls.inert=stage!=='complete';
+    renderBoard();
+    if(stage==='opening' && dom.handoff.hidden)document.querySelector('#skip-combat')?.focus();
+    if(stage==='complete' && wasSkipping){dom.actionControls.tabIndex=-1;dom.actionControls.focus();}
+    document.querySelector('#skip-combat')?.addEventListener('click',()=>combatPresenter.skip());
+    document.querySelector('#dismiss-combat')?.addEventListener('click',()=>{
+      combatPanel.hidden=true;combatPanel.innerHTML='';combatPresenter.clear();dom.actionControls.tabIndex=-1;dom.actionControls.focus();
+    });
+  },
+  onComplete:()=>{
+    dom.actionControls.inert=false;
+    if(deferredCombatHandoff && !onlineClient){const player=deferredCombatHandoff;deferredCombatHandoff=null;showHandoff(player);}
+    else maybeShowPhaseNotice();
+  },
+});
+function clearPresentation() {
+  combatPresenter.clear();presentationTracker.reset();deferredCombatHandoff=null;
+  combatPanel.hidden=true;combatPanel.innerHTML='';dom.actionControls.inert=false;
+  for(const animation of routineAnimations)animation.cancel();routineAnimations=[];
+}
+function reducedMotion(){return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? true;}
+function renderEventPresentation() {
+  const scope=onlinePayload?`${onlinePayload.room.code}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`:`local:${state.match_id}`;
+  const transition=presentationTracker.read(state,scope);
+  if(transition.baseline){deferredCombatHandoff=null;combatPresenter.clear();combatPanel.hidden=true;combatPanel.innerHTML='';dom.actionControls.inert=false;}
+  if(transition.restored)combatPresenter.show(transition.restored,{reducedMotion:true});
+  if(transition.combat)combatPresenter.show(transition.combat,{reducedMotion:reducedMotion()});
+  else if(combatPresenter.model && !combatPresenter.busy && state.phase!==PHASE.SIEGE && !state.pending_combat && !state.pending_conquest && state.status!=='COMPLETE') {
+    combatPresenter.clear();combatPanel.hidden=true;combatPanel.innerHTML='';
+  } else if(combatPresenter.model && !combatPresenter.busy) {
+    combatPanel.innerHTML=combatHTML(combatPresenter.model,'complete',combatConsequence(state,combatPresenter.model));
+    document.querySelector('#dismiss-combat')?.addEventListener('click',()=>{combatPanel.hidden=true;combatPanel.innerHTML='';combatPresenter.clear();});
+  }
+  dom.actionControls.inert=combatPresenter.busy;
+  if(!reducedMotion()) {
+    for(const animation of routineAnimations)animation.cancel();routineAnimations=[];
+    for(const change of transition.changes) {
+      const element=change.kind==='unit'?dom.board.querySelector?.(`[data-square="${change.square}"] .piece`):dom.playerSummary.querySelector?.(`[data-motion-card="${change.id}"]`);
+      if(element?.animate)routineAnimations.push(element.animate([{opacity:.5,transform:change.kind==='unit'?'translateY(-5px)':'translateY(-6px) scale(.96)'},{opacity:1,transform:'none'}],{duration:240,easing:'ease-out'}));
+    }
+    if(transition.offerChanged)dom.harvestTable.querySelectorAll?.('.harvest-card').forEach(card=>{if(card.animate)routineAnimations.push(card.animate([{opacity:0,transform:'translateY(-7px)'},{opacity:1,transform:'none'}],{duration:180}));});
+    if(transition.actionChanged && dom.actionSummary.animate)routineAnimations.push(dom.actionSummary.animate([{opacity:.4},{opacity:1}],{duration:180}));
+  }
+}
+window.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('change',event=>{if(event.matches){combatPresenter.skip();for(const animation of routineAnimations)animation.cancel();routineAnimations=[];}});
+document.addEventListener?.('visibilitychange',()=>{if(document.hidden)combatPresenter.skip();});
+
 function loadInitialState() {
   try {
     return upgradeToV15(loadFromBrowser() ?? newMatch({ seed: "Remy-and-Franny", playerCount: 4, rules: V2_RULES }));
@@ -4702,7 +4946,7 @@ function escapeHtml(value) {
 }
 
 async function run(command, { keepSelection = false } = {}) {
-  if (!dom.handoff.hidden) return false;
+  if (!dom.handoff.hidden || combatPresenter.busy) return false;
   const planning = command.type === "SET_STOCKPILE_INSTRUCTIONS";
   if (!planning && pendingAutomaticNotices().length) { maybeShowPhaseNotice(); return false; }
   const retainTarget = ["TAP_RESOURCES", "MOBILIZE_UNIT"].includes(command.type);
@@ -4750,7 +4994,7 @@ async function run(command, { keepSelection = false } = {}) {
   }
   render();
   if (state.status !== "COMPLETE" && state.current_actor && state.current_actor !== previousActor) {
-    showHandoff(state.current_actor);
+    if(combatPresenter.busy)deferredCombatHandoff=state.current_actor;else showHandoff(state.current_actor);
   } else {
     maybeShowPhaseNotice();
   }
@@ -4758,6 +5002,9 @@ async function run(command, { keepSelection = false } = {}) {
 }
 
 function applyOnlinePayload(payload, { resetSelection = false, force = false, retainedInteraction = null } = {}) {
+  const oldContext=onlinePayload?`${onlinePayload.room.code}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`:null;
+  const newContext=`${payload.room.code}:${payload.viewer.role}:${payload.viewer.seat}`;
+  if(oldContext!==newContext)clearPresentation();
   const previousSignature = onlinePayload
     ? `${onlinePayload.room.status}:${onlinePayload.room.revision}:${onlinePayload.viewer.private_revision}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`
     : null;
@@ -4870,7 +5117,7 @@ function renderPhaseNotice() {
 
 function maybeShowPhaseNotice() {
   renderPhaseNotice();
-  if (!dom.handoff.hidden || !onlinePlayerCanAct()) return;
+  if (!dom.handoff.hidden || !onlinePlayerCanAct() || combatPresenter.busy) return;
   if (!pendingAutomaticNotices().length && !state.phase_notice) return;
   dom.phaseNotice.hidden = false;
   document.querySelector(".app-shell").inert = true;
@@ -4921,6 +5168,7 @@ function render() {
   renderActionSummary();
   dom.undoAction.disabled = onlinePayload ? !onlinePayload.viewer.can_undo : undoStack.length === 0;
   bindDynamicControls();
+  renderEventPresentation();
 }
 
 function renderStatus() {
@@ -4934,6 +5182,11 @@ function privateViewer() {
 }
 
 function renderActionSummary() {
+  if(onlinePayload?.room.status==='ABANDONED'){dom.actionSummary.textContent='Unfinished / Abandoned · Read-only game record · No winner declared';return;}
+  if(state.status==='COMPLETE'){dom.actionSummary.textContent=`${playerName(state.winner)} wins · Review the board or the complete game record`;return;}
+  if(state.pending_resignation){dom.actionSummary.textContent='Resignation negotiation · Survivors choose Spoils or No spoils';return;}
+  if(state.pending_conquest){dom.actionSummary.textContent=`${playerName(state.pending_conquest.victor)} · Choose the fallen King’s Card or a captured Queen Holding`;return;}
+  if(state.pending_combat){dom.actionSummary.textContent=`${playerName(state.pending_combat.victor)} · Choose Quarter or No Quarter for the defeated Noble`;return;}
   const actor = state.current_actor;
   const suit = ACTIVE_SUIT_BY_PHASE[state.phase];
   const pool = suit ? ` · Pool ${state.players[actor]?.seasonal_pools[suit] ?? 0} ${SUIT_GLYPH[suit]}` : '';
@@ -5030,11 +5283,15 @@ function renderBoard() {
     for (let fileIndex = 0; fileIndex < 8; fileIndex += 1) {
       const file = String.fromCharCode(97 + fileIndex);
       const square = `${file}${rank}`;
-      const unit = unitAt(state, square);
+      const preImpact=combatPresenter.busy && ['opening','rolling','raw','highest','bonus'].includes(combatPresenter.stage);
+      const contenders=preImpact?[combatPresenter.model.attacker,combatPresenter.model.defender]:[];
+      const snapshot=contenders.find(side=>side.unit.square===square);
+      const saved=unitAt(state,square);
+      const unit=snapshot?.unit ?? (contenders.some(side=>side.unit.unit_id===saved?.unit_id)?null:saved);
       const isSelected = interaction.unitId && unit?.unit_id === interaction.unitId;
       const isLegal = interaction.legalSquares.has(square);
       const isAttack = interaction.attackSquares.has(square);
-      const interactive = onlinePlayerCanAct() && (isLegal || isAttack || canSelectBoardUnit(unit));
+      const interactive = !combatPresenter.busy && onlinePlayerCanAct() && (isLegal || isAttack || canSelectBoardUnit(unit));
       const classes = [
         "square",
         isBlackSquare(square) ? "dark" : "light",
@@ -5047,7 +5304,7 @@ function renderBoard() {
         unit && state.phase === PHASE.HARVEST && state.harvest?.stage === "DRAW" && (state.harvest?.unit_id ?? (state.harvest?.standard_order ? state.harvest.remaining_unit_ids[0] : null)) === unit?.unit_id ? "harvesting" : "",
         interactive ? "interactive" : "",
       ].filter(Boolean).join(" ");
-      const vassal = unit?.vassal_noble_id ? state.nobles_by_id[unit.vassal_noble_id] : null;
+      const vassal = snapshot?.noble ?? (unit?.vassal_noble_id ? state.nobles_by_id[unit.vassal_noble_id] : null);
       const pieceColor = unit?.piece_color ?? unit?.owner;
       const rejectCount = (state.harvest?.rejects ?? []).filter(item => item.unit_id === unit?.unit_id).length;
       const unitHtml = unit ? `
@@ -5068,6 +5325,7 @@ function renderBoard() {
   dom.board.querySelectorAll("[data-square]").forEach((element) => {
     element.addEventListener("click", () => handleBoardClick(element.dataset.square));
   });
+  dom.board.querySelectorAll('[data-inspect-noble]').forEach(button=>{button.onclick=()=>inspectNoble(button.dataset.inspectNoble);});
   dom.boardHint.textContent = boardHint();
 }
 
@@ -5089,7 +5347,7 @@ function boardHint() {
 }
 
 function handleBoardClick(square) {
-  if (!dom.handoff.hidden) return;
+  if (!dom.handoff.hidden || combatPresenter.busy) return;
   const unit = unitAt(state, square);
   if (!onlinePlayerCanAct()) { inspectUnit(unit); return; }
   if (unit && unit.unit_id === interaction.unitId) { inspectUnit(unit); return; }
@@ -5174,7 +5432,7 @@ function resourceCheckbox(card, mode, owner = null) {
   const cardOrder = priority ? stockpilePriorityCards(card.suit) : [];
   const priorityIndex = cardOrder.indexOf(card.card_id);
   return `
-    <div class="resource-with-plan"><label class="card-choice" title="${description}">
+    <div class="resource-with-plan" data-motion-card="${card.card_id}"><label class="card-choice" title="${description}">
       <input type="checkbox" aria-label="${description}" ${mode === 'PLAN' ? 'data-stockpile-id' : 'data-resource-id'}="${card.card_id}" ${mode === 'PLAN' ? stockpileEditor.cards.includes(card.card_id) ? 'checked' : '' : selectedResourceIds.has(card.card_id) ? 'checked' : ''} ${disabled ? "disabled" : ""}>
       <span class="${classes}">${formatResource({...card, has_counter: false})}${card.has_counter ? '<span class="card-counter" aria-hidden="true"></span>' : ''}</span>
     </label>${duplicateCardLabel(card) ? `<span class="physical-copy" title="Visible duplicate ${duplicateCardLabel(card)}">${duplicateCardLabel(card)}</span>` : ''}${marker ? `<span class="plan-marker ${marker === 'Keep' ? 'keep' : 'return'}">${marker}</span>` : ''}${priority ? `<span class="card-priority"><button type="button" data-card-priority="${card.card_id}" data-direction="-1" aria-label="Raise ${physicalResourceLabel(card)} priority" ${priorityIndex === 0 ? 'disabled' : ''}>↑</button><span>${priorityIndex + 1}</span><button type="button" data-card-priority="${card.card_id}" data-direction="1" aria-label="Lower ${physicalResourceLabel(card)} priority" ${priorityIndex === cardOrder.length - 1 ? 'disabled' : ''}>↓</button></span>` : ''}</div>
@@ -5525,7 +5783,9 @@ function renderStockpileActions() {
 function passButton() {
   const lastFall = state.phase === PHASE.EXECUTE || (state.phase === PHASE.VASSALIZE && !state.players[activePlayer()].dungeon_noble_id);
   const plan = state.rules.resource_flow_v2 && lastFall ? stockpilePlan(state, activePlayer()) : null;
-  return `<div class="choice-grid">${onlinePayload?.viewer.can_undo ? `<button id="online-undo" class="button quiet">Undo latest action</button>` : ""}<button id="pass-phase" class="button quiet full">Pass ${title(state.phase)}${onlinePayload ? " and publish" : ""}</button>${plan?.mode === 'MANUAL' && !plan.submitted ? '<button id="open-stockpile-action" class="button">Plan Stockpile · optional</button>' : ''}</div>`;
+  const hasActed = state.v2_acted?.[`${state.year_number}:${state.phase}:${activePlayer()}`];
+  const passReady = hasActed && !phaseAvailability(state,activePlayer()).available;
+  return `<div class="choice-grid">${onlinePayload?.viewer.can_undo ? `<button id="online-undo" class="button quiet">Undo latest action</button>` : ""}<button id="pass-phase" class="button ${passReady ? 'primary pass-ready' : 'quiet'} full">Pass ${title(state.phase)}${onlinePayload ? " and publish" : ""}</button>${plan?.mode === 'MANUAL' && !plan.submitted ? '<button id="open-stockpile-action" class="button">Plan Stockpile · optional</button>' : ''}</div>`;
 }
 
 function renderPlayerSummary() {
@@ -5580,7 +5840,7 @@ function openStockpilePanel() {
   if (!stockpileEditor.key || !dom.handoff.hidden) return;
   stockpileEditor.open = true;
   refreshStockpilePanel();
-  document.querySelector('#stockpile-panel')?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  document.querySelector('#stockpile-panel')?.scrollIntoView?.({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
 }
 
 async function saveStockpilePlan() {
@@ -5804,6 +6064,7 @@ function commandLabel(command) {
 }
 
 async function passOnlineTurn() {
+  if(combatPresenter.busy)return;
   if (!onlineClient || onlineRequestPending) return;
   if (pendingAutomaticNotices().length) { maybeShowPhaseNotice(); return; }
   onlineRequestPending = true;
@@ -5820,6 +6081,7 @@ async function passOnlineTurn() {
 }
 
 async function undoLastAction() {
+  if(combatPresenter.busy)return;
   if (onlineClient) {
     if (!onlinePayload?.viewer.can_undo || onlineRequestPending) return;
     if (!window.confirm("Undo your latest unpublished action?")) return;
@@ -6114,6 +6376,7 @@ async function startOnlineMatch() {
 }
 
 function leaveOnlineMode({ updateLocation = true, restoreLocal = false } = {}) {
+  clearPresentation();
   window.clearTimeout(onlinePollTimer);
   onlinePollTimer = null;
   onlineClient = null;

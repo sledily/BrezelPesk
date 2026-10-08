@@ -4,11 +4,12 @@ import { readFileSync } from "node:fs";
 import { Script, createContext } from "node:vm";
 import { PHASE, PLAYER, SUIT, V2_RULES } from "../src/constants.js";
 import { settleAutomaticPhases, dispatch } from "../src/engine.js";
-import { forcePhase, giveResource, setUpMatch } from "./helpers.js";
+import { forcePhase, giveResource, setUpMatch, addUnit } from "./helpers.js";
 
 // A lightweight DOM host runs the real standalone UI. These are interaction
 // and rendered-content checks, not a replacement for a browser layout test.
-function loadUI() {
+function loadUI({motion=false}={}) {
+  const timers=[];
   const html = readFileSync(new URL("../Dendarv_Play.html", import.meta.url), "utf8");
   const code = html.match(/<script>\s*([\s\S]*?)<\/script>/)[1];
   const elements = new Map();
@@ -37,12 +38,12 @@ function loadUI() {
   const context = createContext({ document, console, structuredClone, URL, URLSearchParams, Blob,
     localStorage: { getItem(key) { return storage.get(key) ?? null; }, setItem(key, value) { storage.set(key, value); } },
     location: { href: "http://example.invalid/", search: "", protocol: "http:" },
-    window: { setTimeout() {}, clearTimeout() {}, setInterval() {}, clearInterval() {}, confirm() { return true; } },
+    window: { matchMedia:()=>({matches:!motion,addEventListener(){}}), setTimeout(fn,ms) {const timer={fn,ms,cancelled:false};timers.push(timer);return timer;}, clearTimeout(timer) {if(timer)timer.cancelled=true;}, setInterval() {}, clearInterval() {}, confirm() { return true; } },
     navigator: {}, crypto: { getRandomValues(array) { return array; } },
   });
-  const expose = 'globalThis.ui = { render, renderActiveGames, renderOnlineLobby, renderOnlineChrome, run, selectHarvestCard, cancelResourceSelection, openStockpilePanel, saveStockpilePlan, undoLastAction, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); }, setOnline: (payload) => { onlinePayload = payload; onlineClient = {}; renderOnlineChrome(); } };';
+  const expose = 'globalThis.ui = { combatPresenter, clearPresentation, applyOnlinePayload, render, renderActiveGames, renderOnlineLobby, renderOnlineChrome, run, selectHarvestCard, cancelResourceSelection, openStockpilePanel, saveStockpilePlan, undoLastAction, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); }, setOnline: (payload) => { onlinePayload = payload; onlineClient = {}; renderOnlineChrome(); } };';
   new Script(code.replace(/\}\)\(\);\s*$/, `${expose}\n})();`)).runInContext(context);
-  return { ui: context.ui, elements, app, html };
+  return { ui: context.ui, elements, app, html, timers };
 }
 
 test("the standalone places Current Action above the corner table and constants below the board", () => {
@@ -241,4 +242,72 @@ test('resignation UI shows public votes, distinguishes missing votes, and makes 
  assert.match(elements.get('terminal-record-json').textContent,/pending_resignation/);
  ui.setOnline({room,viewer:{role:'SPECTATOR'},terminal_record:null});
  assert.equal(elements.get('terminal-record').hidden,true);
+});
+
+
+test('combat UI preserves the saved pre-impact combatants, permits skipping and leaves the saved outcome unchanged',async()=>{
+  const {ui,elements}=loadUI({motion:true});ui.hideHandoff();
+  let before;
+  for(let n=0;n<100;n++) {
+    const s=forcePhase(setUpMatch('motion-'+n),PHASE.SIEGE);s.players.WHITE.seasonal_pools.SPADES=20;
+    s.units_by_id['U-W-001'].square='d4';s.units_by_id['U-B-001'].square='e5';
+    const out=dispatch(s,{type:'LAY_SIEGE',player:'WHITE',attacker_id:'U-W-001',defender_id:'U-B-001'});
+    if(out.state.winner==='WHITE'){before=s;break;}
+  }
+  assert.ok(before);ui.setState(before);
+  assert.equal(await ui.run({type:'LAY_SIEGE',player:'WHITE',attacker_id:'U-W-001',defender_id:'U-B-001'}),true);
+  const saved=JSON.stringify(ui.getState());
+  assert.equal(ui.combatPresenter.busy,true);assert.equal(elements.get('action-controls').inert,true);
+  assert.match(elements.get('board').innerHTML,/e5, Black-controlled Black King/,'pre-impact snapshot stays on the presentation board');
+  assert.equal(await ui.run({type:'PASS_PHASE',player:'WHITE'}),false);
+  elements.get('skip-combat').listeners.click();
+  assert.equal(ui.combatPresenter.busy,false);assert.equal(elements.get('action-controls').inert,false);
+  assert.match(elements.get('combat-presentation').innerHTML,/White wins/);
+  assert.match(elements.get('current-action-summary').textContent,/White wins · Review the board/);
+  assert.doesNotMatch(elements.get('board').innerHTML,/e5, Black-controlled Black King/);
+  assert.equal(JSON.stringify(ui.getState()),saved,'skip does not redraw, advance or change the game');
+  ui.clearPresentation();assert.equal(elements.get('combat-presentation').innerHTML,'');
+});
+
+test('reduced-motion combat displays the final comparison immediately and reconnect restores it without a replay',async()=>{
+  const {ui,elements}=loadUI();ui.hideHandoff();
+  const s=forcePhase(setUpMatch('motion-0'),PHASE.SIEGE);s.players.WHITE.seasonal_pools.SPADES=20;
+  s.units_by_id['U-W-001'].square='d4';s.units_by_id['U-B-001'].square='e5';ui.setState(s);
+  await ui.run({type:'LAY_SIEGE',player:'WHITE',attacker_id:'U-W-001',defender_id:'U-B-001'});
+  assert.equal(ui.combatPresenter.busy,false);assert.equal(elements.get('action-controls').inert,false);
+  assert.match(elements.get('combat-presentation').className,/resolved/);
+  ui.clearPresentation();ui.render();
+  assert.equal(ui.combatPresenter.busy,false);assert.match(elements.get('combat-presentation').className,/resolved/);
+});
+
+test('the final affordable ordinary action makes Pass prominent while keeping Undo',async()=>{
+  const {ui,elements}=loadUI();ui.hideHandoff();
+  const s=forcePhase(setUpMatch('last-build',V2_RULES),PHASE.BUILD);
+  s.players.WHITE.seasonal_pools.CLOVERS=2;s.automatic_notices=[];ui.setState(s);
+  assert.equal(await ui.run({type:'BUILD_UNIT',player:'WHITE',square:'b1'}),true);
+  assert.match(elements.get('action-controls').innerHTML,/id="pass-phase" class="button primary pass-ready full"/);
+  assert.equal(elements.get('undo-action').disabled,false);
+  assert.equal(ui.getState().current_actor,'WHITE');
+});
+
+
+test('shared-device Quarter handover follows combat presentation and cannot change the saved battle',async()=>{
+  const {ui,elements}=loadUI({motion:true});ui.hideHandoff();let before,pawn;
+  for(let n=0;n<100;n++) {
+    const s=forcePhase(setUpMatch('quarter-motion-'+n),PHASE.SIEGE);s.players.WHITE.seasonal_pools.SPADES=20;
+    s.units_by_id['U-B-001'].square='e5';const id=addUnit(s,'WHITE','PAWN','d4',{vassalId:'NC-J-D'});
+    const out=dispatch(s,{type:'LAY_SIEGE',player:'WHITE',attacker_id:id,defender_id:'U-B-001'});
+    if(out.state.pending_combat?.victor==='BLACK'){before=s;pawn=id;break;}
+  }
+  assert.ok(before);ui.setState(before);
+  assert.equal(await ui.run({type:'LAY_SIEGE',player:'WHITE',attacker_id:pawn,defender_id:'U-B-001'}),true);
+  const saved=JSON.stringify(ui.getState());assert.equal(elements.get('handoff').hidden,true);
+  assert.equal(ui.getState().pending_combat.victor,'BLACK');
+  ui.combatPresenter.skip();assert.equal(elements.get('handoff').hidden,false);
+  assert.equal(elements.get('handoff-title').textContent,'Black to act');assert.equal(JSON.stringify(ui.getState()),saved);
+  assert.match(elements.get('current-action-summary').textContent,/Black · Choose Quarter/);
+  assert.equal(await ui.run({type:'CHOOSE_QUARTER',player:'BLACK',quarter:true}),false,'Ready is still required for private handover');
+  ui.hideHandoff();assert.equal(await ui.run({type:'CHOOSE_QUARTER',player:'BLACK',quarter:true}),true);
+  assert.equal(ui.getState().pending_combat,null);assert.equal(ui.getState().players.BLACK.dungeon_noble_id,'NC-J-D');
+  assert.match(elements.get('combat-presentation').innerHTML,/Noble is in the victor’s Dungeon/);
 });

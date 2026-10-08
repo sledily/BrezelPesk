@@ -49,7 +49,7 @@
       <section id="terminal-record" class="panel" hidden><h2>Complete game record</h2><p id="terminal-record-status"></p><pre id="terminal-record-text" class="chronicle-text" tabindex="0"></pre><details><summary>Full structured record</summary><pre id="terminal-record-json" class="chronicle-text" tabindex="0"></pre></details></section>
 
       <section class="current-action" aria-label="Current Action">
-        <div class="action-rubric"><span class="eyebrow">Current Action</span><strong id="current-action-summary"></strong></div>
+        <div class="action-rubric"><span class="eyebrow">Current Action</span><strong id="current-action-summary" role="status" aria-live="polite"></strong></div>
       </section>
       <section id="action-controls" class="panel action-panel" aria-label="Action controls"></section>
       <main class="game-layout">
@@ -58,6 +58,7 @@
         <section class="board-column" aria-label="Game board">
           <div class="board-frame">
             <div id="board" class="board" role="grid" aria-label="Dendarv board"></div>
+            <section id="combat-presentation" class="combat-presentation" aria-label="Combat presentation" hidden></section>
             <div id="harvest-table" class="harvest-table" hidden></div>
           </div>
           <div id="turn-card" class="board-constants"></div>

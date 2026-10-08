@@ -1,6 +1,6 @@
 # BrezelPesk — Dendarv
 
-BrezelPesk is the online service for Dendarv: Age of Crusader Kings. This branch builds V2 persistence, private online play and the state-connected Tabletop interface on the existing two-/four-player rules engine. It includes lobby management, resignation, optional browser notifications and administrator/archive screens; presentation polish and release verification remain in progress.
+BrezelPesk is the online service for Dendarv: Age of Crusader Kings. This branch builds V2 persistence, private online play and the state-connected Tabletop interface on the existing two-/four-player rules engine. It includes lobby management, resignation, optional browser notifications and administrator/archive screens; combat pacing and routine cues are implemented; visual refinement and release verification remain in progress.
 
 The repository root is the canonical application. The former duplicate `dendarv/` tree has been removed.
 
@@ -20,6 +20,8 @@ Without `DATABASE_URL`, development saves one atomic file per room in `.dendarv-
 For PostgreSQL, supply `DATABASE_URL` through the environment. The application creates `dendarv_capacity` and `dendarv_rooms` in the database's current schema. Use a dedicated database/schema. Hosted remote connections require certificate-verified TLS. Credentials belong in the deployment secret store, never source files.
 
 Open `/admin` for the separate administrator login, read-only private inspection, exceptional seat recovery and archive management. See `ADMINISTRATION.md` for setup, safeguards and operating instructions.
+
+See `PRESENTATION.md` for combat timing, reduced motion, event privacy and the remaining visual checks.
 
 ## Storage and recovery
 

@@ -26,7 +26,7 @@ function maintenanceAuthorized(token) {
 }
 const admin = new AdminAuth(process.env.DENDARV_ADMIN_PASSWORD);
 const publicFiles = new Set(['index.html','Dendarv_Play.html','notification-worker.js','src/styles.css','admin.html','src/admin.js','src/admin.css',
-  ...['constants','rng','notation','model','rules','engine','projection','persistence','format','online','presentation','tabletop','browser-notifications','ui'].map(n=>`src/${n}.js`)]);
+  ...['constants','rng','notation','model','rules','engine','projection','persistence','format','online','presentation','tabletop','event-presentation','browser-notifications','ui'].map(n=>`src/${n}.js`)]);
 const types = { '.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8' };
 const bearer = request => (request.headers.authorization ?? '').startsWith('Bearer ') ? request.headers.authorization.slice(7) : null;
 const security = { 'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'DENY' };

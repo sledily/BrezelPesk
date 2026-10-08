@@ -19,6 +19,7 @@ const sourceOrder = [
   "src/browser-notifications.js",
   "src/presentation.js",
   "src/tabletop.js",
+  "src/event-presentation.js",
   "src/ui.js",
 ];
 

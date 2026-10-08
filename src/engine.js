@@ -1167,7 +1167,14 @@ function laySiege(state, command) {
   const outcome = attackerTotal === defenderTotal
     ? "TIE"
     : attackerTotal > defenderTotal ? "ATTACKER_WIN" : "DEFENDER_WIN";
+  const combatSnapshot = unit => ({ unit: { unit_id:unit.unit_id, owner:unit.owner,
+    piece_color:unit.piece_color ?? unit.owner, unit_type:unit.unit_type, square:unit.square,
+    vassal_noble_id:unit.vassal_noble_id, irreplaceable:Boolean(unit.irreplaceable) },
+    noble:unit.vassal_noble_id ? { noble_id:unit.vassal_noble_id,
+      face:state.nobles_by_id[unit.vassal_noble_id].face, suit:state.nobles_by_id[unit.vassal_noble_id].suit,
+      rank:state.nobles_by_id[unit.vassal_noble_id].rank } : null });
   recordEvent(state, "CombatResolved", {
+    attacker_snapshot:combatSnapshot(attacker), defender_snapshot:combatSnapshot(defender),
     attacker_id: attacker.unit_id,
     defender_id: defender.unit_id,
     cost,
