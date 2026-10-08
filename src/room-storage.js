@@ -14,11 +14,11 @@ export function allocatedBytes(data, limits) {
   const bytes = Buffer.byteLength(JSON.stringify(data));
   // Do not release a terminal game's reserve before the archive text is saved.
   const archiveReady = ['COMPLETE', 'ABANDONED'].includes(data.room.status) && data.archive?.status === 'ready';
-  return (archiveReady || data.room.status === 'CANCELLED') ? bytes : Math.max(bytes, limits.reserveBytes);
+  return (archiveReady || ['CANCELLED', 'DELETED'].includes(data.room.status)) ? bytes : Math.max(bytes, limits.reserveBytes);
 }
 function checkCapacity(inventory, code, data, limits) {
   const others = inventory.filter(row => row.code !== code);
-  if (others.filter(row => row.counts_as_game !== false).length + (data.room.status === 'CANCELLED' ? 0 : 1) > limits.maxGames || others.reduce((n, row) => n + Number(row.bytes), 0) + allocatedBytes(data, limits) > limits.totalBytes) {
+  if (others.filter(row => row.counts_as_game !== false).length + (['CANCELLED', 'DELETED'].includes(data.room.status) ? 0 : 1) > limits.maxGames || others.reduce((n, row) => n + Number(row.bytes), 0) + allocatedBytes(data, limits) > limits.totalBytes) {
     throw new RoomError('STORAGE_CAPACITY', 'Game storage is full. No new state was accepted. Ask the administrator to review capacity.', 507);
   }
 }
@@ -39,7 +39,7 @@ export class FileRoomStorage {
     for (const file of await readdir(this.directory)) {
       if (!/^[A-Z2-9]{6}\.json$/.test(file)) continue;
       const code = file.slice(0, -5), data = await this.read(code);
-      rows.push({ code, bytes: allocatedBytes(data, this.limits), counts_as_game: data.room.status !== 'CANCELLED' });
+      rows.push({ code, bytes: allocatedBytes(data, this.limits), counts_as_game: !['CANCELLED', 'DELETED'].includes(data.room.status) });
     }
     return rows;
   }
@@ -93,7 +93,7 @@ export class PostgresRoomStorage {
   async snapshot(code, version = null) {
     return (await this.pool.query('SELECT version, CASE WHEN version=$2 THEN NULL ELSE data END AS data FROM dendarv_rooms WHERE code=$1', [code, version])).rows[0] ?? null;
   }
-  async inventory() { return (await this.pool.query("SELECT code, allocated_bytes AS bytes, (data->'room'->>'status' != 'CANCELLED') AS counts_as_game FROM dendarv_rooms")).rows; }
+  async inventory() { return (await this.pool.query("SELECT code, allocated_bytes AS bytes, (data->'room'->>'status' NOT IN ('CANCELLED','DELETED')) AS counts_as_game FROM dendarv_rooms")).rows; }
   async transact(code, fn) {
     const client = await this.pool.connect();
     let broken = false;
@@ -105,10 +105,12 @@ export class PostgresRoomStorage {
       const current = (await client.query('SELECT data FROM dendarv_rooms WHERE code=$1 FOR UPDATE', [code])).rows[0]?.data ?? null;
       const change = await fn(current);
       if (change.write) {
-        const inventory = (await client.query("SELECT code, allocated_bytes AS bytes, (data->'room'->>'status' != 'CANCELLED') AS counts_as_game FROM dendarv_rooms")).rows;
+        const inventory = (await client.query("SELECT code, allocated_bytes AS bytes, (data->'room'->>'status' NOT IN ('CANCELLED','DELETED')) AS counts_as_game FROM dendarv_rooms")).rows;
         checkCapacity(inventory, code, change.write, this.limits);
         const physical = Number((await client.query('SELECT pg_database_size(current_database()) AS bytes')).rows[0].bytes);
-        if (physical + allocatedBytes(change.write, this.limits) > this.limits.totalBytes * 4) {
+        // Deletion must remain possible when the physical guard is already full.
+        const freeingArchive = current && change.write.room.status === 'DELETED' && allocatedBytes(change.write, this.limits) < allocatedBytes(current, this.limits);
+        if (!freeingArchive && physical + allocatedBytes(change.write, this.limits) > this.limits.totalBytes * 4) {
           throw new RoomError('STORAGE_CAPACITY','Database storage needs administrator attention; no new state was accepted',507);
         }
         await client.query(`INSERT INTO dendarv_rooms(code,data,allocated_bytes) VALUES ($1,$2,$3)

@@ -21,6 +21,11 @@ export class AdminAuth {
     for (const [key, session] of this.sessions) if (session.expires <= now) this.sessions.delete(key);
     this.sessions.set(token, { csrf, expires: now + 3600000 }); return { token, csrf };
   }
+  logout(request) {
+    this.check(request);
+    const token = /(?:^|;\s*)dendarv_admin=([A-Za-z0-9_-]+)/.exec(request.headers.cookie ?? '')?.[1];
+    this.sessions.delete(token);
+  }
   check(request) {
     const token = /(?:^|;\s*)dendarv_admin=([A-Za-z0-9_-]+)/.exec(request.headers.cookie ?? '')?.[1];
     const session = this.sessions.get(token);

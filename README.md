@@ -1,6 +1,6 @@
 # BrezelPesk — Dendarv
 
-BrezelPesk is the online service for Dendarv: Age of Crusader Kings. This branch builds the first V2 persistence and privacy foundation on the existing two-/four-player rules engine. The current screen and standalone local game retain the V1.5 presentation; the approved Tabletop interface is a later implementation stage.
+BrezelPesk is the online service for Dendarv: Age of Crusader Kings. This branch builds V2 persistence, private online play and the state-connected Tabletop interface on the existing two-/four-player rules engine. It includes lobby management, resignation, optional browser notifications and administrator/archive screens; presentation polish and release verification remain in progress.
 
 The repository root is the canonical application. The former duplicate `dendarv/` tree has been removed.
 
@@ -19,13 +19,15 @@ Without `DATABASE_URL`, development saves one atomic file per room in `.dendarv-
 
 For PostgreSQL, supply `DATABASE_URL` through the environment. The application creates `dendarv_capacity` and `dendarv_rooms` in the database's current schema. Use a dedicated database/schema. Hosted remote connections require certificate-verified TLS. Credentials belong in the deployment secret store, never source files.
 
+Open `/admin` for the separate administrator login, read-only private inspection, exceptional seat recovery and archive management. See `ADMINISTRATION.md` for setup, safeguards and operating instructions.
+
 ## Storage and recovery
 
 Each accepted request commits its room state, RNG state, draft, Undo history and idempotency receipt before sending the result. The browser retains an uncertain request across reloads and retries its original identity. An outcome already committed is not redrawn or charged again. Revisions reject stale commands, including stale requests after an action/Undo pair.
 
 Ordinary online actions retain explicit Pass, even after the last affordable action. Undo cannot cross newly revealed information. A defender's Quarter handoff publishes the attack automatically; the final Quarter response publishes and resumes the attacker's opportunity.
 
-Public routes use an explicit asset allowlist. Spectators retain public views after Completion or Abandonment. Authenticated participants can export full private records, including during an active game under the approved policy. Ordinary terminal access expires after 30 days; administrator records remain until explicit deletion is implemented and invoked.
+Public routes use an explicit asset allowlist. Spectators retain public views after Completion or Abandonment. Authenticated participants can export full private records, including during an active game under the approved policy. Ordinary terminal access expires after 30 days; administrator records remain until explicit deletion is confirmed at `/admin`. Downloading archives never changes their retention.
 
 Terminal transitions save a pending archive atomically. The in-process archive worker retries records independently and resumes on startup. It is idle when no work remains. A sleeping host delays retry work until the process wakes.
 

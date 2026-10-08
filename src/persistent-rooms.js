@@ -110,6 +110,7 @@ export class PersistentRooms {
       const result = await this.storage.transact(code, async stored => {
         let data = stored ? structuredClone(stored) : null;
         if (!data && action !== 'create') fail('ROOM_NOT_FOUND', 'No online room has that code', 404);
+        if (data?.room.status === 'DELETED') fail('ARCHIVE_DELETED','The administrator deleted this game record',410);
         const old = data?.receipts[receiptId];
         // Leaving revokes the caller's seat; cancellation closes ordinary views.
         // The exact recorded request may still acknowledge its durable outcome.
@@ -241,41 +242,97 @@ export class PersistentRooms {
     this.project(data, token); // includes terminal access expiry
     return gameRecord(data.room);
   }
+  async adminInventory() {
+    const rows = [];
+    for (const row of await this.storage.inventory()) {
+      const data = await this.storage.read(row.code);
+      if (!data) continue;
+      rows.push({ ...row, name: data.room.name ?? row.code, status: data.room.status,
+        ended_at: data.room.ended_at ?? null, deleted_at: data.room.deleted_at ?? null,
+        archive_status: data.archive?.status ?? null, archive_attempts: data.archive?.attempts ?? 0,
+        archive_failure: this.archiveFailures.get(row.code) ?? null });
+    }
+    return { rooms: rows.sort((a,b)=>a.code.localeCompare(b.code)), limits: this.storage.limits };
+  }
+  async archiveFiles() {
+    // Terminal snapshots are immutable. Read the collection without changing retention
+    // or receipts. A pending formatter is retried here for download only, never saved.
+    const records = [];
+    for (const {code} of await this.storage.inventory()) {
+      const data = await this.storage.read(code);
+      if (!['COMPLETE','ABANDONED'].includes(data?.room.status)) continue;
+      if (!data.archive?.record) fail('ARCHIVE_UNAVAILABLE',`Archive ${code} needs administrator attention`,409);
+      let text;
+      try { text = data.archive.text ?? formatGameRecord(data.archive.record); }
+      catch { fail('ARCHIVE_UNAVAILABLE',`Archive ${code} could not be formatted; no partial ZIP was produced`,409); }
+      records.push({ code, record: data.archive.record, text });
+    }
+    records.sort((a,b)=>a.code.localeCompare(b.code));
+    return [{ name: 'manifest.json', content: JSON.stringify({ file_type:'DENDARV_ARCHIVE_COLLECTION',
+      schema_version:1, downloaded_at:this.now().toISOString(),
+      games: records.map(({code,record})=>({code,status:record.status,ended_at:record.ended_at})),
+      retention:'Downloading does not delete or expire any stored record.' }, null, 2) },
+      ...records.flatMap(({code,record,text})=>[
+        {name:`${code}/record.json`,content:JSON.stringify(record,null,2)},
+        {name:`${code}/chronicle.txt`,content:text}])];
+  }
   async admin(code, action, body = {}) {
     code = codeOf(code);
     if (action === 'inspect') {
       const data = await this.storage.read(code);
       if (!data) fail('ROOM_NOT_FOUND','No online room has that code',404);
-      return { record: gameRecord(data.room), audit: data.audit, archive: data.archive,
+      return { code, status:data.room.status, deleted_at:data.room.deleted_at ?? null,
+        record: data.room.status === 'DELETED' ? null : gameRecord(data.room), audit: data.audit,
+        archive: data.archive, revision: Math.max(data.room.revision ?? 0,data.room.draft_revision ?? 0),
         notifications: {subscribers:Object.keys(data.notifications?.subscriptions??{}).length,
           jobs:Object.values(data.notifications?.jobs??{}).map(({kind,status,attempts,next_attempt,lease_until})=>({kind,status,attempts,next_attempt,lease_until}))},
         archive_failure: this.archiveFailures.get(code) ?? null };
     }
     requestId(body.requestId);
-    return this.storage.transact(code, async stored => {
+    const result = await this.storage.transact(code, async stored => {
       if (!stored) fail('ROOM_NOT_FOUND','No online room has that code',404);
       if (body.confirmed !== true) fail('CONFIRM_REQUIRED','Explicit confirmation is required',409);
-      const next = structuredClone(stored), receipt = `admin:${body.requestId}`;
+      let next = structuredClone(stored);
+      const receipt = `admin:${body.requestId}`;
       const fingerprint = hash([action, body]);
       if (next.receipts[receipt]) {
         if (next.receipts[receipt].fingerprint !== fingerprint) fail('REQUEST_REUSED','Request identity was reused',409);
+        if (action === 'recover' && next.room.seats[body.seat]?.recovery_hash !== tokenHash(body.recoveryCode)) fail('RECOVERY_REPLACED','A later recovery code replaced this one; inspect the game again',409);
         return { result: { ok: true } };
       }
+      if (next.room.status === 'DELETED') fail('ARCHIVE_DELETED','This game record was deleted',410);
+      if (body.expectedRevision !== undefined && body.expectedRevision !== Math.max(next.room.revision ?? 0,next.room.draft_revision ?? 0)) fail('STALE_VIEW','The game changed. Refresh the inspection before acting.',409);
       if (action === 'recover') {
-        if (!next.room.seats[body.seat]) fail('INVALID_SEAT','No participant occupies this seat');
+        if (next.room.status === 'CANCELLED' || (next.room.ended_at && this.now().getTime() >= Date.parse(next.room.ended_at) + 30 * 86400000)) fail('ROOM_ACCESS_EXPIRED','This room is no longer open to participants',410);
+        if (!next.room.seat_order.includes(body.seat) || !next.room.seats[body.seat]) fail('INVALID_SEAT','No participant occupies this seat');
         secret(body.token); secret(body.recoveryCode);
         next.room.seats[body.seat].token_hash = tokenHash(body.token);
         next.room.seats[body.seat].recovery_hash = tokenHash(body.recoveryCode);
+        next.room.revision = Math.max(next.room.revision,next.room.draft_revision) + 1;
+        next.room.draft_revision = next.room.revision;
       } else if (action === 'abandon') {
         if (next.room.status !== 'ACTIVE') fail('MATCH_NOT_ACTIVE','Only a started unfinished game can be abandoned',409);
         next.room.status = 'ABANDONED'; next.room.ended_at = this.now().toISOString(); next.room.revision += 1;
         next.archive = { status: 'pending', record: gameRecord(next.room), attempts: 0, next_attempt: 0 };
+      } else if (action === 'retry-archive') {
+        if (next.archive?.status !== 'pending') fail('ARCHIVE_NOT_PENDING','Only a pending archive can be retried',409);
+        next.archive.next_attempt = 0;
+      } else if (action === 'delete-archive') {
+        if (!['COMPLETE','ABANDONED'].includes(next.room.status) || !next.archive) fail('ARCHIVE_REQUIRED','Only a completed or abandoned game archive can be deleted',409);
+        if (body.confirmCode !== code) fail('CONFIRM_REQUIRED','Type the room code to confirm deletion',409);
+        // Atomic tombstone retains the operational audit and deletion receipt only.
+        // No game history, names, player credentials or push destinations remain.
+        next = { room:{schema_version:2,code,status:'DELETED',deleted_at:this.now().toISOString(),seat_order:[],seats:{}},
+          receipts:{},archive:null,audit:next.audit };
       } else fail('UNKNOWN_ACTION','Unsupported administrator action',404);
-      syncNotifications(stored.room,next,this.now().getTime());
-      next.audit.push({ action: action.toUpperCase(), actor: 'ADMIN', seat: body.seat ?? null, at: this.now().toISOString() });
+      if (action !== 'delete-archive') syncNotifications(stored.room,next,this.now().getTime());
+      next.audit.push({ code, action: action.toUpperCase(), actor: 'ADMIN', seat: action === 'recover' ? body.seat : null, at: this.now().toISOString() });
       next.receipts[receipt] = { fingerprint };
       return { write: next, result: { ok: true } };
     });
+    this.cache.delete(code);
+    if (action === 'delete-archive') this.archiveFailures.delete(code);
+    return result;
   }
   async processArchives() {
     // Durable per-record status; one failure never blocks later games. No paid worker needed.

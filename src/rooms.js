@@ -169,6 +169,7 @@ export class RoomStore {
     const normalized = String(code ?? "").trim().toUpperCase();
     const room = this.rooms[normalized];
     if (!room) roomFail("ROOM_NOT_FOUND", "No online room has that code", 404);
+    if (room.status === 'DELETED') roomFail('ARCHIVE_DELETED', 'The administrator deleted this game record', 410);
     // Upgrade old room records deterministically, including read-only projections.
     for (const occupant of Object.values(room.seats)) if (occupant && !occupant.participant_id) {
       occupant.participant_id = createHash('sha256').update(`participant:${room.code}:${occupant.recovery_hash}`).digest('hex').slice(0,24);
