@@ -882,10 +882,14 @@ button:disabled { opacity: .6; }
         <div class="online-strip-actions">
           <button id="copy-recovery-code" class="button tiny">Copy recovery code</button>
           <button id="rename-online-game" class="button tiny" hidden>Rename game</button>
+          <button id="resign-online" class="button tiny" hidden>Resign</button>
+          <button id="abandon-online" class="button tiny" hidden>Close as abandoned</button>
           <button id="copy-room-link" class="button tiny">Copy spectator link</button>
           <button id="leave-online" class="button tiny quiet">Return to local game</button>
         </div>
       </section>
+
+      <section id="terminal-record" class="panel" hidden><h2>Complete game record</h2><p id="terminal-record-status"></p><pre id="terminal-record-text" class="chronicle-text" tabindex="0"></pre><details><summary>Full structured record</summary><pre id="terminal-record-json" class="chronicle-text" tabindex="0"></pre></details></section>
 
       <section class="current-action" aria-label="Current Action">
         <div class="action-rubric"><span class="eyebrow">Current Action</span><strong id="current-action-summary"></strong></div>
@@ -1448,14 +1452,20 @@ function snapshotChronicleEntry(state, type, p, actor = state.current_actor) {
     case "ResourceStockpileCommitted":
       entry.text = `(${p.kept_card_ids.map((id) => resource(id)).join(", ")})`;
       break;
+    case 'PlayerResigned': return {kind:'lifecycle',text:`${notationPlayer(p.player)}: Rsg`};
+    case 'ResignationResolved': return p.reason==='TWO_SURVIVORS' ? null : {kind:'lifecycle',text:`System: Award ${notationPlayer(p.player)}>${p.beneficiary ? notationPlayer(p.beneficiary) : `None ${p.reason==='TIMEOUT'?'Timeout':'Unanimous'}`}`};
     case "MatchCompleted":
-      return { kind: "result", text: p.reason === "LAST_KING_STANDING"
+      return { kind: "result", text: p.reason === "RESIGNATION" ? `Result: ${notationPlayer(p.winner)} wins in Year ${state.year_number} by resignation.` : p.reason === "LAST_KING_STANDING"
         ? `Result: ${notationPlayer(p.winner)} wins in Year ${state.year_number} as the last surviving King.`
         : `Result: ${notationPlayer(p.winner)} wins in Year ${state.year_number} by defeating ${notationPlayer(unit(p.defeated_king_id)?.owner)}'s King.` };
+    case 'DefeatedCourtClaimed':
+      return {player:p.victor,section:state.phase,text:`Crt ${notationPlayer(p.defeated_player)}(${(p.captured_ids??[]).map(noble).join(', ')})`,public_text:`Crt ${notationPlayer(p.defeated_player)}(${Array(p.captured_count).fill('[XX]').join(', ')})`};
+    case 'DefeatedResourcesClaimed':
+      return {player:p.victor,section:state.phase,text:`Rsc ${notationPlayer(p.defeated_player)}(${p.card_ids.map(id=>resource(id)+(state.resources_by_id[id].mandatory_spend_year===state.year_number?'!':'')).join(', ')})`};
     case "ConquestCardTaken":
-      return { kind: "extension", text: `${notationPlayer(p.victor)} takes ${notationPlayer(p.defeated_player)}'s Sovereign into Court.` };
+      return { player:p.victor,section:state.phase,text:`Con ${notationPlayer(p.defeated_player)} Card` };
     case "ConquestHoldingTaken":
-      return { kind: "extension", text: `${notationPlayer(p.victor)} takes ${notationPlayer(p.defeated_player)}'s capital as Q${p.square}.` };
+      return {player:p.victor,section:state.phase,text:`Con ${notationPlayer(p.defeated_player)} Holding`};
     case "PlayerEliminated":
       return { kind: "extension", text: `${notationPlayer(p.defeated_player)} is eliminated by ${notationPlayer(p.victor)}; resolve the four-player defeat rules.` };
     default: return null;
@@ -1615,6 +1625,7 @@ function formatV2Chronicle(state, playerNames) {
     if (entry?.section === 'SETUP') { lines.push(`${notationPlayer(entry.player)}: ${entry.text}`); continue; }
     if (event.type === 'SetupCompleted') { lines.push('Button: White'); continue; }
     if (event.type === 'PhaseStarted') section(event, p.phase);
+    if (entry?.kind === 'lifecycle') { flush(); lines.push(entry.text); continue; }
     if (entry?.kind === 'result') { flush(); lines.push('', entry.text); break; }
     if (entry?.kind === 'extension') { flush(); lines.push(`[Four-player extension: ${entry.text}]`); continue; }
     if (entry?.text && entry.section) { begin(event, entry.section, entry.player); segment.entries.push(entry.text); }
@@ -1624,6 +1635,11 @@ function formatV2Chronicle(state, playerNames) {
   }
   flush();
   return `${lines.join('\n')}\n`;
+}
+
+function formatGameRecord(record) {
+  const text=formatChronicle(record.state);
+  return record.status==='ABANDONED' ? `${text}\nStatus: Unfinished / Abandoned. No winner declared.\n` : text;
 }
 
 
@@ -2529,7 +2545,7 @@ function setPhaseNotice(state, notice) {
 
 function refreshPhaseNotice(state) {
   if (state.rules.automatic_passes) return;
-  if (state.status !== "ACTIVE" || state.phase_notice || state.pending_combat || state.pending_conquest) return;
+  if (state.status !== "ACTIVE" || state.phase_notice || state.pending_combat || state.pending_conquest || state.pending_resignation) return;
   if ([PHASE.HARVEST, PHASE.RANSOM, PHASE.STOCKPILE].includes(state.phase)) return;
   if (state.phase === PHASE.EXECUTE && survivingPlayers(state).every((player) => !state.players[player].dungeon_noble_id)) {
     setPhaseNotice(state, { code: "NO_PRISONERS", reason: "There are no prisoners in any surviving player's Dungeon." });
@@ -3142,6 +3158,12 @@ function beginFourPlayerConquest(state, {
 
   defeatUnit(state, defeatedKing, { returnToReserve: false });
   defeatedState.eliminated = true;
+  if(survivingPlayers(state).length===1) {
+    if(outcome==='ATTACKER_WIN' && attacker) attacker.square=defeatedSquare;
+    state.status='COMPLETE';state.winner=victor;state.current_actor=victor;state.victory_reason='LAST_KING_STANDING';
+    recordEvent(state,'MatchCompleted',{winner:victor,defeated_king_id:defeatedKing.unit_id,reason:state.victory_reason});
+    return;
+  }
 
   const courtShuffle = shuffleWithState(defeatedState.court_noble_ids, state.rng_state);
   state.rng_state = courtShuffle.state;
@@ -3162,6 +3184,7 @@ function beginFourPlayerConquest(state, {
   recordEvent(state, "DefeatedCourtClaimed", {
     defeated_player: defeatedPlayer,
     victor,
+    captured_ids: capturedCourtIds,
     captured_count: capturedCourtIds.length,
     returned_count: returnedCourtIds.length,
   });
@@ -3214,7 +3237,7 @@ function beginFourPlayerConquest(state, {
   }
 
   const remainingUnits = liveUnits(state, defeatedPlayer);
-  const queenUnit = remainingUnits.find((unit) => unit.unit_type === UNIT_TYPE.QUEEN) ?? null;
+  const queenUnit = remainingUnits.find((unit) => unit.unit_type === UNIT_TYPE.QUEEN && !unit.irreplaceable && (unit.piece_color ?? unit.owner) === defeatedPlayer) ?? null;
   const killedVassalIds = [];
   for (const unit of remainingUnits) {
     if (unit.vassal_noble_id) {
@@ -3235,7 +3258,7 @@ function beginFourPlayerConquest(state, {
     defeated_king_id: defeatedKing.unit_id,
     queen_unit_id: queenUnit?.unit_id ?? null,
     king_square: defeatedSquare,
-    attacker_id: attacker.unit_id,
+    attacker_id: attacker?.unit_id ?? null,
     outcome,
     resume_actor: resumeActor,
   };
@@ -3304,6 +3327,12 @@ function resolveConquest(state, command) {
     });
   }
 
+  if (pending.outcome === 'RESIGNATION') {
+    state.pending_conquest=null;
+    recordEvent(state,'ConquestResolved',{defeated_player:defeatedPlayer,victor,choice:command.choice,captured_queen_id:capturedQueenId});
+    resumeAfterResignation(state,pending.resume_actor);
+    return;
+  }
   const priorOrder = [...state.phase_actor_order];
   state.phase_actor_order = priorOrder.filter((player) => !state.players[player].eliminated);
   state.passed_players = state.passed_players.filter((player) => !state.players[player].eliminated);
@@ -3340,6 +3369,112 @@ function resolveConquest(state, command) {
   }
   if (nextActor) state.current_actor = nextActor;
   else advancePhase(state);
+}
+
+function resignationBlock(state) {
+  if (!state || state.status !== 'ACTIVE') return 'The match is not active.';
+  if (state.phase === PHASE.SETUP) return 'Finish Sovereign selection first.';
+  if (state.pending_resignation) return 'Resolve the current resignation ballot first.';
+  if (state.pending_combat || state.pending_conquest || state.active_ransom || state.harvest?.offer_ids?.length || state.harvest?.failsafe_pending)
+    return 'Resolve the compulsory decision first.';
+  return null;
+}
+
+function resumeAfterResignation(state, resumeActor) {
+  const priorOrder = [...state.phase_actor_order];
+  state.phase_actor_order = priorOrder.filter(p => !state.players[p].eliminated);
+  state.passed_players = state.passed_players.filter(p => !state.players[p].eliminated);
+  if (state.phase === PHASE.HARVEST) {
+    if(state.players[resumeActor].eliminated) returnHarvestRejects(state);
+    state.harvest.completed_draw_players = state.harvest.completed_draw_players.filter(p => !state.players[p].eliminated);
+    state.harvest.completed_poker_players = state.harvest.completed_poker_players.filter(p => !state.players[p].eliminated);
+  }
+  if (!state.players[resumeActor].eliminated) { state.current_actor = resumeActor; return; }
+  const excluded = new Set(state.phase === PHASE.HARVEST ? state.harvest.completed_poker_players : state.passed_players);
+  const start = priorOrder.indexOf(resumeActor);
+  const next = Array.from({length:priorOrder.length},(_,i)=>priorOrder[(start+i+1)%priorOrder.length])
+    .find(p=>!state.players[p].eliminated && !excluded.has(p));
+  if (next) {
+    state.current_actor = next;
+    if (state.phase === PHASE.HARVEST) initializeHarvestActor(state,next);
+  } else advancePhase(state);
+}
+
+function resignationNoSpoils(state, player) {
+  const person=state.players[player], nobles=[...person.court_noble_ids];
+  person.court_noble_ids=[];
+  for(const captor of matchPlayers(state)) {
+    const id=state.players[captor].dungeon_noble_id;
+    if(id && (captor===player || state.nobles_by_id[id].owner===player)) {
+      nobles.push(id);state.players[captor].dungeon_noble_id=null;
+    }
+  }
+  for(const unit of liveUnits(state,player)) {
+    if(unit.vassal_noble_id) nobles.push(unit.vassal_noble_id);
+    unit.vassal_noble_id=null;defeatUnit(state,unit,{returnToReserve:false});
+  }
+  returnNoblesToDeckBatch(state,nobles,'ResignedNoblesReturned',{player});
+  const decks=new Set();
+  for(const id of person.resource_hand_ids) {
+    const card=state.resources_by_id[id], deck=deckForSuit(card.suit);
+    Object.assign(card,{has_counter:false,tapped:false,mandatory_spend_year:null,poker_used_year:null,counter_sources:[],location:`${deck}_DECK`});
+    state.decks[deck].push(id);decks.add(deck);
+  }
+  person.resource_hand_ids=[];
+  for(const deck of decks) shuffleDeck(state,deck);
+  for(const suit of Object.keys(person.seasonal_pools)) person.seasonal_pools[suit]=0;
+  for(const type of Object.keys(person.reserve)) person.reserve[type]=0;
+  person.eliminated=true;delete state.stockpile_committed[player];
+}
+
+function resolveResignation(state, beneficiary, reason, at) {
+  const pending=state.pending_resignation;
+  state.pending_resignation=null;
+  recordEvent(state,'ResignationResolved',{player:pending.player,beneficiary,reason,at,deadline:pending.deadline});
+  if(beneficiary) {
+    const king=liveUnits(state,pending.player).find(u=>u.unit_type===UNIT_TYPE.KING);
+    beginFourPlayerConquest(state,{defeatedKing:king,victor:beneficiary,attacker:null,outcome:'RESIGNATION',defeatedSquare:king.square,resumeActor:pending.resume_actor});
+  } else {
+    resignationNoSpoils(state,pending.player);
+    resumeAfterResignation(state,pending.resume_actor);
+  }
+}
+
+function resign(state, command) {
+  const blocked=resignationBlock(state);
+  requireCondition(!blocked,'RESIGNATION_UNAVAILABLE',blocked);
+  requireCondition(state.players[command.player] && !state.players[command.player].eliminated,'PLAYER_ELIMINATED','Only a surviving player may resign');
+  requireCondition(command.confirmed===true,'CONFIRM_REQUIRED','Confirm resignation');
+  requireCondition(Number.isFinite(Date.parse(command.at)),'INVALID_TIME','An authoritative resignation time is required');
+  state.phase_notice=null;
+  const survivors=survivingPlayers(state).filter(p=>p!==command.player);
+  recordEvent(state,'PlayerResigned',{player:command.player,at:command.at});
+  if(survivors.length===1) {
+    defeatUnit(state,liveUnits(state,command.player).find(u=>u.unit_type===UNIT_TYPE.KING),{returnToReserve:false});
+    state.players[command.player].eliminated=true;
+    state.status='COMPLETE';state.winner=survivors[0];state.current_actor=survivors[0];state.victory_reason='RESIGNATION';
+    recordEvent(state,'MatchCompleted',{winner:survivors[0],reason:'RESIGNATION',resigned_player:command.player});
+    return;
+  }
+  state.pending_resignation={player:command.player,survivors,votes:{},started_at:command.at,
+    deadline:new Date(Date.parse(command.at)+86400000).toISOString(),resume_actor:state.current_actor};
+  if(survivors.length===2) resolveResignation(state,null,'TWO_SURVIVORS',command.at);
+}
+
+function resignationVote(state,command) {
+  const pending=state.pending_resignation;
+  requireCondition(pending,'NO_BALLOT','No resignation ballot is pending');
+  requireCondition(pending.survivors.includes(command.player),'NOT_VOTER','Only the three survivors may vote');
+  requireCondition(Date.parse(command.at)<Date.parse(pending.deadline),'BALLOT_EXPIRED','The ballot deadline has passed');
+  requireCondition(command.choice==='NONE' || pending.survivors.includes(command.choice),'INVALID_VOTE','Choose a survivor or No spoils');
+  pending.votes[command.player]=command.choice;
+  recordEvent(state,'ResignationVoteCast',{player:command.player,choice:command.choice,at:command.at,deadline:pending.deadline});
+  if(pending.survivors.every(p=>pending.votes[p]===command.choice)) resolveResignation(state,command.choice==='NONE'?null:command.choice,'UNANIMOUS',command.at);
+}
+
+function expireResignation(state,command) {
+  requireCondition(state.pending_resignation && Date.parse(command.at)>=Date.parse(state.pending_resignation.deadline),'BALLOT_NOT_DUE','The ballot has not expired');
+  resolveResignation(state,null,'TIMEOUT',command.at);
 }
 
 function laySiege(state, command) {
@@ -3624,7 +3759,7 @@ function settleAutomaticPhases(state) {
   if (!state.rules.automatic_passes) return;
   state.phase_notice = null;
   for (let step = 0; step < 256 && state.status === "ACTIVE"; step++) {
-    if (state.pending_combat || state.pending_conquest) return;
+    if (state.pending_combat || state.pending_conquest || state.pending_resignation) return;
     const player = state.current_actor;
     if (state.rules.explicit_action_pass && state.v2_acted?.[opportunityKey(state)]) return;
     if (state.phase === PHASE.HARVEST) {
@@ -3716,6 +3851,9 @@ const HANDLERS = Object.freeze({
   LAY_SIEGE: laySiege,
   CHOOSE_QUARTER: chooseQuarter,
   CHOOSE_CONQUEST: resolveConquest,
+  RESIGN: resign,
+  RESIGNATION_VOTE: resignationVote,
+  EXPIRE_RESIGNATION: expireResignation,
   VASSALIZE_NOBLE: vassalizeNoble,
   EXECUTE_HOSTAGE: executeHostage,
   ACKNOWLEDGE_PHASE_NOTICE: acknowledgePhaseNotice,
@@ -3730,8 +3868,10 @@ function dispatch(state, command) {
   try {
     requireCondition(command && typeof command.type === "string", "INVALID_COMMAND", "Command type is required");
     requireCondition(!(working.status === "COMPLETE" && !["NEW_MATCH", "APPLY_V15_USABILITY"].includes(command.type)), "MATCH_COMPLETE", "No commands are accepted after victory");
+    if (working.pending_resignation && !['RESIGNATION_VOTE','EXPIRE_RESIGNATION'].includes(command.type)) fail('NEGOTIATION_PENDING','Play is paused for the resignation ballot');
+    const lifecycle=['RESIGN','RESIGNATION_VOTE','EXPIRE_RESIGNATION'].includes(command.type);
     const planning = command.type === "SET_STOCKPILE_INSTRUCTIONS";
-    if (working.phase_notice && !planning && !["ACKNOWLEDGE_PHASE_NOTICE", "APPLY_V15_USABILITY"].includes(command.type)) {
+    if (working.phase_notice && !planning && !lifecycle && !["ACKNOWLEDGE_PHASE_NOTICE", "APPLY_V15_USABILITY"].includes(command.type)) {
       fail("PHASE_NOTICE_PENDING", "Acknowledge the unavailable phase before taking another action");
     }
     if (working.pending_combat && !planning && !["CHOOSE_QUARTER", "APPLY_V15_USABILITY"].includes(command.type)) {
@@ -3904,6 +4044,12 @@ function projectForPlayer(state, viewer, { revealComplete = state.status === "CO
           player_count: event.payload.player_count ?? matchPlayers(state).length,
         },
       };
+    }
+    if (event.type === 'ResignedNoblesReturned' && !revealComplete) return {...event,payload:{player:event.payload.player,returned_count:event.payload.noble_ids.length}};
+    if (event.type === 'DefeatedCourtClaimed' && event.payload.victor !== viewer && !revealComplete) {
+      const {captured_ids,...payload}=event.payload;
+      if(payload.chronicle) payload.chronicle={...payload.chronicle,text:payload.chronicle.public_text};
+      return {...event,payload};
     }
     if (event.type === "DefeatedCourtDispersed" && event.payload.defeated_player !== viewer && !revealComplete) {
       return { ...event, payload: { defeated_player: event.payload.defeated_player,
@@ -4494,6 +4640,7 @@ function activePlayer() {
 
 function onlinePlayerCanAct() {
   if (!onlinePayload) return true;
+  if (onlinePayload.room.status !== "ACTIVE") return false;
   return onlinePayload.viewer.role === "PLAYER"
     && onlinePayload.viewer.is_your_turn
     && !onlinePayload.viewer.waiting_for_pass;
@@ -4995,6 +5142,19 @@ function resourceCheckbox(card, mode, owner = null) {
 }
 
 function renderActionControls() {
+  if (onlinePayload && ['COMPLETE','ABANDONED'].includes(onlinePayload.room.status)) {
+    const complete=onlinePayload.room.status==='COMPLETE';
+    dom.actionControls.innerHTML=`<p class="eyebrow">Read-only record</p><h2>${complete ? `${playerName(state.winner)} wins` : 'Unfinished · Abandoned'}</h2><p>${complete ? state.victory_reason==='RESIGNATION' ? 'The opponent resigned.' : 'The final King was defeated.' : 'This game was closed without a winner. Pending decisions are preserved.'}</p><p>${onlinePayload.viewer.role==='PLAYER' ? 'Your complete private record is shown below the online controls. Text and JSON exports remain available.' : 'You are viewing the public record.'}</p>`;
+    return;
+  }
+  if (state.pending_resignation) {
+    const ballot=state.pending_resignation, viewer=onlinePayload?.viewer.seat;
+    const canVote=onlinePayload?.viewer.role==='PLAYER' && ballot.survivors.includes(viewer);
+    dom.actionControls.innerHTML=`<p class="eyebrow">Play paused</p><h2>${playerName(ballot.player)} resigned</h2><p>All three survivors must agree on one beneficiary, or No spoils. Votes are public and may be changed until resolution.</p><p>Deadline: ${escapeHtml(new Date(ballot.deadline).toLocaleString())}. Without unanimity by that time, no spoils are awarded.</p><ul>${ballot.survivors.map(p=>`<li>${playerName(p)}: ${ballot.votes[p] ? ballot.votes[p]==='NONE' ? 'No spoils' : playerName(ballot.votes[p]) : 'Not yet voted'}</li>`).join('')}</ul>${canVote ? `<div class="choice-grid">${[...ballot.survivors,'NONE'].map(choice=>`<button class="button" data-resignation-vote="${choice}" aria-pressed="${ballot.votes[viewer]===choice}">${choice==='NONE'?'No spoils':playerName(choice)}</button>`).join('')}</div>` : '<p>Waiting for the three survivors.</p>'}`;
+    dom.actionControls.querySelectorAll('[data-resignation-vote]').forEach(button=>button.onclick=()=>onlineLifecycle('vote',{choice:button.dataset.resignationVote}));
+    return;
+  }
+
   if (boardCandidate) {
     const siege = boardCandidate.command.type === 'LAY_SIEGE';
     dom.actionControls.innerHTML = `<p class="eyebrow">Selected action · ${playerName(state.current_actor)}</p><h2>${escapeHtml(boardCandidate.label)}</h2><p>Cost ${boardCandidate.cost} ${SUIT_GLYPH[ACTIVE_SUIT_BY_PHASE[state.phase]]}. ${fundingDescription(boardCandidate.cost)}.</p>${siege ? '<p>Confirming rolls Combat dice and resolves the battle. This cannot be undone.</p>' : ''}<div class="choice-grid"><button id="commit-board-action" class="button primary" ${hasPool(boardCandidate.cost) ? '' : 'disabled'}>${siege ? 'Confirm Siege' : 'Commit action'}</button><button id="cancel-board-action" class="button">Cancel</button><button id="inspect-selected-unit" class="button">Inspect selected piece</button></div>`;
@@ -5692,6 +5852,20 @@ function renderOnlineChrome() {
     : "<strong>Spectator view</strong>";
   dom.onlineStripText.innerHTML = `<strong>${escapeHtml(room.name ?? 'BrezelPesk')}</strong> · Room <strong>${room.code}</strong> · ${identity} · ${room.spectator_count} spectator${room.spectator_count === 1 ? "" : "s"}${onlineClient.token && viewer.role !== 'PLAYER' ? ' · This browser no longer controls the seat. Use Recover seat to take control again.' : ''}`;
   for (const id of ['rename-online-game', 'lobby-rename-game']) document.querySelector(`#${id}`).hidden = !viewer.is_host || !['LOBBY', 'ACTIVE'].includes(room.status);
+  const terminal=onlinePayload.terminal_record;
+  document.querySelector('#terminal-record').hidden=!terminal;
+  if(terminal) {
+    document.querySelector('#terminal-record-status').textContent=`${room.status==='ABANDONED'?'Unfinished / Abandoned':'Completed'} · Read-only access until ${new Date(Date.parse(terminal.ended_at)+30*86400000).toLocaleString()}`;
+    document.querySelector('#terminal-record-text').textContent=formatGameRecord(terminal);
+    document.querySelector('#terminal-record-json').textContent=JSON.stringify(terminal,null,2);
+  } else {
+    document.querySelector('#terminal-record-text').textContent='';
+    document.querySelector('#terminal-record-json').textContent='';
+  }
+  const resign=document.querySelector('#resign-online');
+  resign.hidden=viewer.role!=='PLAYER' || room.status!=='ACTIVE' || state.players[viewer.seat]?.eliminated || state.pending_resignation?.player===viewer.seat;
+  resign.disabled=!viewer.can_resign;resign.title=viewer.resignation_block ?? 'Resign permanently';
+  document.querySelector('#abandon-online').hidden=!viewer.is_host || room.status!=='ACTIVE';
   dom.onlineStrip.hidden = false;
   if (room.status === "LOBBY") renderOnlineLobby();
   else dom.onlineLobby.hidden = true;
@@ -5731,6 +5905,18 @@ function renderOnlineLobby() {
     const participantId = button.dataset.assignParticipant;
     lobbyAction('assign', {participantId, seat:document.querySelector(`[data-seat-for="${participantId}"]`).value});
   }; });
+}
+
+async function onlineLifecycle(action,body={}) {
+  if(!onlineClient || onlineRequestPending) return;
+  if(['resign','abandon'].includes(action)) {
+    if(!window.confirm(action==='resign'?'Resign permanently? This cannot be undone.':'Close this game as Unfinished / Abandoned, without a winner? This cannot be undone.')) return;
+    body.confirmed=true;
+  }
+  const client=onlineClient;onlineRequestPending=true;
+  try { const payload=await client.mutate(action,body);if(onlineClient===client) applyOnlinePayload(payload,{force:true,resetSelection:true}); }
+  catch(error){showToast(error.message);}
+  finally{onlineRequestPending=false;}
 }
 
 async function lobbyAction(action, body = {}) {
@@ -5880,6 +6066,9 @@ function leaveOnlineMode({ updateLocation = true, restoreLocal = false } = {}) {
   onlinePollTimer = null;
   onlineClient = null;
   onlinePayload = null;
+  document.querySelector('#terminal-record').hidden=true;
+  document.querySelector('#terminal-record-text').textContent='';
+  document.querySelector('#terminal-record-json').textContent='';
   dismissedOnlineNotice = null;
   dom.onlineStrip.hidden = true;
   dom.onlineLobby.hidden = true;
@@ -5963,6 +6152,8 @@ document.querySelector("#open-online-room").addEventListener("click", () => ente
 dom.onlineCreateCount.addEventListener("change", updateOnlineCreateSeats);
  document.querySelector('#online-create-mode').addEventListener('change', updateOnlineCreateSeats);
  onClick('join-online-participant', () => joinOnlineSeat(null));
+ onClick('resign-online',()=>onlineLifecycle('resign'));
+ onClick('abandon-online',()=>onlineLifecycle('abandon'));
  onClick('lobby-leave-seat', () => lobbyAction('leave'));
  onClick('lobby-cancel-room', () => lobbyAction('cancel'));
 dom.onlineRoomCode.addEventListener("input", () => { dom.onlineRoomCode.value = dom.onlineRoomCode.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
@@ -6046,7 +6237,7 @@ dom.importFile.addEventListener("change", async () => {
 });
 document.querySelector("#copy-log").addEventListener("click", async () => {
   try {
-    await navigator.clipboard.writeText(onlineClient ? formatChronicle((await onlineClient.export()).state) : visibleChronicle());
+    await navigator.clipboard.writeText(onlineClient ? formatGameRecord(await onlineClient.export()) : visibleChronicle());
     showToast("Standard chronicle copied.", true);
   } catch {
     showToast("Clipboard access is unavailable in this browser.");
@@ -6054,7 +6245,7 @@ document.querySelector("#copy-log").addEventListener("click", async () => {
 });
 document.querySelector("#download-log").addEventListener("click", async () => {
   let text;
-  try { text = onlineClient ? formatChronicle((await onlineClient.export()).state) : visibleChronicle(); }
+  try { text = onlineClient ? formatGameRecord(await onlineClient.export()) : visibleChronicle(); }
   catch (error) { return showToast(error.message); }
   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);

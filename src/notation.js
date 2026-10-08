@@ -86,14 +86,20 @@ export function snapshotChronicleEntry(state, type, p, actor = state.current_act
     case "ResourceStockpileCommitted":
       entry.text = `(${p.kept_card_ids.map((id) => resource(id)).join(", ")})`;
       break;
+    case 'PlayerResigned': return {kind:'lifecycle',text:`${notationPlayer(p.player)}: Rsg`};
+    case 'ResignationResolved': return p.reason==='TWO_SURVIVORS' ? null : {kind:'lifecycle',text:`System: Award ${notationPlayer(p.player)}>${p.beneficiary ? notationPlayer(p.beneficiary) : `None ${p.reason==='TIMEOUT'?'Timeout':'Unanimous'}`}`};
     case "MatchCompleted":
-      return { kind: "result", text: p.reason === "LAST_KING_STANDING"
+      return { kind: "result", text: p.reason === "RESIGNATION" ? `Result: ${notationPlayer(p.winner)} wins in Year ${state.year_number} by resignation.` : p.reason === "LAST_KING_STANDING"
         ? `Result: ${notationPlayer(p.winner)} wins in Year ${state.year_number} as the last surviving King.`
         : `Result: ${notationPlayer(p.winner)} wins in Year ${state.year_number} by defeating ${notationPlayer(unit(p.defeated_king_id)?.owner)}'s King.` };
+    case 'DefeatedCourtClaimed':
+      return {player:p.victor,section:state.phase,text:`Crt ${notationPlayer(p.defeated_player)}(${(p.captured_ids??[]).map(noble).join(', ')})`,public_text:`Crt ${notationPlayer(p.defeated_player)}(${Array(p.captured_count).fill('[XX]').join(', ')})`};
+    case 'DefeatedResourcesClaimed':
+      return {player:p.victor,section:state.phase,text:`Rsc ${notationPlayer(p.defeated_player)}(${p.card_ids.map(id=>resource(id)+(state.resources_by_id[id].mandatory_spend_year===state.year_number?'!':'')).join(', ')})`};
     case "ConquestCardTaken":
-      return { kind: "extension", text: `${notationPlayer(p.victor)} takes ${notationPlayer(p.defeated_player)}'s Sovereign into Court.` };
+      return { player:p.victor,section:state.phase,text:`Con ${notationPlayer(p.defeated_player)} Card` };
     case "ConquestHoldingTaken":
-      return { kind: "extension", text: `${notationPlayer(p.victor)} takes ${notationPlayer(p.defeated_player)}'s capital as Q${p.square}.` };
+      return {player:p.victor,section:state.phase,text:`Con ${notationPlayer(p.defeated_player)} Holding`};
     case "PlayerEliminated":
       return { kind: "extension", text: `${notationPlayer(p.defeated_player)} is eliminated by ${notationPlayer(p.victor)}; resolve the four-player defeat rules.` };
     default: return null;
@@ -253,6 +259,7 @@ function formatV2Chronicle(state, playerNames) {
     if (entry?.section === 'SETUP') { lines.push(`${notationPlayer(entry.player)}: ${entry.text}`); continue; }
     if (event.type === 'SetupCompleted') { lines.push('Button: White'); continue; }
     if (event.type === 'PhaseStarted') section(event, p.phase);
+    if (entry?.kind === 'lifecycle') { flush(); lines.push(entry.text); continue; }
     if (entry?.kind === 'result') { flush(); lines.push('', entry.text); break; }
     if (entry?.kind === 'extension') { flush(); lines.push(`[Four-player extension: ${entry.text}]`); continue; }
     if (entry?.text && entry.section) { begin(event, entry.section, entry.player); segment.entries.push(entry.text); }
@@ -262,4 +269,9 @@ function formatV2Chronicle(state, playerNames) {
   }
   flush();
   return `${lines.join('\n')}\n`;
+}
+
+export function formatGameRecord(record) {
+  const text=formatChronicle(record.state);
+  return record.status==='ABANDONED' ? `${text}\nStatus: Unfinished / Abandoned. No winner declared.\n` : text;
 }

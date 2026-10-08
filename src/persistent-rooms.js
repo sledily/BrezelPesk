@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { RoomStore, RoomError, tokenHash, identifySeat, cloneForStorage } from './rooms.js';
-import { formatChronicle } from './notation.js';
+import { formatGameRecord } from './notation.js';
 import { validateInvariants } from './rules.js';
 
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -59,6 +59,7 @@ export class PersistentRooms {
   }
   async view(code, token, spectatorId) {
     code = codeOf(code);
+    await this.reconcileDeadline(code);
     let data;
     if (this.storage.snapshot) {
       const cached = this.cache.get(code);
@@ -74,6 +75,7 @@ export class PersistentRooms {
   async summary(code, token) {
     // Listing remembered games must not announce presence or fetch private game
     // contents into the browser merely to render a link.
+    await this.reconcileDeadline(codeOf(code));
     const data = await this.storage.read(codeOf(code));
     if (!data) fail('ROOM_NOT_FOUND', 'No online room has that code', 404);
     const view = this.reducer(data).view(data.room.code, token);
@@ -94,6 +96,7 @@ export class PersistentRooms {
     const receiptId = hash([tokenHash(principal), id]);
     const fingerprint = hash([action, code, body]);
     code = action === 'create' ? makeCode([credentials.token, id]) : codeOf(code);
+    if(action !== 'create') await this.reconcileDeadline(code);
     try {
       const result = await this.storage.transact(code, async stored => {
         let data = stored ? structuredClone(stored) : null;
@@ -104,6 +107,10 @@ export class PersistentRooms {
         if (old && old.fingerprint === fingerprint && ['leave', 'cancel'].includes(action)) return { result: { code, [action === 'leave' ? 'left' : 'cancelled']: true } };
         if (data?.room.status === 'CANCELLED') fail('ROOM_CANCELLED', 'This unstarted room was cancelled', 410);
         const core = this.reducer(data);
+        if(data && core.expireBallot(code)) {
+          data.room=cloneForStorage(core.get(code));
+          return {write:data,result:{deadline_reconciled:true}};
+        }
         // Revalidate current control BEFORE replaying an earlier receipt.
         if (data && !['create','join','recover'].includes(action) && !identifySeat(data.room, token)) {
           fail('SESSION_REPLACED', 'This seat is controlled by another session. Recover it to take control.', 403);
@@ -136,6 +143,7 @@ export class PersistentRooms {
             room.status = 'ABANDONED'; room.ended_at = this.now().toISOString(); room.revision += 1;
           }
           else if (['assign','remove','leave','cancel'].includes(action)) core.lobby(code, token, action, body);
+          else if (['resign','vote'].includes(action)) core.lifecycle(code,token,action,body);
           else if (action === 'rename') core.rename(code, token, body);
           else if (['start','undo','pass'].includes(action)) core[action](code, token);
           else fail('UNKNOWN_ACTION', 'Unknown room action', 404);
@@ -163,6 +171,7 @@ export class PersistentRooms {
       });
       this.paused = false;
       this.cache.delete(code);
+      if(result.deadline_reconciled) return this.mutate(action,code,token,body,id);
       if ((result.view ?? result).viewer) (result.view ?? result).viewer.saving_paused = false;
       return result;
     } catch (error) {
@@ -171,7 +180,38 @@ export class PersistentRooms {
       throw new RoomError('SAVE_UNAVAILABLE', 'Saving is unavailable. The request may have been saved; retry the same request after reconnecting.', 503);
     }
   }
+  async reconcileDeadline(code) {
+    const snapshot=await this.storage.read(code);
+    const ballot=snapshot?.room.committed_state?.pending_resignation;
+    if(snapshot?.room.status!=='ACTIVE' || !ballot || this.now().getTime()<Date.parse(ballot.deadline)) return;
+    try {
+      await this.storage.transact(code,async current=>{
+        if(!current) return {result:null};
+        const core=this.reducer(current);
+        if(!core.expireBallot(code)) return {result:null};
+        const next=structuredClone(current);next.room=cloneForStorage(core.get(code));
+        return {write:next,result:null};
+      });
+      this.cache.delete(code);this.paused=false;
+    } catch(error) {
+      this.paused=true;
+      if(error instanceof RoomError) throw error;
+      fail('SAVE_UNAVAILABLE','The deadline result could not be saved. Reconnect to retry safely.',503);
+    }
+  }
+  async processDeadlines() {
+    let pending=false;
+    for(const {code} of await this.storage.inventory()) {
+      try {
+        await this.reconcileDeadline(code);
+        const data=await this.storage.read(code);
+        if(data?.room.status==='ACTIVE' && data.room.committed_state?.pending_resignation) pending=true;
+      } catch {pending=true;}
+    }
+    return pending;
+  }
   async export(code, token) {
+    await this.reconcileDeadline(codeOf(code));
     const data = await this.storage.read(codeOf(code));
     if (!data) fail('ROOM_NOT_FOUND','No online room has that code',404);
     if (!identifySeat(data.room, token)) fail('PARTICIPANT_REQUIRED','An authenticated participant is required',403);
@@ -223,7 +263,7 @@ export class PersistentRooms {
           if (archive.next_attempt > this.now().getTime()) { pending = true; return { result: null }; }
           const next = structuredClone(current);
           try {
-            next.archive.text = formatChronicle(archive.record.state);
+            next.archive.text = formatGameRecord(archive.record);
             next.archive.status = 'ready';
             next.archive.completed_at = this.now().toISOString();
           } catch {

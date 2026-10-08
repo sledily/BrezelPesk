@@ -101,6 +101,26 @@ test("the HTTP server exposes room creation, joining, spectator views, and stati
   assert.equal((await fetch(recoverPath,{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json','X-Admin-CSRF':csrf},body:JSON.stringify(adminBody)})).status,200);
   const revoked=await fetch(origin+`/api/rooms/${created.code}`,{headers:{Authorization:`Bearer ${created.token}`}}).then(r=>r.json());
   assert.equal(revoked.viewer.role,'SPECTATOR');
+  let sequence=100;
+  const action=async(kind,token,body={})=>{
+    const current=await fetch(origin+`/api/rooms/${created.code}`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json());
+    const reply=await fetch(origin+`/api/rooms/${created.code}/${kind}`,{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,'Idempotency-Key':String(sequence++).padStart(32,'0')},
+      body:JSON.stringify({...body,expectedRevision:current.viewer.private_revision})});
+    const payload=await reply.json();assert.equal(reply.status,200,JSON.stringify(payload));return payload;
+  };
+  const black=await action('join','g'.repeat(48),{playerName:'Black',seat:'BLACK',credentials:{token:'h'.repeat(48),recoveryCode:'i'.repeat(48)}});
+  await action('start',adminBody.token);
+  await action('command',black.token,{command:{type:'CHOOSE_SOVEREIGN',noble_id:'NC-K-S'}});
+  let playing=await action('command',adminBody.token,{command:{type:'CHOOSE_SOVEREIGN',noble_id:'NC-K-H'}});
+  if(playing.game.harvest?.failsafe_pending) playing=await action('command',adminBody.token,{command:{type:'RESOLVE_HARVEST_FAILSAFE',use_failsafe:false}});
+  // A compulsory response can remain private until its normal publication boundary.
+  if(!playing.viewer.can_resign) await action('pass',adminBody.token);
+  const ended=await action('resign',black.token,{confirmed:true});
+  assert.equal(ended.room.status,'COMPLETE');assert.equal(ended.terminal_record.state.winner,'WHITE');
+  const publicEnd=await fetch(origin+`/api/rooms/${created.code}`).then(r=>r.json());
+  assert.equal(publicEnd.terminal_record,null);
+  assert.equal((await fetch(origin+`/api/rooms/${created.code}/export`)).status,403);
   const lobbyResponse=await fetch(origin+'/api/rooms',{
     method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':'l'.repeat(32)},
     body:JSON.stringify({playerCount:2,playerName:'Random host',seatingMode:'RANDOM',credentials:{token:'1'.repeat(48),recoveryCode:'2'.repeat(48)}}),

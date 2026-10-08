@@ -37,10 +37,14 @@
         <div class="online-strip-actions">
           <button id="copy-recovery-code" class="button tiny">Copy recovery code</button>
           <button id="rename-online-game" class="button tiny" hidden>Rename game</button>
+          <button id="resign-online" class="button tiny" hidden>Resign</button>
+          <button id="abandon-online" class="button tiny" hidden>Close as abandoned</button>
           <button id="copy-room-link" class="button tiny">Copy spectator link</button>
           <button id="leave-online" class="button tiny quiet">Return to local game</button>
         </div>
       </section>
+
+      <section id="terminal-record" class="panel" hidden><h2>Complete game record</h2><p id="terminal-record-status"></p><pre id="terminal-record-text" class="chronicle-text" tabindex="0"></pre><details><summary>Full structured record</summary><pre id="terminal-record-json" class="chronicle-text" tabindex="0"></pre></details></section>
 
       <section class="current-action" aria-label="Current Action">
         <div class="action-rubric"><span class="eyebrow">Current Action</span><strong id="current-action-summary"></strong></div>

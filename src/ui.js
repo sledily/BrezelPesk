@@ -25,7 +25,7 @@ import {
 import { actionCostDescription, harvestCardDetails, formatNoble, formatResource, formatUnit, title } from "./format.js";
 import { pieceIcon, nobleCardHtml, harvestListHtml, HARVEST_COORDINATE_GUIDE } from "./presentation.js";
 import { calendarHtml, constantsHtml, tabletopRegionsHtml, unitInspectionHtml, nobleInspectionHtml } from "./tabletop.js";
-import { formatChronicle } from "./notation.js";
+import { formatChronicle, formatGameRecord } from "./notation.js";
 import { deserializeMatch, loadFromBrowser, saveToBrowser, serializeMatch } from "./persistence.js";
 import { matchPlayers } from "./model.js";
 import { OnlineClient, onlineShareUrl, roomCodeFromLocation } from "./online.js";
@@ -140,6 +140,7 @@ function activePlayer() {
 
 function onlinePlayerCanAct() {
   if (!onlinePayload) return true;
+  if (onlinePayload.room.status !== "ACTIVE") return false;
   return onlinePayload.viewer.role === "PLAYER"
     && onlinePayload.viewer.is_your_turn
     && !onlinePayload.viewer.waiting_for_pass;
@@ -641,6 +642,19 @@ function resourceCheckbox(card, mode, owner = null) {
 }
 
 function renderActionControls() {
+  if (onlinePayload && ['COMPLETE','ABANDONED'].includes(onlinePayload.room.status)) {
+    const complete=onlinePayload.room.status==='COMPLETE';
+    dom.actionControls.innerHTML=`<p class="eyebrow">Read-only record</p><h2>${complete ? `${playerName(state.winner)} wins` : 'Unfinished · Abandoned'}</h2><p>${complete ? state.victory_reason==='RESIGNATION' ? 'The opponent resigned.' : 'The final King was defeated.' : 'This game was closed without a winner. Pending decisions are preserved.'}</p><p>${onlinePayload.viewer.role==='PLAYER' ? 'Your complete private record is shown below the online controls. Text and JSON exports remain available.' : 'You are viewing the public record.'}</p>`;
+    return;
+  }
+  if (state.pending_resignation) {
+    const ballot=state.pending_resignation, viewer=onlinePayload?.viewer.seat;
+    const canVote=onlinePayload?.viewer.role==='PLAYER' && ballot.survivors.includes(viewer);
+    dom.actionControls.innerHTML=`<p class="eyebrow">Play paused</p><h2>${playerName(ballot.player)} resigned</h2><p>All three survivors must agree on one beneficiary, or No spoils. Votes are public and may be changed until resolution.</p><p>Deadline: ${escapeHtml(new Date(ballot.deadline).toLocaleString())}. Without unanimity by that time, no spoils are awarded.</p><ul>${ballot.survivors.map(p=>`<li>${playerName(p)}: ${ballot.votes[p] ? ballot.votes[p]==='NONE' ? 'No spoils' : playerName(ballot.votes[p]) : 'Not yet voted'}</li>`).join('')}</ul>${canVote ? `<div class="choice-grid">${[...ballot.survivors,'NONE'].map(choice=>`<button class="button" data-resignation-vote="${choice}" aria-pressed="${ballot.votes[viewer]===choice}">${choice==='NONE'?'No spoils':playerName(choice)}</button>`).join('')}</div>` : '<p>Waiting for the three survivors.</p>'}`;
+    dom.actionControls.querySelectorAll('[data-resignation-vote]').forEach(button=>button.onclick=()=>onlineLifecycle('vote',{choice:button.dataset.resignationVote}));
+    return;
+  }
+
   if (boardCandidate) {
     const siege = boardCandidate.command.type === 'LAY_SIEGE';
     dom.actionControls.innerHTML = `<p class="eyebrow">Selected action · ${playerName(state.current_actor)}</p><h2>${escapeHtml(boardCandidate.label)}</h2><p>Cost ${boardCandidate.cost} ${SUIT_GLYPH[ACTIVE_SUIT_BY_PHASE[state.phase]]}. ${fundingDescription(boardCandidate.cost)}.</p>${siege ? '<p>Confirming rolls Combat dice and resolves the battle. This cannot be undone.</p>' : ''}<div class="choice-grid"><button id="commit-board-action" class="button primary" ${hasPool(boardCandidate.cost) ? '' : 'disabled'}>${siege ? 'Confirm Siege' : 'Commit action'}</button><button id="cancel-board-action" class="button">Cancel</button><button id="inspect-selected-unit" class="button">Inspect selected piece</button></div>`;
@@ -1338,6 +1352,20 @@ function renderOnlineChrome() {
     : "<strong>Spectator view</strong>";
   dom.onlineStripText.innerHTML = `<strong>${escapeHtml(room.name ?? 'BrezelPesk')}</strong> · Room <strong>${room.code}</strong> · ${identity} · ${room.spectator_count} spectator${room.spectator_count === 1 ? "" : "s"}${onlineClient.token && viewer.role !== 'PLAYER' ? ' · This browser no longer controls the seat. Use Recover seat to take control again.' : ''}`;
   for (const id of ['rename-online-game', 'lobby-rename-game']) document.querySelector(`#${id}`).hidden = !viewer.is_host || !['LOBBY', 'ACTIVE'].includes(room.status);
+  const terminal=onlinePayload.terminal_record;
+  document.querySelector('#terminal-record').hidden=!terminal;
+  if(terminal) {
+    document.querySelector('#terminal-record-status').textContent=`${room.status==='ABANDONED'?'Unfinished / Abandoned':'Completed'} · Read-only access until ${new Date(Date.parse(terminal.ended_at)+30*86400000).toLocaleString()}`;
+    document.querySelector('#terminal-record-text').textContent=formatGameRecord(terminal);
+    document.querySelector('#terminal-record-json').textContent=JSON.stringify(terminal,null,2);
+  } else {
+    document.querySelector('#terminal-record-text').textContent='';
+    document.querySelector('#terminal-record-json').textContent='';
+  }
+  const resign=document.querySelector('#resign-online');
+  resign.hidden=viewer.role!=='PLAYER' || room.status!=='ACTIVE' || state.players[viewer.seat]?.eliminated || state.pending_resignation?.player===viewer.seat;
+  resign.disabled=!viewer.can_resign;resign.title=viewer.resignation_block ?? 'Resign permanently';
+  document.querySelector('#abandon-online').hidden=!viewer.is_host || room.status!=='ACTIVE';
   dom.onlineStrip.hidden = false;
   if (room.status === "LOBBY") renderOnlineLobby();
   else dom.onlineLobby.hidden = true;
@@ -1377,6 +1405,18 @@ function renderOnlineLobby() {
     const participantId = button.dataset.assignParticipant;
     lobbyAction('assign', {participantId, seat:document.querySelector(`[data-seat-for="${participantId}"]`).value});
   }; });
+}
+
+async function onlineLifecycle(action,body={}) {
+  if(!onlineClient || onlineRequestPending) return;
+  if(['resign','abandon'].includes(action)) {
+    if(!window.confirm(action==='resign'?'Resign permanently? This cannot be undone.':'Close this game as Unfinished / Abandoned, without a winner? This cannot be undone.')) return;
+    body.confirmed=true;
+  }
+  const client=onlineClient;onlineRequestPending=true;
+  try { const payload=await client.mutate(action,body);if(onlineClient===client) applyOnlinePayload(payload,{force:true,resetSelection:true}); }
+  catch(error){showToast(error.message);}
+  finally{onlineRequestPending=false;}
 }
 
 async function lobbyAction(action, body = {}) {
@@ -1526,6 +1566,9 @@ function leaveOnlineMode({ updateLocation = true, restoreLocal = false } = {}) {
   onlinePollTimer = null;
   onlineClient = null;
   onlinePayload = null;
+  document.querySelector('#terminal-record').hidden=true;
+  document.querySelector('#terminal-record-text').textContent='';
+  document.querySelector('#terminal-record-json').textContent='';
   dismissedOnlineNotice = null;
   dom.onlineStrip.hidden = true;
   dom.onlineLobby.hidden = true;
@@ -1609,6 +1652,8 @@ document.querySelector("#open-online-room").addEventListener("click", () => ente
 dom.onlineCreateCount.addEventListener("change", updateOnlineCreateSeats);
  document.querySelector('#online-create-mode').addEventListener('change', updateOnlineCreateSeats);
  onClick('join-online-participant', () => joinOnlineSeat(null));
+ onClick('resign-online',()=>onlineLifecycle('resign'));
+ onClick('abandon-online',()=>onlineLifecycle('abandon'));
  onClick('lobby-leave-seat', () => lobbyAction('leave'));
  onClick('lobby-cancel-room', () => lobbyAction('cancel'));
 dom.onlineRoomCode.addEventListener("input", () => { dom.onlineRoomCode.value = dom.onlineRoomCode.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
@@ -1692,7 +1737,7 @@ dom.importFile.addEventListener("change", async () => {
 });
 document.querySelector("#copy-log").addEventListener("click", async () => {
   try {
-    await navigator.clipboard.writeText(onlineClient ? formatChronicle((await onlineClient.export()).state) : visibleChronicle());
+    await navigator.clipboard.writeText(onlineClient ? formatGameRecord(await onlineClient.export()) : visibleChronicle());
     showToast("Standard chronicle copied.", true);
   } catch {
     showToast("Clipboard access is unavailable in this browser.");
@@ -1700,7 +1745,7 @@ document.querySelector("#copy-log").addEventListener("click", async () => {
 });
 document.querySelector("#download-log").addEventListener("click", async () => {
   let text;
-  try { text = onlineClient ? formatChronicle((await onlineClient.export()).state) : visibleChronicle(); }
+  try { text = onlineClient ? formatGameRecord(await onlineClient.export()) : visibleChronicle(); }
   catch (error) { return showToast(error.message); }
   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);

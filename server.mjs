@@ -19,7 +19,7 @@ const publicFiles = new Set(['index.html','Dendarv_Play.html','src/styles.css',
 const types = { '.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8' };
 const bearer = request => (request.headers.authorization ?? '').startsWith('Bearer ') ? request.headers.authorization.slice(7) : null;
 const security = { 'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer' };
-function json(response,status,body,headers={}) { response.writeHead(status,{'Content-Type':'application/json; charset=utf-8',...security,...headers}); response.end(JSON.stringify(body)); if (['COMPLETE','ABANDONED'].includes((body?.view ?? body)?.room?.status)) wakeArchives(); }
+function json(response,status,body,headers={}) { response.writeHead(status,{'Content-Type':'application/json; charset=utf-8',...security,...headers}); response.end(JSON.stringify(body)); if (['COMPLETE','ABANDONED'].includes((body?.view ?? body)?.room?.status) || (body?.view ?? body)?.game?.pending_resignation) wakeArchives(); }
 async function readJson(request) {
   const chunks=[]; let size=0;
   for await (const chunk of request) {
@@ -65,7 +65,7 @@ async function handleApi(request,response,url) {
     }
     if(request.method==='GET' && action==='export') return json(response,200,await rooms.export(code,token));
     if(request.method==='GET' && action==='summary') return json(response,200,await rooms.summary(code,token));
-    if(request.method==='POST' && ['join','start','command','undo','pass','recover','abandon','rename','assign','remove','leave','cancel'].includes(action)) {
+    if(request.method==='POST' && ['join','start','command','undo','pass','recover','abandon','rename','assign','remove','leave','cancel','resign','vote'].includes(action)) {
       if(action==='recover') limitRecovery(request);
       return json(response,200,await rooms.mutate(action,code,token,await readJson(request),request.headers['idempotency-key']));
     }
@@ -96,7 +96,7 @@ async function archives(){
   if(archiving){archiveWakeRequested=true;return;}
   archiveWakeRequested=false;
   archiving=true;let pending=false;
-  try{pending=await rooms.processArchives();}catch{pending=true;}
+  try{pending=await rooms.processDeadlines();pending=(await rooms.processArchives()) || pending;}catch{pending=true;}
   finally{archiving=false;}
   if(pending || archiveWakeRequested){archiveTimer=setTimeout(archives,archiveWakeRequested?0:60000);archiveTimer.unref();}
 }

@@ -41,6 +41,12 @@ export function projectForPlayer(state, viewer, { revealComplete = state.status 
         },
       };
     }
+    if (event.type === 'ResignedNoblesReturned' && !revealComplete) return {...event,payload:{player:event.payload.player,returned_count:event.payload.noble_ids.length}};
+    if (event.type === 'DefeatedCourtClaimed' && event.payload.victor !== viewer && !revealComplete) {
+      const {captured_ids,...payload}=event.payload;
+      if(payload.chronicle) payload.chronicle={...payload.chronicle,text:payload.chronicle.public_text};
+      return {...event,payload};
+    }
     if (event.type === "DefeatedCourtDispersed" && event.payload.defeated_player !== viewer && !revealComplete) {
       return { ...event, payload: { defeated_player: event.payload.defeated_player,
         returned_count: event.payload.noble_ids?.length ?? event.payload.returned_count ?? 0 } };

@@ -40,7 +40,7 @@ function loadUI() {
     window: { setTimeout() {}, clearTimeout() {}, setInterval() {}, clearInterval() {}, confirm() { return true; } },
     navigator: {}, crypto: { getRandomValues(array) { return array; } },
   });
-  const expose = 'globalThis.ui = { render, renderActiveGames, renderOnlineLobby, run, selectHarvestCard, cancelResourceSelection, openStockpilePanel, saveStockpilePlan, undoLastAction, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); } };';
+  const expose = 'globalThis.ui = { render, renderActiveGames, renderOnlineLobby, renderOnlineChrome, run, selectHarvestCard, cancelResourceSelection, openStockpilePanel, saveStockpilePlan, undoLastAction, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); }, setOnline: (payload) => { onlinePayload = payload; onlineClient = {}; renderOnlineChrome(); } };';
   new Script(code.replace(/\}\)\(\);\s*$/, `${expose}\n})();`)).runInContext(context);
   return { ui: context.ui, elements, app, html };
 }
@@ -218,3 +218,27 @@ test('Active Games escapes names, separates terminal records and distinguishes m
   assert.equal(elements.get('lobby-leave-seat').hidden,false);
   assert.equal(elements.get('lobby-cancel-room').hidden,true);
  });
+
+test('resignation UI shows public votes, distinguishes missing votes, and makes terminal play read-only',()=>{
+ const {ui,elements}=loadUI();
+ const state=setUpMatch('ballot-ui');
+ state.pending_resignation={player:'RED',survivors:['WHITE','GREEN','BLACK'],votes:{WHITE:'NONE',BLACK:'WHITE'},deadline:'2026-10-09T06:00:00.000Z'};
+ const room={code:'ABC234',status:'ACTIVE',seats:{WHITE:{name:'Host'},BLACK:{name:'Guest'}}};
+ const viewer={role:'PLAYER',seat:'WHITE',is_host:true,is_your_turn:false};
+ ui.setViewer({room,viewer});ui.setState(state);
+ assert.match(elements.get('action-controls').innerHTML,/White: No spoils/);
+ assert.match(elements.get('action-controls').innerHTML,/Green: Not yet voted/);
+ assert.match(elements.get('action-controls').innerHTML,/data-resignation-vote="NONE"/);
+ ui.setViewer({room,viewer:{role:'SPECTATOR'}});
+ assert.doesNotMatch(elements.get('action-controls').innerHTML,/data-resignation-vote/);
+ room.status='ABANDONED';
+ ui.setViewer({room,viewer});
+ assert.match(elements.get('action-controls').innerHTML,/without a winner/);
+ assert.doesNotMatch(elements.get('action-controls').innerHTML,/data-resignation-vote|Pass and publish/);
+ const terminal_record={status:'ABANDONED',ended_at:'2026-10-08T06:00:00.000Z',state};
+ ui.setOnline({room,viewer,terminal_record});
+ assert.equal(elements.get('terminal-record').hidden,false);
+ assert.match(elements.get('terminal-record-json').textContent,/pending_resignation/);
+ ui.setOnline({room,viewer:{role:'SPECTATOR'},terminal_record:null});
+ assert.equal(elements.get('terminal-record').hidden,true);
+});

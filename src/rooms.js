@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomInt } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { FOUR_PLAYER_COUNTERCLOCKWISE, PLAYER, TWO_PLAYER_ORDER, V2_RULES } from "./constants.js";
-import { dispatch, newMatch, preserveStockpileInstructions, reversibleAction, turnBoundaryCrossed, upgradeToV15 } from "./engine.js";
+import { dispatch, newMatch, resignationBlock, preserveStockpileInstructions, reversibleAction, turnBoundaryCrossed, upgradeToV15 } from "./engine.js";
 import { deepClone } from "./model.js";
 import { projectForPlayer, projectSpectator } from "./projection.js";
 import { validateInvariants } from "./rules.js";
@@ -340,7 +340,7 @@ export class RoomStore {
     const canonical = seat && room.draft_state && (room.draft_owner === seat || room.draft_state.current_actor === seat)
       ? room.draft_state
       : room.committed_state;
-    const game = canonical ? browserProjection(canonical, seat, Boolean(seat) && ["COMPLETE", "ABANDONED"].includes(room.status)) : null;
+    const game = canonical ? browserProjection(canonical, canonical.players[seat]?.eliminated || canonical.pending_resignation?.player === seat ? null : seat, Boolean(seat) && ["COMPLETE", "ABANDONED"].includes(room.status)) : null;
     const publicActor = room.committed_state?.current_actor ?? null;
     const draftAdvanced = Boolean(seat && room.draft_owner === seat && room.draft_turn_complete);
     return {
@@ -365,12 +365,18 @@ export class RoomStore {
         seat: hiddenSeats ? null : seat,
         participant_id: seat ? room.seats[seat].participant_id : null,
         is_host: isHost,
+        can_resign: Boolean(seat && room.status === 'ACTIVE' && !room.draft_state && !resignationBlock(room.committed_state) && !room.committed_state.players[seat]?.eliminated),
+        resignation_block: room.draft_state ? 'Finish and publish the current turn first.' : resignationBlock(room.committed_state),
         can_start: isHost && room.seating_mode !== 'RANDOM' && room.status === "LOBBY" && room.seat_order.every((player) => room.seats[player]),
-        is_your_turn: Boolean(seat && room.status === "ACTIVE" && (room.draft_state?.current_actor ?? publicActor) === seat),
+        is_your_turn: Boolean(seat && room.status === "ACTIVE" && !room.committed_state?.pending_resignation && (room.draft_state?.current_actor ?? publicActor) === seat),
         waiting_for_pass: draftAdvanced,
         can_undo: Boolean(room.status === "ACTIVE" && seat && room.draft_owner === seat && room.draft_history.length),
         private_revision: seat && room.draft_state && (room.draft_owner === seat || room.draft_state.current_actor === seat) ? room.draft_revision : room.revision,
       },
+      terminal_record: seat && ['COMPLETE','ABANDONED'].includes(room.status) ? {
+        status: room.status, ended_at: room.ended_at, state: deepClone(room.draft_state ?? room.committed_state),
+        published_state: deepClone(room.committed_state),
+      } : null,
       game,
     };
   }
@@ -380,6 +386,7 @@ export class RoomStore {
     if (room.status !== "ACTIVE") roomFail("MATCH_NOT_ACTIVE", "The online match is not active", 409);
     const seat = identifySeat(room, token);
     if (!seat) roomFail("PLAYER_TOKEN_REQUIRED", "A player seat is required", 403);
+    if (['RESIGN','RESIGNATION_VOTE','EXPIRE_RESIGNATION'].includes(command?.type)) roomFail('USE_LIFECYCLE','Use the resignation controls',409);
     if (command?.type === "SET_STOCKPILE_INSTRUCTIONS") return this.saveStockpileInstructions(room, token, seat, command);
     const owner = room.draft_state?.current_actor ?? room.committed_state.current_actor;
     if (seat !== owner) roomFail("NOT_YOUR_TURN", `It is ${owner}'s turn`, 409);
@@ -480,6 +487,27 @@ export class RoomStore {
     return this.view(room.code, token);
   }
 
+  lifecycle(code, token, action, body = {}) {
+    const room=this.get(code), seat=identifySeat(room,token);
+    if(room.status !== 'ACTIVE') roomFail('MATCH_NOT_ACTIVE','The match is not active',409);
+    if(!seat) roomFail('PLAYER_TOKEN_REQUIRED','An authenticated participant is required',403);
+    if(room.draft_state) roomFail('UNPUBLISHED_TURN','Finish and publish the current turn first',409);
+    const command=action==='resign' ? {type:'RESIGN',player:seat,confirmed:body.confirmed,at:this.now().toISOString()}
+      : {type:'RESIGNATION_VOTE',player:seat,choice:body.choice,at:this.now().toISOString()};
+    const result=dispatch(room.committed_state,command);
+    if(!result.ok) roomFail(result.error.code,result.error.message,409);
+    this.commit(room,result.state);
+    return this.view(code,token);
+  }
+
+  expireBallot(code) {
+    const room=this.get(code), pending=room.committed_state?.pending_resignation;
+    if(room.status!=='ACTIVE' || !pending || this.now().getTime()<Date.parse(pending.deadline)) return false;
+    const result=dispatch(room.committed_state,{type:'EXPIRE_RESIGNATION',at:this.now().toISOString()});
+    if(!result.ok) roomFail(result.error.code,result.error.message,409);
+    this.commit(room,result.state);return true;
+  }
+
   recover(code, { recoveryCode, token = newToken() }) {
     const room = this.get(code);
     const seat = room.seat_order.find((seat) => room.seats[seat]?.recovery_hash === tokenHash(recoveryCode));
@@ -507,7 +535,7 @@ export class RoomStore {
 
 // The synchronous reducer must never retain an unaccepted mutation after an error.
 // PersistentRooms stages this reducer inside a database transaction for online use.
-for (const method of ["create", "join", "start", "command", "undo", "pass", "recover", "rename", "lobby"]) {
+for (const method of ["create", "join", "start", "command", "undo", "pass", "recover", "rename", "lobby", "lifecycle", "expireBallot"]) {
   const original = RoomStore.prototype[method];
   RoomStore.prototype[method] = function (...args) {
     const before = deepClone(this.rooms);

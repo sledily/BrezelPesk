@@ -211,7 +211,7 @@ function setPhaseNotice(state, notice) {
 
 function refreshPhaseNotice(state) {
   if (state.rules.automatic_passes) return;
-  if (state.status !== "ACTIVE" || state.phase_notice || state.pending_combat || state.pending_conquest) return;
+  if (state.status !== "ACTIVE" || state.phase_notice || state.pending_combat || state.pending_conquest || state.pending_resignation) return;
   if ([PHASE.HARVEST, PHASE.RANSOM, PHASE.STOCKPILE].includes(state.phase)) return;
   if (state.phase === PHASE.EXECUTE && survivingPlayers(state).every((player) => !state.players[player].dungeon_noble_id)) {
     setPhaseNotice(state, { code: "NO_PRISONERS", reason: "There are no prisoners in any surviving player's Dungeon." });
@@ -824,6 +824,12 @@ function beginFourPlayerConquest(state, {
 
   defeatUnit(state, defeatedKing, { returnToReserve: false });
   defeatedState.eliminated = true;
+  if(survivingPlayers(state).length===1) {
+    if(outcome==='ATTACKER_WIN' && attacker) attacker.square=defeatedSquare;
+    state.status='COMPLETE';state.winner=victor;state.current_actor=victor;state.victory_reason='LAST_KING_STANDING';
+    recordEvent(state,'MatchCompleted',{winner:victor,defeated_king_id:defeatedKing.unit_id,reason:state.victory_reason});
+    return;
+  }
 
   const courtShuffle = shuffleWithState(defeatedState.court_noble_ids, state.rng_state);
   state.rng_state = courtShuffle.state;
@@ -844,6 +850,7 @@ function beginFourPlayerConquest(state, {
   recordEvent(state, "DefeatedCourtClaimed", {
     defeated_player: defeatedPlayer,
     victor,
+    captured_ids: capturedCourtIds,
     captured_count: capturedCourtIds.length,
     returned_count: returnedCourtIds.length,
   });
@@ -896,7 +903,7 @@ function beginFourPlayerConquest(state, {
   }
 
   const remainingUnits = liveUnits(state, defeatedPlayer);
-  const queenUnit = remainingUnits.find((unit) => unit.unit_type === UNIT_TYPE.QUEEN) ?? null;
+  const queenUnit = remainingUnits.find((unit) => unit.unit_type === UNIT_TYPE.QUEEN && !unit.irreplaceable && (unit.piece_color ?? unit.owner) === defeatedPlayer) ?? null;
   const killedVassalIds = [];
   for (const unit of remainingUnits) {
     if (unit.vassal_noble_id) {
@@ -917,7 +924,7 @@ function beginFourPlayerConquest(state, {
     defeated_king_id: defeatedKing.unit_id,
     queen_unit_id: queenUnit?.unit_id ?? null,
     king_square: defeatedSquare,
-    attacker_id: attacker.unit_id,
+    attacker_id: attacker?.unit_id ?? null,
     outcome,
     resume_actor: resumeActor,
   };
@@ -986,6 +993,12 @@ function resolveConquest(state, command) {
     });
   }
 
+  if (pending.outcome === 'RESIGNATION') {
+    state.pending_conquest=null;
+    recordEvent(state,'ConquestResolved',{defeated_player:defeatedPlayer,victor,choice:command.choice,captured_queen_id:capturedQueenId});
+    resumeAfterResignation(state,pending.resume_actor);
+    return;
+  }
   const priorOrder = [...state.phase_actor_order];
   state.phase_actor_order = priorOrder.filter((player) => !state.players[player].eliminated);
   state.passed_players = state.passed_players.filter((player) => !state.players[player].eliminated);
@@ -1022,6 +1035,112 @@ function resolveConquest(state, command) {
   }
   if (nextActor) state.current_actor = nextActor;
   else advancePhase(state);
+}
+
+export function resignationBlock(state) {
+  if (!state || state.status !== 'ACTIVE') return 'The match is not active.';
+  if (state.phase === PHASE.SETUP) return 'Finish Sovereign selection first.';
+  if (state.pending_resignation) return 'Resolve the current resignation ballot first.';
+  if (state.pending_combat || state.pending_conquest || state.active_ransom || state.harvest?.offer_ids?.length || state.harvest?.failsafe_pending)
+    return 'Resolve the compulsory decision first.';
+  return null;
+}
+
+function resumeAfterResignation(state, resumeActor) {
+  const priorOrder = [...state.phase_actor_order];
+  state.phase_actor_order = priorOrder.filter(p => !state.players[p].eliminated);
+  state.passed_players = state.passed_players.filter(p => !state.players[p].eliminated);
+  if (state.phase === PHASE.HARVEST) {
+    if(state.players[resumeActor].eliminated) returnHarvestRejects(state);
+    state.harvest.completed_draw_players = state.harvest.completed_draw_players.filter(p => !state.players[p].eliminated);
+    state.harvest.completed_poker_players = state.harvest.completed_poker_players.filter(p => !state.players[p].eliminated);
+  }
+  if (!state.players[resumeActor].eliminated) { state.current_actor = resumeActor; return; }
+  const excluded = new Set(state.phase === PHASE.HARVEST ? state.harvest.completed_poker_players : state.passed_players);
+  const start = priorOrder.indexOf(resumeActor);
+  const next = Array.from({length:priorOrder.length},(_,i)=>priorOrder[(start+i+1)%priorOrder.length])
+    .find(p=>!state.players[p].eliminated && !excluded.has(p));
+  if (next) {
+    state.current_actor = next;
+    if (state.phase === PHASE.HARVEST) initializeHarvestActor(state,next);
+  } else advancePhase(state);
+}
+
+function resignationNoSpoils(state, player) {
+  const person=state.players[player], nobles=[...person.court_noble_ids];
+  person.court_noble_ids=[];
+  for(const captor of matchPlayers(state)) {
+    const id=state.players[captor].dungeon_noble_id;
+    if(id && (captor===player || state.nobles_by_id[id].owner===player)) {
+      nobles.push(id);state.players[captor].dungeon_noble_id=null;
+    }
+  }
+  for(const unit of liveUnits(state,player)) {
+    if(unit.vassal_noble_id) nobles.push(unit.vassal_noble_id);
+    unit.vassal_noble_id=null;defeatUnit(state,unit,{returnToReserve:false});
+  }
+  returnNoblesToDeckBatch(state,nobles,'ResignedNoblesReturned',{player});
+  const decks=new Set();
+  for(const id of person.resource_hand_ids) {
+    const card=state.resources_by_id[id], deck=deckForSuit(card.suit);
+    Object.assign(card,{has_counter:false,tapped:false,mandatory_spend_year:null,poker_used_year:null,counter_sources:[],location:`${deck}_DECK`});
+    state.decks[deck].push(id);decks.add(deck);
+  }
+  person.resource_hand_ids=[];
+  for(const deck of decks) shuffleDeck(state,deck);
+  for(const suit of Object.keys(person.seasonal_pools)) person.seasonal_pools[suit]=0;
+  for(const type of Object.keys(person.reserve)) person.reserve[type]=0;
+  person.eliminated=true;delete state.stockpile_committed[player];
+}
+
+function resolveResignation(state, beneficiary, reason, at) {
+  const pending=state.pending_resignation;
+  state.pending_resignation=null;
+  recordEvent(state,'ResignationResolved',{player:pending.player,beneficiary,reason,at,deadline:pending.deadline});
+  if(beneficiary) {
+    const king=liveUnits(state,pending.player).find(u=>u.unit_type===UNIT_TYPE.KING);
+    beginFourPlayerConquest(state,{defeatedKing:king,victor:beneficiary,attacker:null,outcome:'RESIGNATION',defeatedSquare:king.square,resumeActor:pending.resume_actor});
+  } else {
+    resignationNoSpoils(state,pending.player);
+    resumeAfterResignation(state,pending.resume_actor);
+  }
+}
+
+function resign(state, command) {
+  const blocked=resignationBlock(state);
+  requireCondition(!blocked,'RESIGNATION_UNAVAILABLE',blocked);
+  requireCondition(state.players[command.player] && !state.players[command.player].eliminated,'PLAYER_ELIMINATED','Only a surviving player may resign');
+  requireCondition(command.confirmed===true,'CONFIRM_REQUIRED','Confirm resignation');
+  requireCondition(Number.isFinite(Date.parse(command.at)),'INVALID_TIME','An authoritative resignation time is required');
+  state.phase_notice=null;
+  const survivors=survivingPlayers(state).filter(p=>p!==command.player);
+  recordEvent(state,'PlayerResigned',{player:command.player,at:command.at});
+  if(survivors.length===1) {
+    defeatUnit(state,liveUnits(state,command.player).find(u=>u.unit_type===UNIT_TYPE.KING),{returnToReserve:false});
+    state.players[command.player].eliminated=true;
+    state.status='COMPLETE';state.winner=survivors[0];state.current_actor=survivors[0];state.victory_reason='RESIGNATION';
+    recordEvent(state,'MatchCompleted',{winner:survivors[0],reason:'RESIGNATION',resigned_player:command.player});
+    return;
+  }
+  state.pending_resignation={player:command.player,survivors,votes:{},started_at:command.at,
+    deadline:new Date(Date.parse(command.at)+86400000).toISOString(),resume_actor:state.current_actor};
+  if(survivors.length===2) resolveResignation(state,null,'TWO_SURVIVORS',command.at);
+}
+
+function resignationVote(state,command) {
+  const pending=state.pending_resignation;
+  requireCondition(pending,'NO_BALLOT','No resignation ballot is pending');
+  requireCondition(pending.survivors.includes(command.player),'NOT_VOTER','Only the three survivors may vote');
+  requireCondition(Date.parse(command.at)<Date.parse(pending.deadline),'BALLOT_EXPIRED','The ballot deadline has passed');
+  requireCondition(command.choice==='NONE' || pending.survivors.includes(command.choice),'INVALID_VOTE','Choose a survivor or No spoils');
+  pending.votes[command.player]=command.choice;
+  recordEvent(state,'ResignationVoteCast',{player:command.player,choice:command.choice,at:command.at,deadline:pending.deadline});
+  if(pending.survivors.every(p=>pending.votes[p]===command.choice)) resolveResignation(state,command.choice==='NONE'?null:command.choice,'UNANIMOUS',command.at);
+}
+
+function expireResignation(state,command) {
+  requireCondition(state.pending_resignation && Date.parse(command.at)>=Date.parse(state.pending_resignation.deadline),'BALLOT_NOT_DUE','The ballot has not expired');
+  resolveResignation(state,null,'TIMEOUT',command.at);
 }
 
 function laySiege(state, command) {
@@ -1306,7 +1425,7 @@ export function settleAutomaticPhases(state) {
   if (!state.rules.automatic_passes) return;
   state.phase_notice = null;
   for (let step = 0; step < 256 && state.status === "ACTIVE"; step++) {
-    if (state.pending_combat || state.pending_conquest) return;
+    if (state.pending_combat || state.pending_conquest || state.pending_resignation) return;
     const player = state.current_actor;
     if (state.rules.explicit_action_pass && state.v2_acted?.[opportunityKey(state)]) return;
     if (state.phase === PHASE.HARVEST) {
@@ -1398,6 +1517,9 @@ const HANDLERS = Object.freeze({
   LAY_SIEGE: laySiege,
   CHOOSE_QUARTER: chooseQuarter,
   CHOOSE_CONQUEST: resolveConquest,
+  RESIGN: resign,
+  RESIGNATION_VOTE: resignationVote,
+  EXPIRE_RESIGNATION: expireResignation,
   VASSALIZE_NOBLE: vassalizeNoble,
   EXECUTE_HOSTAGE: executeHostage,
   ACKNOWLEDGE_PHASE_NOTICE: acknowledgePhaseNotice,
@@ -1412,8 +1534,10 @@ export function dispatch(state, command) {
   try {
     requireCondition(command && typeof command.type === "string", "INVALID_COMMAND", "Command type is required");
     requireCondition(!(working.status === "COMPLETE" && !["NEW_MATCH", "APPLY_V15_USABILITY"].includes(command.type)), "MATCH_COMPLETE", "No commands are accepted after victory");
+    if (working.pending_resignation && !['RESIGNATION_VOTE','EXPIRE_RESIGNATION'].includes(command.type)) fail('NEGOTIATION_PENDING','Play is paused for the resignation ballot');
+    const lifecycle=['RESIGN','RESIGNATION_VOTE','EXPIRE_RESIGNATION'].includes(command.type);
     const planning = command.type === "SET_STOCKPILE_INSTRUCTIONS";
-    if (working.phase_notice && !planning && !["ACKNOWLEDGE_PHASE_NOTICE", "APPLY_V15_USABILITY"].includes(command.type)) {
+    if (working.phase_notice && !planning && !lifecycle && !["ACKNOWLEDGE_PHASE_NOTICE", "APPLY_V15_USABILITY"].includes(command.type)) {
       fail("PHASE_NOTICE_PENDING", "Acknowledge the unavailable phase before taking another action");
     }
     if (working.pending_combat && !planning && !["CHOOSE_QUARTER", "APPLY_V15_USABILITY"].includes(command.type)) {
