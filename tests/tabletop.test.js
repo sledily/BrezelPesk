@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { PHASE, PLAYER, SUITS, UNIT_TYPE } from '../src/constants.js';
 import { constantsHtml, tabletopRegionsHtml, nobleInspectionHtml } from '../src/tabletop.js';
 import { forcePhase, setUpMatch, setUpFourPlayerMatch, giveResource, addUnit } from './helpers.js';
+import { COURT_ART } from '../src/court-art.js';
+import { nobleCardHtml } from '../src/presentation.js';
 
 test('two-player and four-player tables use the same fixed corner mapping', () => {
   const two = tabletopRegionsHtml(setUpMatch('corners-two'));
@@ -54,4 +56,25 @@ test('Hostage inspection identifies original owner and current legal prices', ()
   assert.match(html, /original owner White · held by Black/);
   assert.match(html, /Ransom: 3 ◇ · Execution: 4 ♡/);
   assert.equal(nobleInspectionHtml(state,{hidden:true}), '');
+});
+
+test('all twelve public Noble faces use the matching supplied art and hidden Courts reveal none', () => {
+  const state = setUpMatch('court-art');
+  const nobles = Object.values(state.nobles_by_id);
+  assert.equal(nobles.length, 12);
+  assert.equal(new Set(Object.values(COURT_ART)).size, 12);
+  for (const noble of nobles) {
+    const html = nobleInspectionHtml(state, noble);
+    assert.ok(html.includes(`src="${COURT_ART[`${noble.face}:${noble.suit}`]}"`));
+    assert.match(html, /width="1024" height="1536"/);
+    assert.doesNotMatch(nobleCardHtml(noble), /<img|\.jpg/);
+  }
+  const id = 'NC-J-C';
+  state.players.WHITE.court_noble_ids.push(id);
+  Object.assign(state.nobles_by_id[id], {owner: PLAYER.WHITE, location: 'WHITE_COURT'});
+  for (const viewer of [null, PLAYER.BLACK, PLAYER.WHITE]) {
+    const html = tabletopRegionsHtml(state, {viewer});
+    assert.doesNotMatch(html, /09-colbert\.jpg|COLBERT/);
+  }
+  assert.doesNotMatch(nobleCardHtml({...state.nobles_by_id[id], hidden:true}), /<img|COLBERT|colbert/);
 });

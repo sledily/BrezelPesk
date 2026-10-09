@@ -43,3 +43,19 @@ Pass becomes prominent after an ordinary action when no legal affordable continu
 The automated checks include authoritative arithmetic, recorded combatants after casualty cleanup, pending/terminal reconnect without replay, exact approved timer boundaries, skip/cancellation/reduced-motion paths, publication of private Siege only at Pass, duplicate polling, Undo sequence reuse, routine deltas, pre-impact board rendering, immutable saved outcomes and prominent Pass with Undo.
 
 The complete standalone and server regression suite is also run. These are logic and simulated-DOM checks. Chromium installation was attempted again but the downloaded archive was truncated/invalid, so no fresh rendered animation, mobile/touch, contrast, focus traversal or real OS reduced-motion proof is available for this increment. Those remain release gates, along with visual comparison to the approved studies and fuller casualty/Conquest choreography. No live deployment is performed here.
+## Court illustrations
+
+The twelve user-supplied illustrations are mapped by Noble rank and suit in
+`src/court-art.js`. The assets use the original uploaded JPEG bytes (the upload filenames ended
+in `.png`), with no recompression, cropping, or pixel changes at 1024 × 1536. Ordinary Noble labels remain Rank and Suit icons, without
+thumbnails. A freshly drawn private Noble, a freshly played public Noble, or
+an explicit inspection shows the complete double-ended card without cropping
+or added lettering. Reconnects do not replay old draws/plays. Court cards remain face-down,
+including the owner's own Court,
+until privately inspected. The standalone build embeds all twelve assets for
+offline use, increasing the file to about 13 MiB. The hosted build loads the
+separate images only where rendered. These artwork files do not enter game
+saves, storage reservations, or archives.
+
+In shared-device play, a played Sovereign's artwork remains open until dismissed;
+the next player's Ready handover then covers the private view as usual.

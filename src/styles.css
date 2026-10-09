@@ -513,6 +513,8 @@ select, input[type="text"], .game-dialog input {
 .noble-card strong { font-size: 1.125rem; flex-shrink: 0; white-space: nowrap; }
 .noble-card.red { color: #912c28; }
 .noble-card > span { overflow-wrap: anywhere; }
+.noble-art { display: block; width: 100%; height: auto; object-fit: contain; border-radius: 3px; }
+.noble-caption { display: flex; align-items: center; gap: 9px; min-width: 0; flex-wrap: wrap; }
 .sovereign-choice { background: transparent; padding: 4px; min-width: 0; }
 .sovereign-choice .noble-card { width: 100%; }
 .realm-comparison { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; margin-top: 16px; }
@@ -789,6 +791,9 @@ button:disabled { opacity: .6; }
 .inspection-dialog .realm-piece { width: 96px; height: 105px; }
 .inspection-dialog .noble-card { display: inline-flex; flex-direction: column; width: 180px; min-height: 215px; justify-content: center; gap: 22px; border: 6px double #ae9363; font: 23px Georgia, serif; }
 .inspection-dialog .noble-card strong { font: 36px Georgia, serif; }
+.inspection-dialog .noble-card.illustrated { width: min(280px, calc(100vw - 90px), calc((100dvh - 240px) * 2 / 3)); min-width: 100px; min-height: 0; padding: 0; border: 0; background: transparent; gap: 0; }
+.inspection-dialog .noble-art { width: 100%; height: auto; }
+.inspection-dialog .noble-card.illustrated .noble-caption { display: none; }
 .inspection-dialog p { line-height: 1.5; color: var(--muted); font-size: 14px; }
 .inspection-dialog .button { margin-top: 15px; }
 @media (max-width: 1050px) {

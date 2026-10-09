@@ -1,6 +1,7 @@
 import { PLAYER, UNIT_TYPE, SUIT, SUIT_GLYPH, NOBLE_NAME, NOBLE_DISPLAY_CODE, LEVEL_BY_TYPE, DECK } from "./constants.js";
 import { liveUnits, isLevy, isCorner, deckForSquare, sortResourceCards } from "./rules.js";
 import { formatNoble, formatResource, title } from "./format.js";
+import { COURT_ART } from "./court-art.js";
 
 export const PIECE_GLYPH = {
   [PLAYER.WHITE]: {
@@ -59,10 +60,12 @@ export function chessPieceSvg(type) {
   return `<svg class="chess-piece" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><g fill="currentColor" stroke="var(--piece-edge, #3c3026)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">${crowns[type] ?? crowns.PAWN}<path d="M21 50h22l4 7H17z"/><path d="M18 57h28v3H18z"/></g><path d="M23 54h17" stroke="white" opacity=".35" stroke-linecap="round"/></svg>`;
 }
 
-export function nobleCardHtml(noble) {
+export function nobleCardHtml(noble, { illustrated = false } = {}) {
   if (!noble || noble.hidden) return '<span class="concealed-court">Hidden Court card</span>';
   const red = [SUIT.DIAMONDS, SUIT.HEARTS].includes(noble.suit);
-  return `<span class="noble-card ${red ? "red" : ""}"><strong>${NOBLE_DISPLAY_CODE[noble.face]}${SUIT_GLYPH[noble.suit]}</strong><span>${escapeMarkup(NOBLE_NAME[noble.face]?.[noble.suit] ?? noble.name)}</span></span>`;
+  const art = illustrated ? COURT_ART[`${noble.face}:${noble.suit}`] : null;
+  const caption = `<strong>${NOBLE_DISPLAY_CODE[noble.face]}${SUIT_GLYPH[noble.suit]}</strong><span>${escapeMarkup(NOBLE_NAME[noble.face]?.[noble.suit] ?? noble.name)}</span>`;
+  return `<span class="noble-card ${red ? "red" : ""} ${art ? 'illustrated' : ''}" title="${escapeMarkup(formatNoble(noble))}">${art ? `<img class="noble-art" src="${art}" alt="${escapeMarkup(formatNoble(noble))}" width="1024" height="1536" decoding="async"><span class="noble-caption">${caption}</span>` : `<strong>${NOBLE_DISPLAY_CODE[noble.face]}${SUIT_GLYPH[noble.suit]}</strong>`}</span>`;
 }
 
 export function realmComparisonHtml(state, viewer, playerNames = {}) {

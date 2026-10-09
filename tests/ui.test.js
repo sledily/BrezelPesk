@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { Script, createContext } from "node:vm";
 import { PHASE, PLAYER, SUIT, V2_RULES } from "../src/constants.js";
-import { settleAutomaticPhases, dispatch } from "../src/engine.js";
+import { settleAutomaticPhases, dispatch, newMatch } from "../src/engine.js";
 import { forcePhase, giveResource, setUpMatch, addUnit } from "./helpers.js";
 
 // A lightweight DOM host runs the real standalone UI. These are interaction
@@ -108,6 +108,7 @@ test("Court inspection is owner-only, stays face down at rest and clears on hand
   ui.inspectNoble(id, true);
   assert.equal(elements.get('inspection-dialog').open, true);
   assert.match(elements.get('inspection-content').innerHTML, /COLBERT/);
+  assert.match(elements.get('inspection-content').innerHTML, /class="noble-art"/);
   ui.showHandoff(PLAYER.BLACK);
   assert.equal(elements.get('inspection-dialog').open, false);
   assert.equal(elements.get('inspection-content').innerHTML, '');
@@ -117,6 +118,58 @@ test("Court inspection is owner-only, stays face down at rest and clears on hand
   ui.setViewer({viewer:{role:'SPECTATOR', seat:null},room:{seats:{}}});
   ui.inspectNoble(id, true);
   assert.equal(elements.get('inspection-content').innerHTML, '', 'spectator cannot inspect even if passed an unfiltered state');
+});
+
+test('a fresh private draw shows artwork once, with no thumbnail at rest or replay on redraw', async () => {
+  const {ui,elements} = loadUI();
+  const state=forcePhase(setUpMatch('court-draw-art',V2_RULES),PHASE.RECRUIT);
+  state.players.WHITE.seasonal_pools.DIAMONDS=10;
+  ui.setState(state);ui.hideHandoff();
+  const expected=state.decks.NOBLE[0];
+  assert.equal(await ui.run({type:'RECRUIT_NOBLE',player:PLAYER.WHITE}),true);
+  assert.ok(ui.getState().players.WHITE.court_noble_ids.includes(expected));
+  assert.match(elements.get('inspection-content').innerHTML,/Noble drawn · Private Court/);
+  assert.match(elements.get('inspection-content').innerHTML,/class="noble-art"/);
+  assert.doesNotMatch(elements.get('player-summary').innerHTML,/class="noble-art"/);
+  ui.closeInspection();ui.render();
+  assert.equal(elements.get('inspection-dialog').open,false);
+  assert.equal(elements.get('inspection-content').innerHTML,'');
+});
+
+test('playing a Vassal shows the full artwork while public tabletop labels remain icons', async () => {
+  const {ui,elements} = loadUI();
+  const state=forcePhase(setUpMatch('court-play-art',V2_RULES),PHASE.VASSALIZE);
+  const id='NC-J-C', unit=addUnit(state,PLAYER.WHITE,'PAWN','b2');
+  state.decks.NOBLE=state.decks.NOBLE.filter(n=>n!==id);
+  state.players.WHITE.court_noble_ids.push(id);
+  Object.assign(state.nobles_by_id[id],{owner:PLAYER.WHITE,location:'WHITE_COURT'});
+  state.players.WHITE.seasonal_pools.HEARTS=10;
+  ui.setState(state);ui.hideHandoff();
+  assert.equal(await ui.run({type:'VASSALIZE_NOBLE',player:PLAYER.WHITE,noble_id:id,unit_id:unit}),true);
+  assert.match(elements.get('inspection-content').innerHTML,/Noble played/);
+  assert.match(elements.get('inspection-content').innerHTML,/class="noble-art"/);
+  assert.doesNotMatch(elements.get('board').innerHTML,/class="noble-art"/);
+  assert.doesNotMatch(elements.get('player-summary').innerHTML,/class="noble-art"/);
+  ui.closeInspection();ui.render();
+  assert.equal(elements.get('inspection-dialog').open,false);
+});
+
+test('a played Sovereign remains visible until dismissed before the next local handover', async () => {
+  const {ui,elements} = loadUI();
+  ui.setState(newMatch({seed:'sovereign-art-handover',playerCount:2,rules:V2_RULES}));
+  ui.hideHandoff();
+  assert.equal(await ui.run({type:'CHOOSE_SOVEREIGN',player:PLAYER.BLACK,noble_id:'NC-K-S'}),true);
+  assert.equal(elements.get('inspection-dialog').open,true);
+  assert.match(elements.get('inspection-content').innerHTML,/Noble played/);
+  assert.match(elements.get('inspection-content').innerHTML,/class="noble-art"/);
+  assert.equal(elements.get('handoff').hidden,true,'the reveal is not immediately covered');
+  const saved=JSON.stringify(ui.getState());
+  assert.equal(await ui.run({type:'CHOOSE_SOVEREIGN',player:PLAYER.WHITE,noble_id:'NC-K-H'}),false);
+  assert.equal(JSON.stringify(ui.getState()),saved,'incoming player must acknowledge the handover');
+  ui.closeInspection();
+  assert.equal(elements.get('inspection-content').innerHTML,'');
+  assert.equal(elements.get('handoff').hidden,false);
+  assert.equal(elements.get('handoff-title').textContent,'White to act');
 });
 
 test("an unfunded Build preview survives tapping, and only Commit changes the board", async () => {

@@ -50,11 +50,11 @@ export function tabletopRegionsHtml(state, { viewer = null, names = {}, resource
 
 export function unitInspectionHtml(state, unit) {
   const noble = state.nobles_by_id[unit.vassal_noble_id];
-  return `${pieceIcon(unit)}<h2>${title(unit.owner)} ${title(unit.unit_type)} · ${unit.square}</h2><p>${isLevy(unit) ? 'Levy' : 'Holding'} · Level ${LEVEL_BY_TYPE[unit.unit_type]} · Draw ${drawCountOf(unit)}, keep one at Harvest.</p>${noble ? nobleCardHtml(noble) : '<p>An unassigned Holding Harvests and defends; assign a Vassal before moving or attacking.</p>'}<p>${STORAGE_TYPE[unit.unit_type] ? 'Adds one bonus Stockpile slot.' : 'No bonus Stockpile slot.'}</p>`;
+  return `${pieceIcon(unit)}<h2>${title(unit.owner)} ${title(unit.unit_type)} · ${unit.square}</h2><p>${isLevy(unit) ? 'Levy' : 'Holding'} · Level ${LEVEL_BY_TYPE[unit.unit_type]} · Draw ${drawCountOf(unit)}, keep one at Harvest.</p>${noble ? nobleCardHtml(noble, {illustrated:true}) : '<p>An unassigned Holding Harvests and defends; assign a Vassal before moving or attacking.</p>'}<p>${STORAGE_TYPE[unit.unit_type] ? 'Adds one bonus Stockpile slot.' : 'No bonus Stockpile slot.'}</p>`;
 }
 
 export function nobleInspectionHtml(state, noble) {
   if (!noble || noble.hidden) return '';
   const captor = Object.keys(state.players).find(p => state.players[p].dungeon_noble_id === noble.noble_id);
-  return `${nobleCardHtml(noble)}<p>${escapeMarkup(formatNoble(noble))}</p><p>Matching ${SUIT_GLYPH[noble.suit]} Harvest gains a Counter. Combat bonus +${noble.rank}.</p>${captor ? `<p>Hostage · original owner ${title(noble.owner)} · held by ${title(captor)}.</p><p>Ransom: ${actionCost(state, 'RANSOM', {noble_id: noble.noble_id})} ◇ · Execution: ${actionCost(state, 'EXECUTE', {noble_id: noble.noble_id})} ♡ at current constants.</p>` : ''}`;
+  return `${nobleCardHtml(noble, {illustrated:true})}<p>${escapeMarkup(formatNoble(noble))}</p><p>Matching ${SUIT_GLYPH[noble.suit]} Harvest gains a Counter. Combat bonus +${noble.rank}.</p>${captor ? `<p>Hostage · original owner ${title(noble.owner)} · held by ${title(captor)}.</p><p>Ransom: ${actionCost(state, 'RANSOM', {noble_id: noble.noble_id})} ◇ · Execution: ${actionCost(state, 'EXECUTE', {noble_id: noble.noble_id})} ♡ at current constants.</p>` : ''}`;
 }

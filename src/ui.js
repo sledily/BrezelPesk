@@ -129,6 +129,7 @@ let stockpileEditor = { key: null, open: false, dirty: false, instructions: null
 const presentationTracker = new PresentationTracker();
 const combatPanel = document.querySelector('#combat-presentation');
 let deferredCombatHandoff = null;
+let deferredCourtHandoff = null;
 let routineAnimations = [];
 const combatPresenter = new CombatPresenter({
   setTimer: (fn,ms)=>window.setTimeout(fn,ms),clearTimer:id=>window.clearTimeout(id),
@@ -153,7 +154,7 @@ const combatPresenter = new CombatPresenter({
   },
 });
 function clearPresentation() {
-  combatPresenter.clear();presentationTracker.reset();deferredCombatHandoff=null;
+  combatPresenter.clear();presentationTracker.reset();deferredCombatHandoff=null;deferredCourtHandoff=null;
   combatPanel.hidden=true;combatPanel.innerHTML='';dom.actionControls.inert=false;
   for(const animation of routineAnimations)animation.cancel();routineAnimations=[];
 }
@@ -171,6 +172,14 @@ function renderEventPresentation() {
     document.querySelector('#dismiss-combat')?.addEventListener('click',()=>{combatPanel.hidden=true;combatPanel.innerHTML='';combatPresenter.clear();});
   }
   dom.actionControls.inert=combatPresenter.busy;
+  // Reveal only a fresh, visible draw or play. Baselines/reconnects do not
+  // replay old reveals, and the inspection guard still enforces Court privacy.
+  const reveal=transition.events.findLast(event=>!event.payload.hidden && (
+    ['SovereignChosen','NobleVassalized'].includes(event.type)
+    || event.type==='NobleRecruited' && event.payload.player===privateViewer()
+  ));
+  if(reveal && !combatPresenter.busy) inspectNoble(reveal.payload.noble_id,
+    reveal.type==='NobleRecruited',reveal.type==='NobleRecruited'?'drawn':'played');
   if(!reducedMotion()) {
     for(const animation of routineAnimations)animation.cancel();routineAnimations=[];
     for(const change of transition.changes) {
@@ -224,7 +233,7 @@ function escapeHtml(value) {
 }
 
 async function run(command, { keepSelection = false } = {}) {
-  if (!dom.handoff.hidden || combatPresenter.busy) return false;
+  if (!dom.handoff.hidden || combatPresenter.busy || deferredCourtHandoff) return false;
   const planning = command.type === "SET_STOCKPILE_INSTRUCTIONS";
   if (!planning && pendingAutomaticNotices().length) { maybeShowPhaseNotice(); return false; }
   const retainTarget = ["TAP_RESOURCES", "MOBILIZE_UNIT"].includes(command.type);
@@ -272,7 +281,9 @@ async function run(command, { keepSelection = false } = {}) {
   }
   render();
   if (state.status !== "COMPLETE" && state.current_actor && state.current_actor !== previousActor) {
-    if(combatPresenter.busy)deferredCombatHandoff=state.current_actor;else showHandoff(state.current_actor);
+    if(combatPresenter.busy)deferredCombatHandoff=state.current_actor;
+    else if(dom.inspection.open)deferredCourtHandoff=state.current_actor;
+    else showHandoff(state.current_actor);
   } else {
     maybeShowPhaseNotice();
   }
@@ -320,6 +331,7 @@ function newLocalMatch(seed, playerCount = 4) {
 function showHandoff(player) {
   if (onlineClient) return;
   if (!player) return;
+  deferredCourtHandoff = null;
   const name = playerName(player);
   dom.handoffTitle.textContent = `${name} to act`;
   closeInspection();
@@ -484,10 +496,17 @@ function renderActionSummary() {
 
 function closeInspection() {
   if (dom.inspection.open) dom.inspection.close();
-  dom.inspectionContent.innerHTML = '';
+  finishInspection();
 }
 
-function inspectNoble(id, court = false) {
+function finishInspection() {
+  dom.inspectionContent.innerHTML = '';
+  const incoming = deferredCourtHandoff;
+  deferredCourtHandoff = null;
+  if (incoming && !onlineClient && state.current_actor === incoming) showHandoff(incoming);
+}
+
+function inspectNoble(id, court = false, reveal = null) {
   if (!dom.handoff.hidden) return;
   const viewer = privateViewer();
   const ownCourt = viewer && !state.players[viewer]?.eliminated && state.players[viewer]?.court_noble_ids.includes(id);
@@ -496,7 +515,7 @@ function inspectNoble(id, court = false) {
   if (court ? !ownCourt : !publicCard) return;
   const html = nobleInspectionHtml(state, state.nobles_by_id[id]);
   if (!html) return;
-  dom.inspectionContent.innerHTML = `<p class="eyebrow">${court ? 'Private Court inspection' : 'Public Noble'}</p>${html}`;
+  dom.inspectionContent.innerHTML = `<p class="eyebrow">${reveal === 'drawn' ? 'Noble drawn · Private Court' : reveal === 'played' ? 'Noble played' : court ? 'Private Court inspection' : 'Public Noble'}</p>${html}`;
   dom.inspection.showModal();
 }
 
@@ -1309,7 +1328,7 @@ function bindInspectionControls() {
 }
 
 onClick('close-inspection', closeInspection);
-dom.inspection.addEventListener('close', () => { dom.inspectionContent.innerHTML = ''; });
+dom.inspection.addEventListener('close', finishInspection);
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape' || !dom.handoff.hidden || dom.inspection.open) return;
   if (event.target?.closest?.('dialog, input, select, textarea')) return;

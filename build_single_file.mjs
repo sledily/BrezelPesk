@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { COURT_ART } from "./src/court-art.js";
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 const outputPath = resolve(projectRoot, "Dendarv_Play.html");
@@ -17,6 +18,7 @@ const sourceOrder = [
   "src/format.js",
   "src/online.js",
   "src/browser-notifications.js",
+  "src/court-art.js",
   "src/presentation.js",
   "src/tabletop.js",
   "src/event-presentation.js",
@@ -34,7 +36,15 @@ function removeModuleSyntax(source, filename) {
 }
 
 const application = sourceOrder
-  .map((filename) => removeModuleSyntax(readFileSync(join(projectRoot, filename), "utf8"), filename))
+  .map((filename) => {
+    let source = readFileSync(join(projectRoot, filename), "utf8");
+    if (filename === 'src/court-art.js') {
+      for (const path of Object.values(COURT_ART)) {
+        source = source.replace(path, `data:image/jpeg;base64,${readFileSync(join(projectRoot, path)).toString('base64')}`);
+      }
+    }
+    return removeModuleSyntax(source, filename);
+  })
   .join("\n");
 
 const css = readFileSync(join(projectRoot, "src/styles.css"), "utf8");

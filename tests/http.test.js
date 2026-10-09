@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { COURT_ART } from '../src/court-art.js';
 
 function waitForLine(stream, pattern, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
@@ -44,6 +45,15 @@ test("the HTTP server exposes room creation, joining, spectator views, and stati
 
   const health = await fetch(`${origin}/api/health`).then((response) => response.json());
   assert.equal(health.ok, true);
+  for (const path of Object.values(COURT_ART)) {
+    const asset = await fetch(`${origin}/${path}`, {method:'HEAD'});
+    assert.equal(asset.status,200,path);
+    assert.equal(asset.headers.get('content-type'),'image/jpeg');
+  }
+  const art = Buffer.from(await fetch(`${origin}/${COURT_ART['KING:CLOVERS']}`).then(r=>r.arrayBuffer()));
+  assert.equal(art.readUInt16BE(0), 0xffd8, 'original JPEG signature');
+  assert.equal(art.readUInt16BE(art.length - 2), 0xffd9, 'complete JPEG asset');
+  assert.equal((await fetch(origin+'/assets/court/unlisted.jpg')).status,404);
   const pushConfig=await fetch(origin+'/api/notifications/config').then(r=>r.json());
   assert.equal(pushConfig.enabled,false);assert.equal(pushConfig.publicKey,null);
   assert.equal((await fetch(origin+'/notification-worker.js')).status,200);
