@@ -50,7 +50,7 @@ test('Hostage inspection identifies original owner and current legal prices', ()
   state.players.BLACK.dungeon_noble_id = noble.noble_id;
   Object.assign(noble,{owner:PLAYER.WHITE,location:'BLACK_DUNGEON'});
   const html = nobleInspectionHtml(state,noble);
-  assert.match(html, /Colbert/);
+  assert.match(html, /COLBERT/);
   assert.match(html, /original owner White · held by Black/);
   assert.match(html, /Ransom: 3 ◇ · Execution: 4 ♡/);
   assert.equal(nobleInspectionHtml(state,{hidden:true}), '');

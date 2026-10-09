@@ -193,10 +193,10 @@ test("the shared realm panel shows pieces, Vassals and Dungeons without leaking 
   putInCourt(state, PLAYER.WHITE, "NC-J-C");
   const publicHtml = realmComparisonHtml(state, PLAYER.BLACK);
   assert.match(publicHtml, /aria-label="Pawn"/);
-  assert.match(publicHtml, /Cleopatra/);
+  assert.match(publicHtml, /CLEOPATRA/);
   assert.match(publicHtml, /1 hidden card/);
-  assert.doesNotMatch(publicHtml, /Colbert|NC-J-C/);
-  assert.match(realmComparisonHtml(state, PLAYER.WHITE), /Colbert/);
+  assert.doesNotMatch(publicHtml, /COLBERT|NC-J-C/);
+  assert.match(realmComparisonHtml(state, PLAYER.WHITE), /COLBERT/);
   assert.doesNotMatch(publicHtml, /Rank|rank-pips|physical-rank/);
 });
 

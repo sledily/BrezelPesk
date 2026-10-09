@@ -53,7 +53,7 @@ test("the standalone places Current Action above the corner table and constants 
   assert.equal((elements.get("turn-card").innerHTML.match(/class="constant"/g) ?? []).length, 4);
   const positions = ["action-controls", "player-summary", "board", "turn-card", "board-hint", "history"].map((id) => html.indexOf(`id="${id}"`));
   assert.deepEqual(positions, [...positions].sort((a,b) => a - b));
-  assert.match(elements.get("action-controls").innerHTML, /Boudica|Caesar|David|Cleopatra/);
+  assert.match(elements.get("action-controls").innerHTML, /BOUDICA|CÆSAR|DAVID|CLEOPATRA/);
   assert.doesNotMatch(elements.get("action-controls").innerHTML, /Rank|rank-pips|physical-rank/);
   assert.equal(elements.has("court-controls"), false);
 });
@@ -67,7 +67,7 @@ test("Vassal controls render names and cost explanations without generic ranks",
   state.players.WHITE.court_noble_ids.push(id);
   Object.assign(state.nobles_by_id[id], { owner: PLAYER.WHITE, location: "WHITE_COURT" });
   ui.setState(state);
-  assert.match(elements.get("action-controls").innerHTML, /Vz♧ · Colbert/);
+  assert.match(elements.get("action-controls").innerHTML, /Vz♧ · COLBERT/);
   assert.doesNotMatch(elements.get("action-controls").innerHTML, /Rank|rank-pips|physical-rank/);
 });
 
@@ -104,10 +104,10 @@ test("Court inspection is owner-only, stays face down at rest and clears on hand
   Object.assign(state.nobles_by_id[id], {owner: PLAYER.WHITE, location: 'WHITE_COURT'});
   ui.setState(state);
   ui.hideHandoff();
-  assert.doesNotMatch(elements.get('player-summary').innerHTML, /Colbert/);
+  assert.doesNotMatch(elements.get('player-summary').innerHTML, /COLBERT/);
   ui.inspectNoble(id, true);
   assert.equal(elements.get('inspection-dialog').open, true);
-  assert.match(elements.get('inspection-content').innerHTML, /Colbert/);
+  assert.match(elements.get('inspection-content').innerHTML, /COLBERT/);
   ui.showHandoff(PLAYER.BLACK);
   assert.equal(elements.get('inspection-dialog').open, false);
   assert.equal(elements.get('inspection-content').innerHTML, '');

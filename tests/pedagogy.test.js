@@ -93,6 +93,6 @@ test("Execution is globally skipped when both Dungeons are empty", () => {
 test("Noble presentation uses the custom rank code and identity", () => {
   const state = setUpMatch("noble-display");
   const boudica = state.nobles_by_id["NC-K-C"];
-  assert.equal(formatNoble(boudica), "Rx♧ · Boudica");
-  assert.equal(boudica.name, "Boudica");
+  assert.equal(formatNoble(boudica), "Rx♧ · BOUDICA");
+  assert.equal(boudica.name, "BOUDICA");
 });

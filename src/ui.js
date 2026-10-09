@@ -517,7 +517,7 @@ function seasonForPhase(phase) {
 
 function nobleDetail(noble) {
   if (!noble) return "Unknown Noble";
-  const name = noble.name ?? NOBLE_NAME[noble.face]?.[noble.suit] ?? formatNoble(noble);
+  const name = NOBLE_NAME[noble.face]?.[noble.suit] ?? noble.name?.toUpperCase() ?? formatNoble(noble);
   return `${formatNoble(noble)} · matching ${SUIT_GLYPH[noble.suit]} Harvest gains a Counter`;
 }
 
