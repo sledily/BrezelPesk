@@ -167,22 +167,22 @@ export const NOBLE_DISPLAY_CODE = Object.freeze({
 
 export const NOBLE_NAME = Object.freeze({
   [NOBLE_FACE.JACK]: Object.freeze({
-    [SUIT.CLOVERS]: "Margaret of Parma",
-    [SUIT.DIAMONDS]: "Colbert",
-    [SUIT.SPADES]: "La Malinche",
-    [SUIT.HEARTS]: "Catherine de Medici",
+    [SUIT.CLOVERS]: "COLBERT",
+    [SUIT.DIAMONDS]: "DE MEDICI",
+    [SUIT.SPADES]: "BARBARROSA HEYREDDIN",
+    [SUIT.HEARTS]: "LA MALINCHE",
   }),
   [NOBLE_FACE.QUEEN]: Object.freeze({
-    [SUIT.CLOVERS]: "Heinrich the Lion",
-    [SUIT.DIAMONDS]: "Eleanor of Aquitaine",
-    [SUIT.SPADES]: "Frederick Barbarossa",
-    [SUIT.HEARTS]: "Pope Gregory",
+    [SUIT.CLOVERS]: "HEINRICH the LION",
+    [SUIT.DIAMONDS]: "ALIÉNOR d'AQUITAINE",
+    [SUIT.SPADES]: "JEAN d'ARC",
+    [SUIT.HEARTS]: "INNOCENT",
   }),
   [NOBLE_FACE.KING]: Object.freeze({
-    [SUIT.CLOVERS]: "Boudica",
-    [SUIT.DIAMONDS]: "Caesar",
-    [SUIT.SPADES]: "David",
-    [SUIT.HEARTS]: "Cleopatra",
+    [SUIT.CLOVERS]: "BOUDICA",
+    [SUIT.DIAMONDS]: "CÆSAR",
+    [SUIT.SPADES]: "DAVID",
+    [SUIT.HEARTS]: "CLEOPATRA",
   }),
 });
 
@@ -216,6 +216,17 @@ export const DEFAULT_RULES = Object.freeze({
   green_start_square: "h1",
   black_start_square: "h8",
   red_start_square: "a8",
+});
+
+// New V2 matches use the approved personal Harvest and private Stockpile flows.
+export const V2_RULES = Object.freeze({
+  ruleset_version: "1.1-digital-2.0",
+  resource_flow_v2: true,
+  explicit_action_pass: true,
+  automatic_passes: true,
+  harvest_order: "STANDARD_V15",
+  harvest_returns_immediately: false,
+  poker_overlap_allowed: false,
 });
 
 export function otherPlayer(player) {

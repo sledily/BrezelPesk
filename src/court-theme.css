@@ -1,0 +1,185 @@
+/* The Court's printed ink, warm paper and suit borders continue onto the table. */
+:root { --ink:#24251b; --muted:#665a43; --surface:#f5e9cc; --surface-2:#e9dab7; --surface-3:#ead9ae; --line:#ab9363; --gold:#976324; --gold-soft:#bf9348; --black:#d4bc8e; --dark-square:#49647a; --light-square:#ead8ae; --woodcut-green:#58653b; --woodcut-red:#972f25; --woodcut-blue:#194765; --woodcut-gold:#a9762e; }
+body { background:repeating-linear-gradient(14deg,#61421805 0 1px,transparent 1px 5px),radial-gradient(ellipse at top,#f7ecd0,#dac599 85%); }
+.app-shell { --season-ink:var(--woodcut-green); }
+.app-shell[data-suit="DIAMONDS"] { --season-ink:var(--woodcut-red); }
+.app-shell[data-suit="SPADES"] { --season-ink:var(--woodcut-blue); }
+.app-shell[data-suit="HEARTS"] { --season-ink:#79392b; }
+.topbar { background:#f4e7c9; border-bottom:4px double #3a3524; box-shadow:0 2px 0 #b18e4c; }
+.brand-lockup h1 { font-weight:900; text-transform:uppercase; letter-spacing:.035em; color:#202318; text-shadow:1px 1px #c8ad6b; }
+.labyrinth-mark { background:#58633c; color:#f6e9bb; border:2px solid #20291c; outline-color:#d8b25b; transform:none; border-radius:4px 16px 4px 16px; }
+.year-heading h2 { color:var(--season-ink); }
+.realm-hand,.realm-side,.chronicle-panel,.board-constants { background:#f4e7c9; border-color:#6b5b39; }
+.realm-hand { border-top:3px double #2f3422; }
+.realm-hand h2,.realm-side h3,.chronicle-panel h2 { font-weight:800; }
+.realm-hand header { border-bottom:1px solid #ae9151; padding-bottom:9px; }
+.online-strip { color:#433b29; background:#e9dab7; border-color:#6b5b39; }
+.online-strip strong { color:#2e3823; }
+.court-back,.hostage-card,.reserve-group { border-color:#5c603a; }
+.court-back { background:repeating-linear-gradient(45deg,#405536 0 2px,#66754c 2px 5px); box-shadow:inset 0 0 0 3px #d3b572,inset 0 0 0 4px #273822; color:#f6e8bd; }
+.board-frame { border:6px double #2c3425; background:#b58c45; box-shadow:0 2px 0 #ae8540,0 8px 18px #30271433; }
+.board { border-color:#373829; }
+.square.dark { background:repeating-linear-gradient(0deg,#ffffff08 0 1px,transparent 1px 4px),var(--dark-square); }
+.square.light { background:repeating-linear-gradient(0deg,#4d301207 0 1px,transparent 1px 4px),var(--light-square); }
+.square.selected { outline-color:#bd892a; }
+.current-action { background:#f8edcf; border-bottom:3px double var(--season-ink); box-shadow:0 3px 10px #4734171a; }
+.action-rubric > .eyebrow { color:var(--season-ink); font-weight:900; }
+.action-panel { background:#f0e2bf; }
+.button { border-color:#7e693d; border-radius:4px; background:#eee0bb; box-shadow:inset 0 0 0 1px #fff5da; }
+.button:hover:not(:disabled) { background:#e1cfa2; border-color:#272e21; color:#252919; }
+.button.primary { color:#fff2c9; border:2px solid #252b1c; background:#526139; box-shadow:inset 0 0 0 1px #c5a45b,1px 2px 0 #4d3c2466; }
+.button.primary:hover:not(:disabled) { background:#3e512d; color:#fff4d9; }
+.button.danger { color:#fff2d8; background:#913d2f; }
+.button.quiet { color:#51412c; }
+.button:focus-visible,.court-back:focus-visible { outline:3px solid #1f6586; outline-offset:3px; }
+.card-token,.card-choice .card-token,.harvest-card { border-color:#343628; background:#fff4d8; box-shadow:1px 2px 0 #bba16b; }
+.card-token { border-width:1.5px; }
+.card-counter { background:#a33525; border-color:#f7eac4; box-shadow:0 0 0 1px #602e1d; }
+.table-pool { color:var(--season-ink); }
+.table-pool strong { font-weight:800; }
+.game-dialog,.handoff-card,.phase-notice-card { background:#f5e8c5; color:#2d3020; border:5px double #35452c; box-shadow:0 18px 70px #18211377; }
+.game-dialog::backdrop { background:#1b241e80; backdrop-filter:blur(2px); }
+.handoff-card h2,.phase-notice-card h2 { color:#2c3924; }
+.handoff-card p,.phase-notice-card p { color:#544830; }
+.inspection-dialog .noble-art { box-shadow:0 6px 16px #38250d33; }
+.phase-transition { width:min(960px,100%); margin:auto; padding:0 18px 14px; color:var(--season-ink); }
+.phase-arrival { display:flex; gap:16px; align-items:center; justify-content:center; text-align:left; }
+.phase-arrival h2 { margin:4px 0; font:900 clamp(22px,3vw,34px)/1.1 Georgia,serif; }
+.phase-arrival p { margin:0; }
+.phase-arrival .eyebrow { font-size:10px; color:var(--muted); }
+.phase-seal { width:58px; height:70px; display:grid; place-items:center; border:3px double currentColor; outline:1px solid #aa8749; outline-offset:3px; background:#fff3d2; font:900 48px/1 Georgia,serif; border-radius:6px; }
+.phase-lesson { max-width:700px; text-align:center; margin:13px auto 0; color:var(--ink); font-size:13px; line-height:1.6; }
+.suit-frieze { display:flex; align-items:center; gap:12px; width:100%; margin:6px 0 14px; color:#607044; }
+.suit-frieze svg { height:24px; flex:1; min-width:0; fill:#77804c; stroke:#2d3526; stroke-width:1.3; }
+.suit-frieze svg:last-child { transform:scaleX(-1); }
+.suit-frieze .frieze-stem { fill:none; stroke:#ac7c31; stroke-width:2; }
+.suit-frieze span { font:900 25px/1 Georgia,serif; color:currentColor; }
+.suit-frieze.diamonds { color:#952f25; }
+.suit-frieze.diamonds svg { fill:#a44231; stroke:#493122; }
+.suit-frieze.spades { color:#1e4d70; }
+.suit-frieze.spades svg { fill:#2a5974; stroke:#1e2f31; }
+.suit-frieze.hearts { color:#9a342b; }
+.suit-frieze.hearts svg { fill:#62784b; }
+.table-story { padding:12px 14px; margin:10px 0; border-left:4px solid var(--season-ink); background:#f6e8c5; color:#393624; box-shadow:2px 3px 0 #baa17066; }
+.table-story strong { font:800 17px Georgia,serif; }
+.table-story p { margin:5px 0 0; font-size:12px; line-height:1.6; }
+.recap-dialog { width:min(790px,calc(100% - 24px)); max-width:790px; max-height:90dvh; padding:20px 26px 14px; overflow:auto; }
+.recap-heading { display:flex; justify-content:space-between; gap:16px; align-items:center; border-bottom:3px double #8c7549; padding-bottom:12px; }
+.recap-heading h1 { font:900 clamp(21px,3vw,29px)/1.15 Georgia,serif; margin:5px 0 0; }
+.recap-heading .eyebrow { color:#647142; font-size:10px; }
+#recap-position { flex-shrink:0; font:700 22px Georgia,serif; color:#736134; }
+.recap-context { color:#74623e; text-align:center; font-size:12px; letter-spacing:.07em; margin:14px 0 4px; }
+.recap-step { min-height:275px; text-align:center; }
+.recap-step h2 { margin:15px 0; font:900 clamp(21px,3vw,32px)/1.2 Georgia,serif; }
+.story-explanation { max-width:620px; margin:18px auto; color:#433b29; font-size:15px; line-height:1.65; }
+.story-order { color:#665937; font-size:13px; }
+.story-visual { min-height:100px; display:grid; justify-content:center; align-content:center; position:relative; gap:12px; }
+.story-emblem { font:900 65px/1 Georgia,serif; color:#636c3d; }
+.story-cards { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; max-width:650px; }
+.story-card { position:relative; display:grid; place-items:center; width:72px; height:103px; background:#fff5d9; border:3px double #353825; border-radius:5px; box-shadow:2px 3px 0 #aa8f55; color:#2a382d; font:800 30px Georgia,serif; }
+.story-card.red-card { color:#9b3022; }
+.story-card .card-counter { width:21px; height:21px; bottom:-5px; right:-5px; }
+.story-rejects { display:flex; gap:8px; align-items:center; font-size:11px; }
+.story-back { display:grid; place-items:center; width:60px; height:90px; background:repeating-linear-gradient(45deg,#46603e 0 2px,#73804d 2px 6px); border:4px double #e4bc66; border-radius:5px; outline:1px solid #283820; color:#efe2b7; font:900 34px Georgia,serif; box-shadow:2px 3px 0 #b99c56; }
+.story-private { display:flex; align-items:center; gap:20px; color:#685a39; }
+.story-pool { font:900 32px Georgia,serif; color:#576d3c; }
+.story-pool small { display:block; margin:5px; font:12px system-ui,sans-serif; color:#5b533e; }
+.story-travel { display:flex; align-items:center; gap:18px; width:min(480px,70vw); color:#513f29; font:800 27px Georgia,serif; }
+.travel-line { position:relative; height:88px; flex:1; border-bottom:2px dashed #8c7f55; text-align:center; }
+.travel-line > b { position:absolute; right:8px; bottom:-14px; color:#7b733f; }
+.story-traveller { position:absolute; left:8%; top:7px; width:58px; }
+.static-recap .story-traveller { left:76%; }
+.static-recap .story-payment .story-card { transform:rotate(90deg) scale(.83); }
+.story-traveller .realm-piece,.story-pieces .realm-piece { width:58px; height:72px; }
+.story-pieces { display:flex; gap:20px; align-items:center; }
+.story-pieces strong { font:900 27px Georgia,serif; }
+.story-noble { width:190px; margin:auto; }
+.story-noble .noble-art { max-height:285px; width:100%; object-fit:contain; }
+.recap-controls { position:sticky; bottom:0; display:flex; flex-wrap:wrap; justify-content:center; gap:9px; padding:12px 0; border-top:3px double #8c7549; background:#f5e8c5; z-index:2; }
+.recap-controls .button { min-height:40px; }
+.recap-footnote { color:#786849; font-size:11px; line-height:1.5; text-align:center; margin:2px 0; }
+.recap-combat { padding:0 6px; }
+.recap-combat h2 { font-size:28px; }
+.recap-combat .combat-die { width:48px; height:48px; border:2px solid #303727; box-shadow:2px 4px 0 #57472166; }
+.recap-combat .combat-dice { min-height:95px; }
+.recap-combat .combat-arithmetic { font-size:15px; }
+.recap-combat .combat-unit .realm-piece { width:44px; height:58px; }
+.recap-combat .combat-narration { font-size:15px; }
+.combat-presentation { border:5px double #38432a; border-radius:8px; background:radial-gradient(ellipse at top,#fff2cb,#e5d09e); }
+.combat-die { border-color:#313328; box-shadow:2px 4px 0 #352f2177; }
+.combat-general { border:3px double #5c613e; background:#f3e1b2; }
+.combat-die.retained { outline-color:#b48222; }
+@media (prefers-reduced-motion:no-preference) {
+  .phase-transition { animation:phase-unfold .65s cubic-bezier(.2,.7,.2,1) both; }
+  .phase-seal { animation:seal-placed .65s cubic-bezier(.2,.8,.3,1) both; }
+  .phase-arrival h2 { animation:ink-reveal .7s .18s both; }
+  .table-story { animation:ink-reveal .3s both; }
+  .story-card { animation:card-dealt .7s calc(var(--story-index)*.09s) both; }
+  .story-card .card-counter { animation:seal-placed .6s .7s both; }
+  .story-traveller { animation:piece-travel 1.1s .15s cubic-bezier(.25,.7,.2,1) both; }
+  .story-build .story-piece { animation:seal-placed .7s both; }
+  .story-casualty .story-piece { animation:piece-lost 1.2s .2s both; }
+  .story-payment .story-card { animation:card-tapped .7s both; }
+  .story-pool { animation:seal-placed .7s .65s both; }
+  .combat-rolling .combat-die { animation:printed-die-tumble .46s linear infinite; animation-delay:calc(var(--die-index)*-140ms); }
+  .combat-bonus .combat-general,.combat-bonus .combat-rank { animation:seal-placed .7s both; }
+  .paused *, .static-recap * { animation-play-state:paused!important; }
+  .static-recap * { animation:none!important; }
+  @keyframes phase-unfold { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:none; } }
+  @keyframes ink-reveal { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+  @keyframes seal-placed { 0% { opacity:0; transform:translateY(-12px) scale(1.3) rotate(-10deg); } 65% { opacity:1; transform:scale(.93); } 100% { opacity:1; transform:none; } }
+  @keyframes card-dealt { from { opacity:0; transform:translateY(-28px) rotate(-18deg); } to { opacity:1; transform:none; } }
+  @keyframes card-tapped { from { transform:rotate(0deg); } to { transform:rotate(90deg) scale(.83); } }
+  @keyframes piece-travel { 0% { left:8%; transform:translateY(0) rotate(-5deg); } 45% { transform:translateY(-18px); } 100% { left:76%; transform:none; } }
+  @keyframes piece-lost { from { transform:rotate(0deg); opacity:1; } to { transform:rotate(70deg) translateY(8px); opacity:.4; } }
+  @keyframes printed-die-tumble { 0% { transform:translateY(-8px) perspective(100px) rotateX(0deg) rotateY(0deg) rotate(-12deg); } 50% { transform:translateY(5px) perspective(100px) rotateX(160deg) rotateY(180deg) rotate(12deg); } 100% { transform:translateY(-8px) perspective(100px) rotateX(360deg) rotateY(360deg) rotate(-12deg); } }
+}
+@media (max-width:600px) {
+  .recap-dialog { padding:14px; max-height:95dvh; }
+  .recap-heading h1 { font-size:20px; }
+  .recap-step { min-height:240px; }
+  .recap-step h2 { font-size:22px; }
+  .story-explanation { font-size:14px; }
+  .recap-combat .combat-die { width:34px; height:34px; }
+  .recap-combat .combat-unit { flex-direction:column; }
+  .recap-controls { gap:6px; }
+  .recap-controls .button { font-size:12px; padding:8px; }
+  .phase-seal { width:43px; height:54px; font-size:36px; }
+  .phase-transition { padding-inline:12px; }
+}
+@media (max-height:650px) and (min-width:650px) {
+  .recap-dialog { padding:10px 18px; max-height:95dvh; }
+  .recap-heading { padding-bottom:6px; }
+  .recap-heading h1 { font-size:22px; margin-top:3px; }
+  .recap-heading .eyebrow { font-size:9px; }
+  .recap-context { margin:6px 0 2px; font-size:11px; }
+  .recap-step { display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; min-height:0; }
+  .recap-step > .suit-frieze,.recap-step > h2,.recap-step > .story-order,.recap-step > .recap-combat { grid-column:1 / -1; }
+  .recap-step > .suit-frieze { margin:2px 0 4px; }
+  .recap-step > .suit-frieze svg { height:17px; }
+  .recap-step > .suit-frieze span { font-size:20px; }
+  .recap-step > h2 { margin:4px 0 6px; font-size:24px; }
+  .recap-step > .story-visual { grid-column:1; min-height:85px; gap:4px; }
+  .recap-step > .story-explanation { grid-column:2; align-self:center; text-align:left; margin:0; font-size:13px; line-height:1.45; }
+  .story-card { width:48px; height:66px; font-size:24px; }
+  .story-cards { gap:8px; }
+  .story-pool { font-size:24px; }
+  .story-pool small { margin:2px; font-size:10px; }
+  .story-travel { width:100%; gap:10px; font-size:23px; }
+  .travel-line { height:68px; }
+  .story-traveller { width:42px; }
+  .story-traveller .realm-piece,.story-pieces .realm-piece { width:42px; height:55px; }
+  .story-noble { width:94px; }
+  .story-noble .noble-art { max-height:141px; }
+  .story-noble .noble-caption { font-size:10px; }
+  .recap-controls { padding:8px 0; gap:7px; }
+  .recap-controls .button { min-height:34px; padding:6px 10px; font-size:12px; }
+  .recap-footnote { font-size:10px; line-height:1.2; }
+  .recap-combat h2 { margin:6px 0; font-size:23px; }
+  .recap-combat .combat-die { width:36px; height:36px; }
+  .recap-combat .combat-dice { min-height:60px; }
+  .recap-combat .combat-unit .realm-piece { width:32px; height:42px; }
+  .recap-combat .combat-arithmetic { font-size:13px; }
+  .recap-combat .combat-narration { margin:8px 0; font-size:13px; }
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }

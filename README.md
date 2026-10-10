@@ -1,119 +1,74 @@
-# Dendarv: Age of Crusader Kings — digital prototype
+# BrezelPesk — Dendarv
 
-This repository is the V1.5 usability revision of the digital implementation of the two-player game described by the official V1.1 rulebook, plus the adopted four-player rules drafted for rulebook V1.2.
+BrezelPesk is the online service for Dendarv: Age of Crusader Kings. This branch builds V2 persistence, private online play and the state-connected Tabletop interface on the existing two-/four-player rules engine. It includes lobby management, resignation, optional browser notifications and administrator/archive screens; combat pacing and routine cues are implemented; visual refinement and release verification remain in progress.
 
-The current build is a dependency-free browser game. It supports selectable two- or four-player local hot-seat play and server-authoritative two- or four-player online rooms. The same engine command API drives local play, remote players, spectators, persistence, and replay.
+The repository root is the canonical application. The former duplicate `dendarv/` tree has been removed.
 
-The online service is branded **BrezelPesk**—“Warfish” in Breton—as an homage to the browser strategy site that inspired the project's remote-table ambitions. Dendarv remains the game title.
+## Development
 
-V1.5 puts the constants in the header and uses this reading order: board with tips and guide, current action, seasonal pool, a shared player comparison panel, then Chronicle. The comparison panel shows Resources, Holding icons, Levy icons with named Vassal cards, private Court cards or public counts, and Dungeons.
-
-Harvest requires a separate click for every piece and uses the confirmed ordering for all four colors. Empty phases, Poker windows with no available hand, and Stockpiles with no required discard resolve automatically. Explanations appear one at a time when the affected player can act again. Automatic turn completion publishes actions and closes Undo. The Chronicle uses Rx/Dx/Vz and shows complete Harvest offers while concealing private Court identities.
-
-**Deliberate digital rules exception:** when every remaining Resource card fits, all are retained automatically. Voluntary discards in that situation are unavailable.
-
-See [V1.5_SPECIFICATION.md](V1.5_SPECIFICATION.md) for the complete adopted specification. Verification focuses on new v1.5 games, as requested.
-
-## Run the game
-
-The packaged release includes `Dendarv_Play.html` beside the source folder. Double-click that file for local hot-seat play: it is a self-contained build and does not require Node.js. Online play requires the Node server because the canonical match must live outside every player's browser.
-
-To run the modular development build instead, use Node.js 20 or later. The project has no packages to install.
+Use Node.js 24 (the tested version):
 
 ```bash
-node server.mjs
+npm ci
+npm start
 ```
 
-Then open <http://127.0.0.1:4173>.
+Open <http://127.0.0.1:4173>. Use **BrezelPesk** to create or join a room. Every occupied seat has a private recovery code; save it using **Copy recovery code**. Recovering a seat replaces its controlling browser session while retaining that code.
 
-Use the **BrezelPesk** button to create a room. The host chooses a player count and color, then shares the generated room link. A recipient opens immediately as a spectator and may claim an open color before the match starts. Once every seat is occupied, the host starts the match.
+Without `DATABASE_URL`, development saves one atomic file per room in `.dendarv-data/v2`. Set `DENDARV_DATA_DIR` to change that location. The file adapter supports one server process only. Hosted/production startup refuses this fallback because ephemeral files cannot provide durable online saves.
 
-For LAN testing, bind the server to all network interfaces and have other players open the host computer's LAN address:
+For PostgreSQL, supply `DATABASE_URL` through the environment. The application creates `dendarv_capacity` and `dendarv_rooms` in the database's current schema. Use a dedicated database/schema. Hosted remote connections require certificate-verified TLS. Credentials belong in the deployment secret store, never source files.
+
+Open `/admin` for the separate administrator login, read-only private inspection, exceptional seat recovery and archive management. See `ADMINISTRATION.md` for setup, safeguards and operating instructions.
+
+See `PRESENTATION.md` for combat timing, reduced motion, event privacy and the remaining visual checks.
+
+## Storage and recovery
+
+Each accepted request commits its room state, RNG state, draft, Undo history and idempotency receipt before sending the result. The browser retains an uncertain request across reloads and retries its original identity. An outcome already committed is not redrawn or charged again. Revisions reject stale commands, including stale requests after an action/Undo pair.
+
+Ordinary online actions retain explicit Pass, even after the last affordable action. Undo cannot cross newly revealed information. A defender's Quarter handoff publishes the attack automatically; the final Quarter response publishes and resumes the attacker's opportunity.
+
+Public routes use an explicit asset allowlist. Spectators retain public views after Completion or Abandonment. Authenticated participants can export full private records, including during an active game under the approved policy. Ordinary terminal access expires after 30 days; administrator records remain until explicit deletion is confirmed at `/admin`. Downloading archives never changes their retention.
+
+Terminal transitions save a pending archive atomically. The in-process archive worker retries records independently and resumes on startup. It is idle when no work remains. A sleeping host delays retry work until the process wakes.
+
+## Capacity
+
+These are conservative **development defaults, not a certified free-plan capacity**:
+
+| Environment variable | Default |
+| --- | ---: |
+| `DENDARV_MAX_GAMES` | 5 stored rooms, including terminal records |
+| `DENDARV_STORAGE_BUDGET_BYTES` | 67,108,864 bytes (64 MiB logical budget) |
+| `DENDARV_GAME_RESERVE_BYTES` | 8,388,608 bytes reserved per unfinished/pending-archive room |
+
+Admission and writes are serialized transactionally across PostgreSQL clients. Stored JSON, receipts, Undo snapshots, archive copies and audit entries count toward allocation. A physical database guard stops writes before estimated size reaches four times the logical budget (256 MiB with defaults). This is an additional early stop, not a provider quota guarantee. Existing state is retained on capacity errors; the service never automatically deletes games or purchases an upgrade.
+
+PostgreSQL persists these limits. A conflicting environment configuration fails startup instead of silently changing the budget. Four 20-year workloads are now measured; the larger reserve accounts for the observed peaks and additional growth. Final limits still require database/provider overhead and broader game coverage. Changing a limit requires deliberate review of the capacity row and corresponding environment values. No provider account or paid resource is created by this code. See [STORAGE_AND_RECOVERY.md](STORAGE_AND_RECOVERY.md) for exact measurements and the database restore procedure.
+
+## Administration
+
+Set `DENDARV_ADMIN_PASSWORD` (at least 20 characters) to enable administrator login. Without it, admin login is disabled. The foundation exposes an API; the administrator screen and batch ZIP/download/delete flow remain future work.
+
+- `POST /api/admin/login`: password; returns a one-hour HttpOnly session cookie and CSRF token.
+- `GET /api/admin`: stored-room allocations and configured limits.
+- `GET /api/admin/rooms/:code`: full record, archive and separate administrator audit.
+- `POST /api/admin/rooms/:code/recover`: confirmed exceptional recovery, rotating token and recovery code.
+- `POST /api/admin/rooms/:code/abandon`: confirmed terminal Abandonment.
+
+Admin writes require the cookie, `X-Admin-CSRF`, a unique `requestId`, and `confirmed: true`. Admin sessions expire on restart. Participant verifiers and recovery state are stored durably. Audit and authentication data never enter participant exports.
+
+## Verification and local build
 
 ```bash
-DENDARV_HOST=0.0.0.0 node server.mjs
+npm test
+npm run build:local
+npm run measure:storage
 ```
 
-On Windows PowerShell, the equivalent is:
+`Dendarv_Play.html` is the generated, self-contained local game. Open it directly for hot-seat play. Rebuild it whenever browser modules change. Do not open the modular `index.html` using `file://`.
 
-```powershell
-$env:DENDARV_HOST="0.0.0.0"; node server.mjs
-```
+The suite covers game rules, local UI startup, HTTP asset/privacy/admin boundaries, transactional failures, ambiguous commit reconciliation, concurrent capacity, recovery, pending Harvest and Quarter restart, publication, compact Undo and independent archives. SQL tests use embedded PostgreSQL through PGlite locally. Set `DENDARV_TEST_DATABASE_URL` to run against a disposable PostgreSQL server; use a test role with permission to create databases, and matching `pg_dump`/`pg_restore` clients. Tests create/remove only their own temporary schemas and randomly named test databases. The GitHub workflow supplies PostgreSQL 17 and runs the clients in its service container. Never point these tests at production.
 
-Internet play should use an HTTPS deployment or reverse proxy rather than exposing a home computer directly. Set `DENDARV_DATA_PATH` to a persistent disk location in production. By default, active rooms are saved atomically to `.dendarv-data/rooms.json` and survive a server restart.
-
-`render.yaml` describes a free Render web service named `brezelpesk`. If that service name is available when deployed, Render will assign `https://brezelpesk.onrender.com`. The free service is appropriate for continuous live playtests, but its filesystem is ephemeral: paused rooms do not survive a free-instance sleep or redeploy.
-
-Do not open `index.html` directly from the filesystem. Browsers restrict JavaScript module loading on `file://` pages; the small local server avoids that problem.
-
-## Run the tests
-
-```bash
-node --test
-```
-
-The 72 automated checks cover the domain rules, transactions, exact replay of two- and four-player Years, all four Harvest orders, manual per-piece draws, Poker availability, automatic season passes, mandatory Stockpile interaction, online publication and Undo, Court privacy, and standalone UI startup and notice dismissal. The UI checks use a lightweight DOM host; browser rendering and a live deployment have not been verified in this revision.
-
-## Implemented game systems
-
-- deterministic setup and Black-then-White Sovereign selection;
-- selectable four-player setup with Green-Black-Red-White Sovereign selection;
-- doubled Resource and Noble card sets with stable copy identities;
-- stable Unit identity, with Holding/Levy derived from Vassal assignment;
-- fixed two- and four-player Harvest ordering, corner deck choice, Center and Vassal Counters;
-- the adopted no-black-square Harvest failsafe;
-- Poker Hands and mandatory-spend status;
-- seasonal resource pools and multi-action spending;
-- Build, Upgrade, Recruit, Mobilize, Siege, Combat, Vassalize, and Execute;
-- Hostages, both Ransom buyers, proceeds, Quarter, No Quarter, and full-Dungeon execution;
-- Stockpile allocation and end-of-Year button rotation;
-- immediate two-player victory when either attacking or defending King is defeated;
-- four-player elimination, Court and Resource transfer, Hostage resolution, destroyed Vassals, and the Sovereign-or-Queen Conquest choice;
-- alternating annual direction, survivor-aware Button rotation, and last-King-standing victory;
-- hot-seat privacy handoffs and redacted player projections;
-- server-authoritative online rooms with short invitation codes;
-- device-persistent guest names and reconnect tokens;
-- atomic turn publication through explicit or automatic Pass: only the acting player sees unpublished actions;
-- server-side confirmed Undo of any unpublished action, with deterministic random outcomes;
-- midgame read-only spectators using the ordinary room link;
-- durable active matches and private draft history across server restarts;
-- browser autosave, JSON import/export, semantic event history, and deterministic command replay;
-- confirmed, repeatable in-session Undo that restores the complete pre-command state;
-- automatic unavailable-phase passes with explanations deferred until the next legal decision;
-- pedagogical Resource filtering, ordering, and Stockpile recommendations;
-- custom `Rx`/`Dx`/`Vz` titles and named Court cards, with compact suit badges on the board;
-- a standard chronicle with historical Counter and position snapshots, private live views, and complete records after a published result.
-
-## Deliberate boundaries of this build
-
-This is an online alpha candidate, not yet a production deployment. It does not yet include:
-
-- permanent user accounts, password recovery, or cross-device seat recovery;
-- an AI opponent;
-- production monitoring, backups, abuse controls, or a chosen public host/domain;
-- a compact-notation importer (the exporter is implemented in V1.4);
-- finished art, animation, sound, accessibility polish, or desktop packaging;
-- event-only replay without invoking the deterministic command handlers.
-
-The last item is worth distinguishing precisely: a match currently replays exactly from its seed plus command log. Every random result is also recorded in the semantic event log, but an event-only reducer remains a later persistence slice.
-
-## Source layout
-
-```text
-src/constants.js     stable stored identifiers and ruleset defaults
-src/model.js         canonical MatchState and card/Unit factories
-src/rng.js           seeded, serializable random source
-src/rules.js         pure derived values, legality helpers, and invariants
-src/engine.js        transactional command handlers and phase machine
-src/projection.js    redacted player and spectator views
-src/persistence.js   save/load codec
-src/rooms.js         authoritative online rooms, drafts, seats, and durable storage
-src/online.js        browser API client and reconnect identity
-src/notation.js      immutable standard chronicle entries, redaction and text export
-src/format.js        player-facing card labels, Harvest previews and cost explanations
-src/presentation.js  shared realm comparison, named cards, and numbered Harvest list
-src/ui.js            local/online controllers and browser presentation
-tests/               rules and integration tests
-```
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) and [OPEN_DECISIONS.md](OPEN_DECISIONS.md) before changing gameplay behavior.
+See [V2_FOUNDATION.md](V2_FOUNDATION.md) for the review scope and release gates. Historical rules/design documents remain references, not claims that all V2 behavior is implemented.

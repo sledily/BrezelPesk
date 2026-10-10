@@ -6,9 +6,18 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test",
-    "test:watch": "node --test --watch"
+    "test:watch": "node --test --watch",
+    "build:local": "node build_single_file.mjs",
+    "measure:storage": "node scripts/measure-storage.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.23.0",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8"
   }
 }

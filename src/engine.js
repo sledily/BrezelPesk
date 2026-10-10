@@ -6,6 +6,7 @@ import {
   PHASE_ORDER,
   PLAYER,
   SUIT,
+  SUITS,
   UNIT_TYPE,
 } from "./constants.js";
 import {
@@ -44,6 +45,9 @@ import {
   orderedHarvestUnits,
   phaseAllowsTap,
   pokerKindForCards,
+  pokerSelectionError,
+  stockpileInstructions,
+  stockpilePlan,
   sovereignCandidates,
   unitAt,
   validBuildTargets,
@@ -207,7 +211,7 @@ function setPhaseNotice(state, notice) {
 
 function refreshPhaseNotice(state) {
   if (state.rules.automatic_passes) return;
-  if (state.status !== "ACTIVE" || state.phase_notice || state.pending_combat || state.pending_conquest) return;
+  if (state.status !== "ACTIVE" || state.phase_notice || state.pending_combat || state.pending_conquest || state.pending_resignation) return;
   if ([PHASE.HARVEST, PHASE.RANSOM, PHASE.STOCKPILE].includes(state.phase)) return;
   if (state.phase === PHASE.EXECUTE && survivingPlayers(state).every((player) => !state.players[player].dungeon_noble_id)) {
     setPhaseNotice(state, { code: "NO_PRISONERS", reason: "There are no prisoners in any surviving player's Dungeon." });
@@ -259,6 +263,9 @@ function nextActorInOrder(state, player, excluded = new Set()) {
 
 function initializeHarvestActor(state, player) {
   state.current_actor = player;
+  state.harvest.stage = "DRAW";
+  state.harvest.rejects = [];
+  state.harvest.poker_used_ids = [];
   state.harvest.standard_order = usesStandardHarvestOrder(state);
   state.harvest.ordered_unit_ids = orderedHarvestUnits(state, player).map((unit) => unit.unit_id);
   state.harvest.remaining_unit_ids = [...state.harvest.ordered_unit_ids];
@@ -289,6 +296,14 @@ function startHarvest(state) {
 
 function completeHarvestDrawForActor(state) {
   const player = state.current_actor;
+  if (state.rules.resource_flow_v2) {
+    returnHarvestRejects(state);
+    state.harvest.completed_draw_players.push(player);
+    recordEvent(state, "HarvestActorCompleted", { player });
+    state.harvest.stage = "POKER";
+    recordEvent(state, "PokerDeclarationsStarted", { player, actor_order: [player] });
+    return;
+  }
   state.harvest.completed_draw_players.push(player);
   recordEvent(state, "HarvestActorCompleted", { player });
   if (state.harvest.completed_draw_players.length < state.phase_actor_order.length) {
@@ -299,6 +314,27 @@ function completeHarvestDrawForActor(state) {
   state.harvest.poker_used_ids = [];
   state.current_actor = state.phase_actor_order[0];
   recordEvent(state, "PokerDeclarationsStarted", { actor_order: state.phase_actor_order });
+}
+
+function returnHarvestRejects(state, onlyDeck = null) {
+  const returning = (state.harvest.rejects ?? []).filter(item => !onlyDeck || item.deck === onlyDeck);
+  const ids = new Set(returning.map(item => item.card_id));
+  for (const { card_id, deck } of returning) {
+    state.resources_by_id[card_id].location = `${deck}_DECK`;
+    state.decks[deck].push(card_id);
+  }
+  state.harvest.rejects = (state.harvest.rejects ?? []).filter(item => !ids.has(item.card_id));
+  for (const deck of new Set(returning.map(item => item.deck))) shuffleDeck(state, deck);
+  if (ids.size) recordEvent(state, onlyDeck ? "HarvestRejectsRecycled" : "HarvestRejectsReturned", {
+    player: state.current_actor, card_ids: [...ids], deck: onlyDeck,
+  });
+}
+
+function finishEmptyHarvest(state, unit) {
+  state.harvest.remaining_unit_ids = state.harvest.remaining_unit_ids.filter(id => id !== unit.unit_id);
+  state.harvest.unit_id = null;
+  state.harvest.deck = null;
+  if (!state.harvest.remaining_unit_ids.length) completeHarvestDrawForActor(state);
 }
 
 function cleanupSeason(state, suit) {
@@ -313,6 +349,8 @@ function cleanupSeason(state, suit) {
         card.tapped = false;
         card.has_counter = false;
         card.mandatory_spend_year = null;
+        card.poker_used_year = null;
+        card.counter_sources = [];
         card.location = `${deckName}_DECK`;
         state.decks[deckName].push(cardId);
         returned.push(cardId);
@@ -456,13 +494,24 @@ function drawHarvest(state, command) {
   requireCondition([DECK.BLACK, DECK.RED].includes(deck), "INVALID_DECK", "Select the Red or Black Resource Deck");
   requireCondition(isCorner(unit.square) || deck === requiredDeck, "INVALID_HARVEST_DECK", "Only corner Units may choose either Resource Deck");
   const count = drawCountOf(unit);
-  requireCondition(state.decks[deck].length >= count, "DECK_EXHAUSTED", `${deck} does not contain ${count} cards`, { deck, required: count });
+  if (!state.rules.resource_flow_v2) requireCondition(state.decks[deck].length >= count, "DECK_EXHAUSTED", `${deck} does not contain ${count} cards`, { deck, required: count });
   const cardIds = state.decks[deck].splice(0, count);
+  // Exhaust the existing deck before recycling only earlier rejects. The current
+  // offer is never in the reject pool and cannot be drawn twice.
+  if (state.rules.resource_flow_v2 && cardIds.length < count) {
+    returnHarvestRejects(state, deck);
+    cardIds.push(...state.decks[deck].splice(0, count - cardIds.length));
+  }
   for (const cardId of cardIds) state.resources_by_id[cardId].location = "HARVEST_OFFER";
   state.harvest.offer_ids = cardIds;
   state.harvest.unit_id = unit.unit_id;
   state.harvest.deck = deck;
   recordEvent(state, "HarvestCardsDrawn", { player: command.player, unit_id: unit.unit_id, deck, card_ids: cardIds }, state.rules.automatic_passes ? "PUBLIC" : command.player);
+  if (state.rules.resource_flow_v2 && cardIds.length < count) recordEvent(state, "HarvestSupplyShortage", {
+    player: command.player, unit_id: unit.unit_id, requested: count, available: cardIds.length, deck,
+    message: cardIds.length ? `Short Harvest: ${cardIds.length} of ${count} cards at ${unit.square}.` : `No Resource card available at ${unit.square}.`,
+  });
+  if (!cardIds.length && state.rules.resource_flow_v2) { finishEmptyHarvest(state, unit); return; }
   if (state.rules.automatic_passes && cardIds.length === 1) keepHarvestCard(state, { player: command.player, card_id: cardIds[0] });
 }
 
@@ -477,6 +526,7 @@ function keepHarvestCard(state, command) {
   const vassal = unit.vassal_noble_id ? state.nobles_by_id[unit.vassal_noble_id] : null;
   const counterFromVassal = vassal?.suit === kept.suit;
   kept.has_counter = Boolean(counterFromCenter || counterFromVassal);
+  kept.counter_sources = [counterFromCenter ? "CENTER" : null, counterFromVassal ? "VASSAL" : null].filter(Boolean);
   kept.location = playerLocation(command.player, "HAND");
   state.players[command.player].resource_hand_ids.push(kept.card_id);
 
@@ -484,8 +534,13 @@ function keepHarvestCard(state, command) {
   const deck = state.harvest.deck;
   for (const cardId of returned) {
     const card = state.resources_by_id[cardId];
-    card.location = `${deck}_DECK`;
-    state.decks[deck].push(cardId);
+    if (state.rules.resource_flow_v2) {
+      card.location = "HARVEST_REJECT";
+      state.harvest.rejects.push({ card_id: cardId, unit_id: unit.unit_id, deck });
+    } else {
+      card.location = `${deck}_DECK`;
+      state.decks[deck].push(cardId);
+    }
   }
   if (returned.length && state.rules.harvest_returns_immediately) shuffleDeck(state, deck);
   state.harvest.remaining_unit_ids = state.harvest.remaining_unit_ids.filter((id) => id !== unit.unit_id);
@@ -526,13 +581,16 @@ function continueForcedHarvest(state, player) {
 
 function declarePoker(state, command) {
   requirePhase(state, PHASE.HARVEST);
-  requireCondition(state.harvest?.stage === "POKER", "WRONG_HARVEST_STAGE", "Poker declarations occur after every player draws");
+  requireCondition(state.harvest?.stage === "POKER", "WRONG_HARVEST_STAGE", "The Poker window is not open");
   requireActor(state, command.player);
   const ids = [...new Set(command.card_ids ?? [])];
   requireCondition(ids.length === (command.card_ids ?? []).length, "DUPLICATE_CARD", "A card cannot appear twice in one declaration");
   requireCondition(ids.every((id) => state.players[command.player].resource_hand_ids.includes(id)), "CARD_NOT_OWNED", "Every declared card must be in your hand");
   const kind = pokerKindForCards(state, ids);
-  if (state.rules.automatic_passes) {
+  if (state.rules.resource_flow_v2) {
+    const error = pokerSelectionError(state, command.player, ids);
+    requireCondition(!error, "INVALID_POKER_HAND", error);
+  } else if (state.rules.automatic_passes) {
     requireCondition(availablePokerHands(state, command.player).some((hand) => hand.card_ids.length === ids.length && hand.card_ids.every((id) => ids.includes(id))),
       "POKER_HAND_UNAVAILABLE", "Choose an available Poker Hand which adds a bonus.");
   }
@@ -543,6 +601,8 @@ function declarePoker(state, command) {
   for (const id of ids) {
     const card = state.resources_by_id[id];
     card.has_counter = true;
+    if (state.rules.resource_flow_v2) card.poker_used_year = state.year_number;
+    card.counter_sources = [...new Set([...(card.counter_sources ?? []), "POKER"])];
     card.mandatory_spend_year = state.year_number;
   }
   state.harvest.poker_used_ids.push(...ids);
@@ -550,12 +610,17 @@ function declarePoker(state, command) {
 }
 
 function finishPoker(state, command) {
+  if (state.v2_acted) delete state.v2_acted[opportunityKey(state, command.player)];
   requirePhase(state, PHASE.HARVEST);
   requireCondition(state.harvest?.stage === "POKER", "WRONG_HARVEST_STAGE", "Poker declarations have not begun");
   requireActor(state, command.player);
   state.harvest.completed_poker_players.push(command.player);
-  recordEvent(state, "PokerDeclarationsFinished", { player: command.player });
-  if (state.harvest.completed_poker_players.length < state.phase_actor_order.length) {
+  recordEvent(state, "PokerDeclarationsFinished", { player: command.player, automatic: Boolean(command.automatic) });
+  if (state.rules.resource_flow_v2 && state.harvest.completed_draw_players.length < state.phase_actor_order.length) {
+    initializeHarvestActor(state, nextActorInOrder(state, command.player, new Set(state.harvest.completed_draw_players)));
+    return;
+  }
+  if (!state.rules.resource_flow_v2 && state.harvest.completed_poker_players.length < state.phase_actor_order.length) {
     state.current_actor = nextActorInOrder(state, command.player, new Set(state.harvest.completed_poker_players));
     state.harvest.poker_used_ids = [];
     return;
@@ -649,7 +714,7 @@ function respondRansom(state, command) {
   const noble = state.nobles_by_id[offer.noble_id];
   const cost = actionCost(state, "RANSOM", { actor: command.player, noble_id: noble.noble_id });
   if (!command.pay) {
-    recordEvent(state, "RansomDeclined", { player: command.player, noble_id: noble.noble_id, role: offer.stage });
+    recordEvent(state, "RansomDeclined", { player: command.player, noble_id: noble.noble_id, role: offer.stage, automatic: Boolean(command.automatic) });
     if (offer.stage === "OWNER") {
       offer.stage = "CAPTOR";
       state.current_actor = offer.captor;
@@ -759,6 +824,12 @@ function beginFourPlayerConquest(state, {
 
   defeatUnit(state, defeatedKing, { returnToReserve: false });
   defeatedState.eliminated = true;
+  if(survivingPlayers(state).length===1) {
+    if(outcome==='ATTACKER_WIN' && attacker) attacker.square=defeatedSquare;
+    state.status='COMPLETE';state.winner=victor;state.current_actor=victor;state.victory_reason='LAST_KING_STANDING';
+    recordEvent(state,'MatchCompleted',{winner:victor,defeated_king_id:defeatedKing.unit_id,reason:state.victory_reason});
+    return;
+  }
 
   const courtShuffle = shuffleWithState(defeatedState.court_noble_ids, state.rng_state);
   state.rng_state = courtShuffle.state;
@@ -779,6 +850,7 @@ function beginFourPlayerConquest(state, {
   recordEvent(state, "DefeatedCourtClaimed", {
     defeated_player: defeatedPlayer,
     victor,
+    captured_ids: capturedCourtIds,
     captured_count: capturedCourtIds.length,
     returned_count: returnedCourtIds.length,
   });
@@ -831,7 +903,7 @@ function beginFourPlayerConquest(state, {
   }
 
   const remainingUnits = liveUnits(state, defeatedPlayer);
-  const queenUnit = remainingUnits.find((unit) => unit.unit_type === UNIT_TYPE.QUEEN) ?? null;
+  const queenUnit = remainingUnits.find((unit) => unit.unit_type === UNIT_TYPE.QUEEN && !unit.irreplaceable && (unit.piece_color ?? unit.owner) === defeatedPlayer) ?? null;
   const killedVassalIds = [];
   for (const unit of remainingUnits) {
     if (unit.vassal_noble_id) {
@@ -852,7 +924,7 @@ function beginFourPlayerConquest(state, {
     defeated_king_id: defeatedKing.unit_id,
     queen_unit_id: queenUnit?.unit_id ?? null,
     king_square: defeatedSquare,
-    attacker_id: attacker.unit_id,
+    attacker_id: attacker?.unit_id ?? null,
     outcome,
     resume_actor: resumeActor,
   };
@@ -921,6 +993,12 @@ function resolveConquest(state, command) {
     });
   }
 
+  if (pending.outcome === 'RESIGNATION') {
+    state.pending_conquest=null;
+    recordEvent(state,'ConquestResolved',{defeated_player:defeatedPlayer,victor,choice:command.choice,captured_queen_id:capturedQueenId});
+    resumeAfterResignation(state,pending.resume_actor);
+    return;
+  }
   const priorOrder = [...state.phase_actor_order];
   state.phase_actor_order = priorOrder.filter((player) => !state.players[player].eliminated);
   state.passed_players = state.passed_players.filter((player) => !state.players[player].eliminated);
@@ -959,6 +1037,112 @@ function resolveConquest(state, command) {
   else advancePhase(state);
 }
 
+export function resignationBlock(state) {
+  if (!state || state.status !== 'ACTIVE') return 'The match is not active.';
+  if (state.phase === PHASE.SETUP) return 'Finish Sovereign selection first.';
+  if (state.pending_resignation) return 'Resolve the current resignation ballot first.';
+  if (state.pending_combat || state.pending_conquest || state.active_ransom || state.harvest?.offer_ids?.length || state.harvest?.failsafe_pending)
+    return 'Resolve the compulsory decision first.';
+  return null;
+}
+
+function resumeAfterResignation(state, resumeActor) {
+  const priorOrder = [...state.phase_actor_order];
+  state.phase_actor_order = priorOrder.filter(p => !state.players[p].eliminated);
+  state.passed_players = state.passed_players.filter(p => !state.players[p].eliminated);
+  if (state.phase === PHASE.HARVEST) {
+    if(state.players[resumeActor].eliminated) returnHarvestRejects(state);
+    state.harvest.completed_draw_players = state.harvest.completed_draw_players.filter(p => !state.players[p].eliminated);
+    state.harvest.completed_poker_players = state.harvest.completed_poker_players.filter(p => !state.players[p].eliminated);
+  }
+  if (!state.players[resumeActor].eliminated) { state.current_actor = resumeActor; return; }
+  const excluded = new Set(state.phase === PHASE.HARVEST ? state.harvest.completed_poker_players : state.passed_players);
+  const start = priorOrder.indexOf(resumeActor);
+  const next = Array.from({length:priorOrder.length},(_,i)=>priorOrder[(start+i+1)%priorOrder.length])
+    .find(p=>!state.players[p].eliminated && !excluded.has(p));
+  if (next) {
+    state.current_actor = next;
+    if (state.phase === PHASE.HARVEST) initializeHarvestActor(state,next);
+  } else advancePhase(state);
+}
+
+function resignationNoSpoils(state, player) {
+  const person=state.players[player], nobles=[...person.court_noble_ids];
+  person.court_noble_ids=[];
+  for(const captor of matchPlayers(state)) {
+    const id=state.players[captor].dungeon_noble_id;
+    if(id && (captor===player || state.nobles_by_id[id].owner===player)) {
+      nobles.push(id);state.players[captor].dungeon_noble_id=null;
+    }
+  }
+  for(const unit of liveUnits(state,player)) {
+    if(unit.vassal_noble_id) nobles.push(unit.vassal_noble_id);
+    unit.vassal_noble_id=null;defeatUnit(state,unit,{returnToReserve:false});
+  }
+  returnNoblesToDeckBatch(state,nobles,'ResignedNoblesReturned',{player});
+  const decks=new Set();
+  for(const id of person.resource_hand_ids) {
+    const card=state.resources_by_id[id], deck=deckForSuit(card.suit);
+    Object.assign(card,{has_counter:false,tapped:false,mandatory_spend_year:null,poker_used_year:null,counter_sources:[],location:`${deck}_DECK`});
+    state.decks[deck].push(id);decks.add(deck);
+  }
+  person.resource_hand_ids=[];
+  for(const deck of decks) shuffleDeck(state,deck);
+  for(const suit of Object.keys(person.seasonal_pools)) person.seasonal_pools[suit]=0;
+  for(const type of Object.keys(person.reserve)) person.reserve[type]=0;
+  person.eliminated=true;delete state.stockpile_committed[player];
+}
+
+function resolveResignation(state, beneficiary, reason, at) {
+  const pending=state.pending_resignation;
+  state.pending_resignation=null;
+  recordEvent(state,'ResignationResolved',{player:pending.player,beneficiary,reason,at,deadline:pending.deadline});
+  if(beneficiary) {
+    const king=liveUnits(state,pending.player).find(u=>u.unit_type===UNIT_TYPE.KING);
+    beginFourPlayerConquest(state,{defeatedKing:king,victor:beneficiary,attacker:null,outcome:'RESIGNATION',defeatedSquare:king.square,resumeActor:pending.resume_actor});
+  } else {
+    resignationNoSpoils(state,pending.player);
+    resumeAfterResignation(state,pending.resume_actor);
+  }
+}
+
+function resign(state, command) {
+  const blocked=resignationBlock(state);
+  requireCondition(!blocked,'RESIGNATION_UNAVAILABLE',blocked);
+  requireCondition(state.players[command.player] && !state.players[command.player].eliminated,'PLAYER_ELIMINATED','Only a surviving player may resign');
+  requireCondition(command.confirmed===true,'CONFIRM_REQUIRED','Confirm resignation');
+  requireCondition(Number.isFinite(Date.parse(command.at)),'INVALID_TIME','An authoritative resignation time is required');
+  state.phase_notice=null;
+  const survivors=survivingPlayers(state).filter(p=>p!==command.player);
+  recordEvent(state,'PlayerResigned',{player:command.player,at:command.at});
+  if(survivors.length===1) {
+    defeatUnit(state,liveUnits(state,command.player).find(u=>u.unit_type===UNIT_TYPE.KING),{returnToReserve:false});
+    state.players[command.player].eliminated=true;
+    state.status='COMPLETE';state.winner=survivors[0];state.current_actor=survivors[0];state.victory_reason='RESIGNATION';
+    recordEvent(state,'MatchCompleted',{winner:survivors[0],reason:'RESIGNATION',resigned_player:command.player});
+    return;
+  }
+  state.pending_resignation={player:command.player,survivors,votes:{},started_at:command.at,
+    deadline:new Date(Date.parse(command.at)+86400000).toISOString(),resume_actor:state.current_actor};
+  if(survivors.length===2) resolveResignation(state,null,'TWO_SURVIVORS',command.at);
+}
+
+function resignationVote(state,command) {
+  const pending=state.pending_resignation;
+  requireCondition(pending,'NO_BALLOT','No resignation ballot is pending');
+  requireCondition(pending.survivors.includes(command.player),'NOT_VOTER','Only the three survivors may vote');
+  requireCondition(Date.parse(command.at)<Date.parse(pending.deadline),'BALLOT_EXPIRED','The ballot deadline has passed');
+  requireCondition(command.choice==='NONE' || pending.survivors.includes(command.choice),'INVALID_VOTE','Choose a survivor or No spoils');
+  pending.votes[command.player]=command.choice;
+  recordEvent(state,'ResignationVoteCast',{player:command.player,choice:command.choice,at:command.at,deadline:pending.deadline});
+  if(pending.survivors.every(p=>pending.votes[p]===command.choice)) resolveResignation(state,command.choice==='NONE'?null:command.choice,'UNANIMOUS',command.at);
+}
+
+function expireResignation(state,command) {
+  requireCondition(state.pending_resignation && Date.parse(command.at)>=Date.parse(state.pending_resignation.deadline),'BALLOT_NOT_DUE','The ballot has not expired');
+  resolveResignation(state,null,'TIMEOUT',command.at);
+}
+
 function laySiege(state, command) {
   requirePhase(state, PHASE.SIEGE);
   requireActor(state, command.player);
@@ -983,7 +1167,14 @@ function laySiege(state, command) {
   const outcome = attackerTotal === defenderTotal
     ? "TIE"
     : attackerTotal > defenderTotal ? "ATTACKER_WIN" : "DEFENDER_WIN";
+  const combatSnapshot = unit => ({ unit: { unit_id:unit.unit_id, owner:unit.owner,
+    piece_color:unit.piece_color ?? unit.owner, unit_type:unit.unit_type, square:unit.square,
+    vassal_noble_id:unit.vassal_noble_id, irreplaceable:Boolean(unit.irreplaceable) },
+    noble:unit.vassal_noble_id ? { noble_id:unit.vassal_noble_id,
+      face:state.nobles_by_id[unit.vassal_noble_id].face, suit:state.nobles_by_id[unit.vassal_noble_id].suit,
+      rank:state.nobles_by_id[unit.vassal_noble_id].rank } : null });
   recordEvent(state, "CombatResolved", {
+    attacker_snapshot:combatSnapshot(attacker), defender_snapshot:combatSnapshot(defender),
     attacker_id: attacker.unit_id,
     defender_id: defender.unit_id,
     cost,
@@ -1126,13 +1317,14 @@ function acknowledgePhaseNotice(state, command) {
 }
 
 function passPhase(state, command) {
+  if (state.v2_acted) delete state.v2_acted[opportunityKey(state, command.player)];
   requireCondition(state.status === "ACTIVE", "WRONG_MATCH_STATUS", "The match is not active");
   requireCondition(![PHASE.HARVEST, PHASE.RANSOM, PHASE.STOCKPILE].includes(state.phase), "PASS_NOT_ALLOWED", "This phase has a specific completion decision");
   requireCondition(!state.pending_combat, "PENDING_DECISION", "Resolve the Quarter decision first");
   requireActor(state, command.player);
   requireCondition(!state.passed_players.includes(command.player), "ALREADY_PASSED", "This player already passed");
   state.passed_players.push(command.player);
-  recordEvent(state, "ActorPassed", { player: command.player, phase: state.phase });
+  recordEvent(state, "ActorPassed", { player: command.player, phase: state.phase, automatic: Boolean(command.automatic) });
   if (state.passed_players.length < state.phase_actor_order.length) {
     state.current_actor = nextActorInOrder(state, command.player, new Set(state.passed_players));
     return;
@@ -1145,7 +1337,7 @@ function chooseStockpile(state, command) {
   requireActor(state, command.player);
   const kept = command.card_ids ?? [];
   const hand = state.players[command.player].resource_hand_ids;
-  if (state.rules.automatic_passes && !validateStockpile(state, command.player, hand)) {
+  if (!state.rules.resource_flow_v2 && state.rules.automatic_passes && !validateStockpile(state, command.player, hand)) {
     requireCondition(kept.length === hand.length && hand.every((id) => kept.includes(id)), "VOLUNTARY_DISCARD_DISABLED", "All remaining cards fit and are retained automatically in the digital game.");
   }
   const validation = validateStockpile(state, command.player, kept);
@@ -1159,6 +1351,8 @@ function chooseStockpile(state, command) {
     card.has_counter = false;
     card.tapped = false;
     card.mandatory_spend_year = null;
+    card.poker_used_year = null;
+    card.counter_sources = [];
     card.location = `${deck}_DECK`;
     state.decks[deck].push(cardId);
     affectedDecks.add(deck);
@@ -1167,7 +1361,7 @@ function chooseStockpile(state, command) {
   state.players[command.player].resource_hand_ids = [...kept];
   for (const deck of affectedDecks) shuffleDeck(state, deck);
   state.stockpile_committed[command.player] = true;
-  recordEvent(state, "ResourceStockpileCommitted", { player: command.player, kept_card_ids: kept, discarded_card_ids: discarded });
+  recordEvent(state, "ResourceStockpileCommitted", { player: command.player, kept_card_ids: kept, discarded_card_ids: discarded, automatic: Boolean(command.automatic) });
   if (Object.keys(state.stockpile_committed).length < state.phase_actor_order.length) {
     state.current_actor = nextActorInOrder(state, command.player, new Set(Object.keys(state.stockpile_committed)));
     return;
@@ -1180,6 +1374,49 @@ function chooseStockpile(state, command) {
   startHarvest(state);
 }
 
+function setStockpileInstructions(state, command) {
+  requireCondition(state.rules.resource_flow_v2 && state.status === "ACTIVE" && state.players[command.player] && !state.players[command.player].eliminated,
+    "STOCKPILE_UNAVAILABLE", "Only a surviving player in an active V2 game can plan Stockpile");
+  const input = command.instructions;
+  requireCondition(input && ["MANUAL", "AUTO"].includes(input.mode), "INVALID_STOCKPILE_INSTRUCTIONS", "Choose Manual or Auto");
+  requireCondition(Array.isArray(input.suit_order) && input.suit_order.length === 4 && SUITS.every(s => input.suit_order.includes(s)), "INVALID_SUIT_ORDER", "Rank each of the four suits once");
+  const cardOrder = {};
+  for (const suit of SUITS) {
+    const ids = input.card_order?.[suit] ?? [];
+    requireCondition(Array.isArray(ids) && ids.length <= 20 && new Set(ids).size === ids.length
+      && ids.every(id => state.resources_by_id[id]?.suit === suit), "INVALID_CARD_ORDER", "Card priorities must identify distinct physical cards of that suit");
+    cardOrder[suit] = [...ids];
+  }
+  const plan = input.manual_plan ?? null;
+  requireCondition(plan === null || (plan.year === state.year_number && Array.isArray(plan.card_ids)
+    && plan.card_ids.length <= 8 && new Set(plan.card_ids).size === plan.card_ids.length
+    && plan.card_ids.every(id => Boolean(state.resources_by_id[id]))), "INVALID_MANUAL_PLAN", "Save an exact selection of up to eight cards for this Year");
+  requireCondition(input.manual_year == null || input.manual_year === state.year_number, "INVALID_MANUAL_YEAR", "A Manual override applies only to this Year");
+  state.players[command.player].stockpile_instructions = {
+    mode: input.mode, suit_order: [...input.suit_order], card_order: cardOrder,
+    manual_year: input.manual_year ?? null, manual_plan: plan ? deepClone(plan) : null,
+  };
+  recordEvent(state, "StockpileInstructionsSaved", { player: command.player, instructions: deepClone(state.players[command.player].stockpile_instructions) }, command.player);
+}
+
+// Planning is independent of reversible gameplay. An Undo keeps the latest saved
+// private instructions, recording them again so command replay stays exact.
+export function preserveStockpileInstructions(restored, latest) {
+  for (const player of matchPlayers(latest)) {
+    const instructions = latest.players[player].stockpile_instructions;
+    if (!instructions || JSON.stringify(instructions) === JSON.stringify(restored.players[player].stockpile_instructions)) continue;
+    const result = dispatch(restored, { type: "SET_STOCKPILE_INSTRUCTIONS", player, instructions });
+    if (!result.ok) throw new RuleError(result.error.code, result.error.message);
+    restored = result.state;
+  }
+  return restored;
+}
+
+export function reversibleAction(before, after, command) {
+  return ["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "MOBILIZE_UNIT", "VASSALIZE_NOBLE", "DECLARE_POKER"].includes(command.type)
+    && JSON.stringify(before.rng_state) === JSON.stringify(after.rng_state);
+}
+
 function queueAutomaticNotice(state, reason, section = state.phase, player = state.current_actor) {
   const event = recordEvent(state, "PhaseAutomaticallyPassed", { player, section, reason });
   state.automatic_notices ??= [];
@@ -1189,22 +1426,31 @@ function queueAutomaticNotice(state, reason, section = state.phase, player = sta
 
 // Settle all clerical transitions in the same transaction. This never draws for
 // the next piece, chooses among offered cards, or spends a player's resources.
+function opportunityKey(state, player = state.current_actor) { return `${state.year_number}:${state.phase}:${player}`; }
+
 export function settleAutomaticPhases(state) {
   if (!state.rules.automatic_passes) return;
   state.phase_notice = null;
   for (let step = 0; step < 256 && state.status === "ACTIVE"; step++) {
-    if (state.pending_combat || state.pending_conquest) return;
+    if (state.pending_combat || state.pending_conquest || state.pending_resignation) return;
     const player = state.current_actor;
+    if (state.rules.explicit_action_pass && state.v2_acted?.[opportunityKey(state)]) return;
     if (state.phase === PHASE.HARVEST) {
       if (state.harvest.stage === "DRAW") return;
       if (availablePokerHands(state, player).length) return;
-      queueAutomaticNotice(state, "No available Poker Hand can add a bonus.", "POKER");
-      finishPoker(state, { player });
+      if (!state.rules.resource_flow_v2) queueAutomaticNotice(state, "No available Poker Hand can add a bonus.", "POKER");
+      finishPoker(state, { player, automatic: true });
     } else if (state.phase === PHASE.STOCKPILE) {
+      if (state.rules.resource_flow_v2) {
+        const plan = stockpilePlan(state, player);
+        if (!plan.submitted || plan.error) return;
+        chooseStockpile(state, { player, card_ids: plan.card_ids, automatic: true });
+        continue;
+      }
       const cards = state.players[player].resource_hand_ids;
       if (validateStockpile(state, player, cards)) return;
       queueAutomaticNotice(state, "Every remaining card fits your Stockpile. All were retained automatically.");
-      chooseStockpile(state, { player, card_ids: [...cards] });
+      chooseStockpile(state, { player, card_ids: [...cards], automatic: true });
     } else if (state.phase === PHASE.RANSOM) {
       const offer = state.active_ransom;
       if (!offer) {
@@ -1216,12 +1462,12 @@ export function settleAutomaticPhases(state) {
       const value = availableResourceValue(state, player, SUIT.DIAMONDS);
       if (value >= cost) return;
       queueAutomaticNotice(state, `Ransom costs ${cost} Diamonds; only ${value} are available. The unaffordable offer was declined.`);
-      respondRansom(state, { player, pay: false });
+      respondRansom(state, { player, pay: false, automatic: true });
     } else {
       const availability = phaseAvailability(state, player);
       if (availability.available) return;
       queueAutomaticNotice(state, availability.reason);
-      passPhase(state, { player });
+      passPhase(state, { player, automatic: true });
     }
   }
   requireCondition(state.status !== "ACTIVE", "AUTOMATIC_PASS_LIMIT", "Automatic phase progression did not reach a decision.");
@@ -1230,8 +1476,8 @@ export function settleAutomaticPhases(state) {
 export function turnBoundaryCrossed(before, after, events = []) {
   return before.status !== after.status || before.phase !== after.phase
     || before.current_actor !== after.current_actor || before.year_number !== after.year_number
-    || before.harvest?.stage !== after.harvest?.stage || before.active_ransom?.stage !== after.active_ransom?.stage
-    || events.some((event) => ["ActorPassed", "HarvestActorCompleted", "PokerDeclarationsFinished", "ResourceStockpileCommitted", "PhaseAutomaticallyPassed"].includes(event.type));
+    || (!before.rules.resource_flow_v2 && before.harvest?.stage !== after.harvest?.stage) || before.active_ransom?.stage !== after.active_ransom?.stage
+    || events.some((event) => ["ActorPassed", ...(!before.rules.resource_flow_v2 ? ["HarvestActorCompleted"] : []), "PokerDeclarationsFinished", "ResourceStockpileCommitted", "PhaseAutomaticallyPassed"].includes(event.type));
 }
 
 function applyV15Usability(state) {
@@ -1278,11 +1524,15 @@ const HANDLERS = Object.freeze({
   LAY_SIEGE: laySiege,
   CHOOSE_QUARTER: chooseQuarter,
   CHOOSE_CONQUEST: resolveConquest,
+  RESIGN: resign,
+  RESIGNATION_VOTE: resignationVote,
+  EXPIRE_RESIGNATION: expireResignation,
   VASSALIZE_NOBLE: vassalizeNoble,
   EXECUTE_HOSTAGE: executeHostage,
   ACKNOWLEDGE_PHASE_NOTICE: acknowledgePhaseNotice,
   PASS_PHASE: passPhase,
   CHOOSE_STOCKPILE: chooseStockpile,
+  SET_STOCKPILE_INSTRUCTIONS: setStockpileInstructions,
 });
 
 export function dispatch(state, command) {
@@ -1291,22 +1541,36 @@ export function dispatch(state, command) {
   try {
     requireCondition(command && typeof command.type === "string", "INVALID_COMMAND", "Command type is required");
     requireCondition(!(working.status === "COMPLETE" && !["NEW_MATCH", "APPLY_V15_USABILITY"].includes(command.type)), "MATCH_COMPLETE", "No commands are accepted after victory");
-    if (working.phase_notice && !["ACKNOWLEDGE_PHASE_NOTICE", "APPLY_V15_USABILITY"].includes(command.type)) {
+    if (working.pending_resignation && !['RESIGNATION_VOTE','EXPIRE_RESIGNATION'].includes(command.type)) fail('NEGOTIATION_PENDING','Play is paused for the resignation ballot');
+    const lifecycle=['RESIGN','RESIGNATION_VOTE','EXPIRE_RESIGNATION'].includes(command.type);
+    const planning = command.type === "SET_STOCKPILE_INSTRUCTIONS";
+    if (working.phase_notice && !planning && !lifecycle && !["ACKNOWLEDGE_PHASE_NOTICE", "APPLY_V15_USABILITY"].includes(command.type)) {
       fail("PHASE_NOTICE_PENDING", "Acknowledge the unavailable phase before taking another action");
     }
-    if (working.pending_combat && !["CHOOSE_QUARTER", "APPLY_V15_USABILITY"].includes(command.type)) {
+    if (working.pending_combat && !planning && !["CHOOSE_QUARTER", "APPLY_V15_USABILITY"].includes(command.type)) {
       fail("PENDING_DECISION", "Resolve the Quarter decision before taking another action");
     }
-    if (working.pending_conquest && !["CHOOSE_CONQUEST", "APPLY_V15_USABILITY"].includes(command.type)) {
+    if (working.pending_conquest && !planning && !["CHOOSE_CONQUEST", "APPLY_V15_USABILITY"].includes(command.type)) {
       fail("PENDING_DECISION", "Resolve the Conquest choice before taking another action");
     }
     const handler = HANDLERS[command.type];
     requireCondition(Boolean(handler), "UNKNOWN_COMMAND", `Unknown command: ${command.type}`);
+    if (working.rules.explicit_action_pass && ["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "RECRUIT_NOBLE",
+      "MOBILIZE_UNIT", "LAY_SIEGE", "VASSALIZE_NOBLE", "EXECUTE_HOSTAGE", "DECLARE_POKER"].includes(command.type)) {
+      working.v2_acted ??= {}; working.v2_acted[opportunityKey(working, command.player)] = true;
+    }
     handler(working, command);
     if (!working.rules.automatic_passes && command.auto_harvest && ["DRAW_HARVEST", "KEEP_HARVEST_CARD", "RESOLVE_HARVEST_FAILSAFE"].includes(command.type)) {
       continueForcedHarvest(working, command.player);
     }
-    if (working.rules.automatic_passes) settleAutomaticPhases(working);
+    const ordinaryAction = ["TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "RECRUIT_NOBLE",
+      "MOBILIZE_UNIT", "LAY_SIEGE", "VASSALIZE_NOBLE", "EXECUTE_HOSTAGE", "DECLARE_POKER"].includes(command.type);
+    const sameOpportunity = working.current_actor === state.current_actor && working.phase === state.phase;
+    if (planning && !(working.phase === PHASE.STOCKPILE && working.current_actor === command.player)) {
+      // Saving while waiting must never advance somebody else's opportunity.
+    } else if (working.rules.automatic_passes) {
+      if (!(working.rules.explicit_action_pass && ordinaryAction && sameOpportunity)) settleAutomaticPhases(working);
+    }
     else refreshPhaseNotice(working);
     working.command_log.push(deepClone(command));
     const invariantErrors = validateInvariants(working);

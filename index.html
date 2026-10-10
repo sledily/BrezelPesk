@@ -3,12 +3,13 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#151815">
+    <meta name="theme-color" content="#e9dfc9">
     <meta name="application-name" content="BrezelPesk">
     <meta name="application-version" content="1.5.0">
     <meta name="description" content="Play Dendarv locally or online with guided Harvest, clear seasonal costs and a standardized game chronicle.">
     <title>Dendarv: Age of Crusader Kings</title>
     <link rel="stylesheet" href="./src/styles.css">
+    <link rel="stylesheet" href="./src/court-theme.css">
   </head>
   <body>
     <div class="app-shell">
@@ -26,38 +27,54 @@
           <button id="new-game" class="button quiet">New</button>
           <button id="undo-action" class="button quiet" disabled>Undo</button>
           <button id="load-autosave" class="button quiet">Resume</button>
+          <button id="review-turns" class="button quiet">Since my last turn</button>
           <button id="export-save" class="button quiet">Export save</button>
           <button id="import-save" class="button quiet">Import</button>
           <input id="import-file" type="file" accept="application/json,.json" hidden>
         </nav>
-        <div id="turn-card" class="header-turn"></div>
       </header>
 
       <section id="online-strip" class="online-strip" aria-live="polite" hidden>
         <div id="online-strip-text"></div>
         <div class="online-strip-actions">
+          <button id="copy-recovery-code" class="button tiny">Copy recovery code</button>
+          <button id="rename-online-game" class="button tiny" hidden>Rename game</button>
+          <button id="notifications-online" class="button tiny" hidden>Enable notifications</button>
+          <span id="notifications-help" class="field-note"></span>
+          <button id="resign-online" class="button tiny" hidden>Resign</button>
+          <button id="abandon-online" class="button tiny" hidden>Close as abandoned</button>
           <button id="copy-room-link" class="button tiny">Copy spectator link</button>
           <button id="leave-online" class="button tiny quiet">Return to local game</button>
         </div>
       </section>
 
+      <section id="terminal-record" class="panel" hidden><h2>Complete game record</h2><p id="terminal-record-status"></p><pre id="terminal-record-text" class="chronicle-text" tabindex="0"></pre><details><summary>Full structured record</summary><pre id="terminal-record-json" class="chronicle-text" tabindex="0"></pre></details></section>
+
+      <section class="current-action" aria-label="Current Action">
+        <div class="action-rubric"><span class="eyebrow">Current Action</span><strong id="current-action-summary" role="status" aria-live="polite"></strong></div>
+        <section id="phase-transition" class="phase-transition" role="status" aria-live="polite" hidden></section>
+      </section>
+      <section id="action-controls" class="panel action-panel" aria-label="Action controls"></section>
       <main class="game-layout">
+        <div id="tabletop" class="tabletop">
+        <section id="player-summary" aria-label="Player corners"></section>
         <section class="board-column" aria-label="Game board">
           <div class="board-frame">
             <div id="board" class="board" role="grid" aria-label="Dendarv board"></div>
+            <section id="combat-presentation" class="combat-presentation" aria-label="Combat presentation" hidden></section>
+            <div id="harvest-table" class="harvest-table" hidden></div>
           </div>
+          <div id="turn-card" class="board-constants"></div>
           <div id="board-hint" class="board-hint">Select an action to see legal squares.</div>
+          <div id="table-story" class="table-story" role="status" aria-live="polite" hidden></div>
           <details class="board-vocabulary"><summary>Read the board and cards</summary>
-            <p>○ Holding: Harvests and defends. A Noble badge marks a Levy, which can also move and attack.</p>
+            <p>A Holding is a chess piece without a card. A small Vassal card marks a Levy, which can also move and attack. Select a piece to inspect it; select its card separately to inspect the Vassal.</p>
             <p>Vassal badges use Vz, Dx and Rx, with their suit symbols. The same titles identify the named Court cards below.</p>
             <p>A filled marker shows a legal destination; a red ring shows a Siege target. A gold border marks your selection. A dashed outline marks the Harvesting piece.</p>
             <p>Cards: * adds one Counter; a check marks a selection; a tilted card is tapped; ! means spend or return this Year.</p>
           </details>
         </section>
-
-        <section id="action-controls" class="panel action-panel" aria-label="Current action"></section>
-        <section id="resource-controls" class="panel" aria-label="Seasonal resource pool"></section>
-        <section id="player-summary" class="panel" aria-label="Players, Resources and Political order"></section>
+        </div>
 
         <aside class="history-column">
           <section class="panel chronicle-panel">
@@ -75,13 +92,26 @@
       </main>
     </div>
 
+    <dialog id="recap-dialog" class="game-dialog recap-dialog" aria-labelledby="recap-title">
+      <header class="recap-heading"><div><p class="eyebrow">The table remembers</p><h1 id="recap-title">Since your last turn</h1></div><span id="recap-position"></span></header>
+      <p id="recap-context" class="recap-context"></p>
+      <div id="recap-step" class="recap-step" aria-live="polite"></div>
+      <div class="recap-controls"><button id="recap-back" class="button quiet">Previous</button><button id="recap-pause" class="button">Pause</button><button id="recap-next" class="button primary">Next action</button><button id="recap-skip" class="button quiet">Skip to current board</button></div>
+      <p class="recap-footnote">Recorded actions and original dice. The board behind this replay is the current position.</p>
+    </dialog>
+
+    <dialog id="inspection-dialog" class="game-dialog inspection-dialog" aria-label="Card or Unit inspection">
+      <div id="inspection-content"></div>
+      <button id="close-inspection" class="button primary full">Return to table</button>
+    </dialog>
+
     <div id="handoff" class="handoff" role="dialog" aria-modal="true" hidden>
       <div class="handoff-card">
         <p class="eyebrow">Hot-seat privacy</p>
         <div id="handoff-seal" class="handoff-seal" aria-hidden="true"></div>
         <h2 id="handoff-title">Pass the device</h2>
         <p id="handoff-text"></p>
-        <button id="accept-handoff" class="button primary large">Reveal my view</button>
+        <button id="accept-handoff" class="button primary large">Ready</button>
       </div>
     </div>
 
@@ -123,6 +153,13 @@
       <form method="dialog" id="online-form">
         <p class="eyebrow">BrezelPesk · Remote table</p>
         <h2>Play or watch online</h2>
+        <section class="online-form-section" aria-labelledby="active-games-title">
+          <h3 id="active-games-title">Your Active Games</h3>
+          <p class="field-note">Don’t see your game here? That does not mean the game is gone. This list only shows games remembered by this browser. Use the room code to find the match again, then your recovery code to reclaim your seat.</p>
+          <p class="field-note">Clearing or blocking site data, private browsing, or changing browser/device may remove this list without deleting the online game.</p>
+          <div id="active-games-list" aria-live="polite"></div>
+          <button id="refresh-active-games" type="button" class="button quiet">Refresh games</button>
+        </section>
         <section class="online-form-section">
           <h3>Create a room</h3>
           <label for="online-create-name">Your name</label>
@@ -132,10 +169,11 @@
             <option value="4" selected>Four players</option>
             <option value="2">Two players</option>
           </select>
-          <label for="online-create-seat">Your color</label>
+          <label for="online-create-mode">Seating</label>
+          <select id="online-create-mode"><option value="FREE">Free choice</option><option value="HOST">Host chooses</option><option value="RANDOM">Random</option></select>
+          <p id="online-mode-help" class="field-note">Players choose their colours; the host starts when all seats are filled.</p>
+          <label id="online-create-seat-label" for="online-create-seat">Your color</label>
           <select id="online-create-seat"></select>
-          <label for="online-create-seed">Random seed <span class="optional">optional</span></label>
-          <input id="online-create-seed" autocomplete="off" placeholder="Generated automatically">
           <button id="create-online-room" type="button" class="button primary full">Create room</button>
         </section>
         <div class="online-divider"><span>or</span></div>
@@ -144,7 +182,10 @@
           <label for="online-room-code">Six-character room code</label>
           <input id="online-room-code" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="ABC123">
           <button id="open-online-room" type="button" class="button full">Open room</button>
-          <p class="field-note">Opening a room starts in spectator mode. If the match has not begun, you may claim any open player color.</p>
+          <label for="online-recovery-code">Private recovery code</label>
+          <input id="online-recovery-code" maxlength="128" autocomplete="off" type="password">
+          <button id="recover-online-seat" type="button" class="button full">Recover seat</button>
+          <p class="field-note">The room code finds the game. The private recovery code reclaims your seat on this device. Opening a room resumes a remembered seat when available; otherwise you enter as a spectator.</p>
         </section>
         <div class="dialog-actions">
           <button value="cancel" class="button quiet">Cancel</button>
@@ -161,16 +202,30 @@
         <div id="online-join-controls" class="online-join-controls">
           <label for="online-join-name">Your name</label>
           <input id="online-join-name" maxlength="40" autocomplete="name">
-          <p class="field-note">Choose an open color below to take that seat.</p>
+          <p id="online-join-help" class="field-note">Choose an open color to take that seat.</p>
+          <button id="join-online-participant" class="button primary" hidden>Join game</button>
         </div>
         <div class="choice-grid online-lobby-actions">
           <button id="start-online-match" class="button primary" hidden>Start match</button>
+          <button id="lobby-rename-game" class="button" hidden>Rename game</button>
+          <button id="lobby-copy-recovery" class="button">Copy recovery code</button>
           <button id="lobby-copy-link" class="button">Copy spectator link</button>
+          <button id="lobby-leave-seat" class="button" hidden>Leave lobby</button>
+          <button id="lobby-cancel-room" class="button danger" hidden>Cancel room</button>
           <button id="lobby-close" class="button quiet">Return to local game</button>
         </div>
       </div>
     </div>
 
+    <dialog id="rename-game-dialog" class="game-dialog">
+      <form method="dialog">
+        <h2>Rename game</h2>
+        <label for="game-name-input">Game name</label>
+        <input id="game-name-input" maxlength="60" required>
+        <p class="field-note">The room code, invitation link and recovery codes stay the same.</p>
+        <div class="dialog-actions"><button value="cancel" class="button quiet">Cancel</button><button id="save-game-name" type="button" class="button primary">Save name</button></div>
+      </form>
+    </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <script type="module" src="./src/ui.js"></script>
   </body>
