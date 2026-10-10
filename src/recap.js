@@ -220,7 +220,7 @@ export class RecapPresenter {
   show(steps,{reducedMotion=false}={}){this.clear();if(!steps.length)return false;this.steps=steps;this.index=0;this.busy=true;this.reducedMotion=reducedMotion;this.paused=reducedMotion;this.begin();return true;}
   begin(){this.cancelTimers();this.elapsed=0;this.started=this.now();this.paint();this.schedule();}
   stage(){if(this.reducedMotion)return 'complete';return COMBAT_BEATS.findLast(b=>b.at<=this.elapsed)?.stage??'opening';}
-  paint(){this.render(this.steps[this.index],{index:this.index,count:this.steps.length,paused:this.paused,reducedMotion:this.reducedMotion,combatStage:this.stage()});}
+  paint(){const staticFrame=this.reducedMotion||this.paused&&this.elapsed===0;this.render(this.steps[this.index],{index:this.index,count:this.steps.length,paused:this.paused,reducedMotion:this.reducedMotion,staticFrame,combatStage:staticFrame?'complete':this.stage()});}
   schedule(){
     if(!this.busy||this.paused)return;
     const step=this.steps[this.index],generation=this.generation;

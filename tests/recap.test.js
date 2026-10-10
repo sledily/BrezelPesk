@@ -107,6 +107,14 @@ test('reduced motion keeps every explanation statically without an artificial wa
   const s=history();addBattle(s,'static');const c=clock(),renders=[];const p=new RecapPresenter({...c,render:(step,position)=>renders.push(position)});
   p.show(reconnectRecap(projectForPlayer(s,'WHITE'),'WHITE').steps,{reducedMotion:true});assert.equal(c.pending(),0);assert.equal(renders.at(-1).combatStage,'complete');while(p.busy)p.next();assert.equal(renders.length,5);
 });
+test('manual stepping while paused shows a complete readable battle; Play restarts its saved sequence',()=>{
+  const s=history();addBattle(s,'paused-battle');const c=clock(),renders=[];
+  const p=new RecapPresenter({...c,render:(step,position)=>renders.push(position)});
+  p.show(reconnectRecap(projectForPlayer(s,'WHITE'),'WHITE').steps);c.advance(200);p.pause();
+  while(p.steps[p.index].kind!=='combat')p.next();
+  assert.equal(renders.at(-1).staticFrame,true);assert.equal(renders.at(-1).combatStage,'complete');assert.equal(c.pending(),0);
+  p.resume();assert.equal(renders.at(-1).staticFrame,false);assert.equal(renders.at(-1).combatStage,'opening');p.finish();
+});
 test('newly published actions join a playing recap exactly once',()=>{
   const s=history(),recap=reconnectRecap(projectForPlayer(s,'WHITE'),'WHITE'),c=clock();let painted=0;
   const p=new RecapPresenter({...c,render:()=>painted++});p.show(recap.steps);p.append(recap.steps);assert.equal(painted,1);

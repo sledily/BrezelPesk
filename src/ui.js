@@ -145,7 +145,7 @@ let missedOnlineConnection = false, recapPausedForBackground = false;
 const recapPresenter = new RecapPresenter({
   setTimer:(fn,ms)=>window.setTimeout(fn,ms),clearTimer:id=>window.clearTimeout(id),
   render:(step,position)=>{
-    document.querySelector('#recap-step').className=`recap-step ${position.paused?'paused':''} ${position.reducedMotion?'static-recap':''}`;
+    document.querySelector('#recap-step').className=`recap-step ${position.paused?'paused':''} ${position.staticFrame?'static-recap':''}`;
     const renderedStep=`${step.eventId}:${step.kind==='combat'?position.combatStage:'action'}`;
     if(recapRenderedStep!==renderedStep){document.querySelector('#recap-step').innerHTML=recapStepHTML(step,position);recapRenderedStep=renderedStep;}
     document.querySelector('#recap-position').textContent=`${position.index+1} / ${position.count}`;

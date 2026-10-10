@@ -39,6 +39,7 @@ try {
   if(await page.locator('#handoff').isVisible())await page.getByRole('button',{name:'Ready',exact:true}).click();
   await page.locator('#phase-transition').waitFor({state:'visible',timeout:5000});
   assert.match(await page.locator('#phase-transition').innerText(),/Year 1|Harvest/);
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector('#phase-transition h2')).opacity==='1');
   await page.screenshot({path:join(artifacts,'phase-arrival.png'),fullPage:true});
 
   let state=newMatch({seed:'browser-recap',playerCount:4,rules:V2_RULES});
@@ -57,7 +58,7 @@ try {
     attacker_rolls:[6,3,2],defender_rolls:[5,1],attacker_high:6,defender_high:5,attacker_bonus:1,defender_bonus:3,attacker_total:7,defender_total:8,outcome:'DEFENDER_WIN'});
   recordEvent(state,'NobleRecruited',{player:'BLACK',noble_id:'NC-Q-H-A',cost:8},'BLACK');
   recordEvent(state,'ActorPassed',{player:'BLACK',phase:PHASE.MOBILIZE,automatic:false});
-  const payload={game:projectForPlayer(state,'WHITE'),room:{code:'ABC234',status:'ACTIVE',revision:1,player_count:4,seats:{}},viewer:{role:'PLAYER',seat:'WHITE',private_revision:1,can_undo:false,is_your_turn:false}};
+  const payload={game:projectForPlayer(state,'WHITE'),room:{code:'ABC234',name:'BrezelPesk',status:'ACTIVE',revision:1,player_count:4,spectator_count:0,seats:{}},viewer:{role:'PLAYER',seat:'WHITE',private_revision:1,can_undo:false,is_your_turn:false}};
   const bundle=await readFile('Dendarv_Play.html','utf8');
   const testBundle=bundle.replace(/\}\)\(\);\s*<\/script>/,'globalThis.__dendarv = { recapPresenter, getState:()=>state };\n})();\n</script>');
   assert.notEqual(testBundle,bundle);
@@ -77,6 +78,7 @@ try {
   assert.match(await page.locator('#recap-step').innerText(),/h8.*f6/s);
   await page.screenshot({path:join(artifacts,'movement-recap.png')});
   await page.getByRole('button',{name:'Next action',exact:true}).click();await page.getByRole('button',{name:'Next action',exact:true}).click();
+  assert.match(await page.locator('.recap-combat.combat-complete').innerText(),/Highest 6.*7/s);
   await page.getByRole('button',{name:'Play',exact:true}).click();
   await page.locator('.recap-combat.combat-rolling').waitFor({state:'visible'});
   const animations=await page.locator('#recap-step').evaluate(el=>el.getAnimations({subtree:true}).map(a=>a.animationName));
@@ -92,7 +94,7 @@ try {
   await page.getByRole('button',{name:'Skip to current board',exact:true}).click();
   await page.getByRole('button',{name:'Since my last turn',exact:true}).click();await page.locator('#recap-dialog').waitFor({state:'visible'});
 
-  const mobile=await browser.newContext({viewport:{width:960,height:540},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
+  const mobile=await browser.newContext({viewport:{width:812,height:375},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
   const phone=await mobile.newPage();activePage=phone;phone.on('pageerror',e=>errors.push(e.message));
   await phone.route('**/Dendarv_Play.html*',route=>route.fulfill({contentType:'text/html',body:testBundle}));await phone.route('**/api/rooms/ABC234',route=>route.fulfill({json:payload}));
   await phone.goto(`${origin}/Dendarv_Play.html?room=ABC234`);await phone.locator('#recap-dialog').waitFor({state:'visible'});
@@ -100,6 +102,8 @@ try {
   assert.equal(await phone.locator('#recap-step').evaluate(el=>el.getAnimations({subtree:true}).length),0);
   const geometry=await phone.locator('#recap-dialog').evaluate(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:innerWidth,height:innerHeight};});
   assert.ok(geometry.x>=0&&geometry.y>=0&&geometry.right<=geometry.width&&geometry.bottom<=geometry.height);
+  const readable=await phone.evaluate(()=>{const text=document.querySelector('.story-explanation').getBoundingClientRect(),controls=document.querySelector('.recap-controls').getBoundingClientRect(),dialog=document.querySelector('#recap-dialog').getBoundingClientRect();return text.top>=dialog.top&&text.bottom<=controls.top;});
+  assert.equal(readable,true,'landscape explanation is visible above the controls without scrolling');
   await phone.screenshot({path:join(artifacts,'phone-landscape-recap.png')});
   await phone.getByRole('button',{name:'Skip to current board',exact:true}).click();
   assert.ok(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'landscape table has no horizontal overflow');
