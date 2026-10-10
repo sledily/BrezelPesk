@@ -21,7 +21,7 @@ function visibleSnapshot(state) {
   const nobles={};for(const unit of Object.values(units)) {
     const noble=state.nobles_by_id[unit.vassal_noble_id];if(noble && !noble.hidden)nobles[noble.noble_id]={...noble};
   }
-  return {units,nobles,cards,sequence:state.event_log.reduce((n,e)=>Math.max(n,e.sequence),0),actor:state.current_actor,phase:state.phase,year:state.year_number,offer:state.harvest?.offer_ids?.length?JSON.stringify([state.harvest.unit_id,state.harvest.offer_ids]):null};
+  return {units,nobles,cards,status:state.status,harvestStage:state.harvest?.stage,sequence:state.event_log.reduce((n,e)=>Math.max(n,e.sequence),0),actor:state.current_actor,phase:state.phase,year:state.year_number,offer:state.harvest?.offer_ids?.length?JSON.stringify([state.harvest.unit_id,state.harvest.offer_ids]):null};
 }
 export function combatFromEvent(event,state,old=visibleSnapshot(state),next=visibleSnapshot(state),battleCount=1) {
   if(!event || event.payload.hidden)return null;
@@ -66,7 +66,7 @@ export class PresentationTracker {
       if(!previous || previous.tapped!==card.tapped || previous.counter!==card.counter)changes.push({kind:'card',id});
     }
     this.previous=next;
-    return {baseline:false,combat,changes,events,offerChanged:next.offer!==null && old.offer!==next.offer,actionChanged:old.actor!==next.actor || old.phase!==next.phase || old.year!==next.year};
+    return {baseline:false,combat,changes,events,previous:old,offerChanged:next.offer!==null && old.offer!==next.offer,actionChanged:old.actor!==next.actor || old.phase!==next.phase || old.year!==next.year};
   }
 }
 

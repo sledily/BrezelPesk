@@ -41,7 +41,7 @@ function loadUI({motion=false}={}) {
     window: { matchMedia:()=>({matches:!motion,addEventListener(){}}), setTimeout(fn,ms) {const timer={fn,ms,cancelled:false};timers.push(timer);return timer;}, clearTimeout(timer) {if(timer)timer.cancelled=true;}, setInterval() {}, clearInterval() {}, confirm() { return true; } },
     navigator: {}, crypto: { getRandomValues(array) { return array; } },
   });
-  const expose = 'globalThis.ui = { combatPresenter, clearPresentation, applyOnlinePayload, render, renderActiveGames, renderOnlineLobby, renderOnlineChrome, run, selectHarvestCard, cancelResourceSelection, openStockpilePanel, saveStockpilePlan, undoLastAction, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); }, setOnline: (payload) => { onlinePayload = payload; onlineClient = {}; renderOnlineChrome(); } };';
+  const expose = 'globalThis.ui = { recapPresenter, startPersonalRecap, combatPresenter, clearPresentation, applyOnlinePayload, render, renderActiveGames, renderOnlineLobby, renderOnlineChrome, run, selectHarvestCard, cancelResourceSelection, openStockpilePanel, saveStockpilePlan, undoLastAction, hideHandoff, showHandoff, inspectNoble, closeInspection, handleBoardClick, renderHarvestActions, renderVassalizeActions, renderPlayerSummary, maybeShowPhaseNotice, acknowledgeCurrentPhaseNotice, pendingAutomaticNotices, getState: () => state, setState: (next) => { state = next; selectedResourceIds = new Set(); render(); }, setViewer: (payload) => { onlinePayload = payload; render(); }, setOnline: (payload) => { onlinePayload = payload; onlineClient = {}; renderOnlineChrome(); } };';
   new Script(code.replace(/\}\)\(\);\s*$/, `${expose}\n})();`)).runInContext(context);
   return { ui: context.ui, elements, app, html, timers };
 }
@@ -363,4 +363,19 @@ test('shared-device Quarter handover follows combat presentation and cannot chan
   ui.hideHandoff();assert.equal(await ui.run({type:'CHOOSE_QUARTER',player:'BLACK',quarter:true}),true);
   assert.equal(ui.getState().pending_combat,null);assert.equal(ui.getState().players.BLACK.dungeon_noble_id,'NC-J-D');
   assert.match(elements.get('combat-presentation').innerHTML,/Noble is in the victor’s Dungeon/);
+});
+
+test('a reconnect opens a personal recap and rejects gameplay until playback is finished or skipped',async()=>{
+  const {ui,elements}=loadUI();const state=forcePhase(setUpMatch('recap-ui',V2_RULES),PHASE.MOBILIZE);
+  ui.setState(state);ui.hideHandoff();
+  assert.equal(ui.startPersonalRecap(),true);assert.equal(elements.get('recap-dialog').open,true);
+  const before=JSON.stringify(ui.getState());assert.equal(await ui.run({type:'PASS_PHASE',player:state.current_actor}),false);
+  assert.equal(JSON.stringify(ui.getState()),before);ui.recapPresenter.finish();assert.equal(elements.get('recap-dialog').open,false);
+});
+
+test('reconnecting again with an unchanged published revision still offers the complete recap',()=>{
+  const {ui,elements}=loadUI();const state=forcePhase(setUpMatch('recap-repeat-ui',V2_RULES),PHASE.MOBILIZE);ui.hideHandoff();
+  const payload={game:state,room:{code:'ABC234',status:'ACTIVE',revision:1,seats:{}},viewer:{role:'PLAYER',seat:'BLACK',private_revision:1,can_undo:false}};
+  ui.applyOnlinePayload(payload,{force:true,reconnect:true});assert.equal(elements.get('recap-dialog').open,true);const originalCount=ui.recapPresenter.steps.length;
+  ui.recapPresenter.finish();ui.applyOnlinePayload(payload,{reconnect:true});assert.equal(elements.get('recap-dialog').open,true);assert.equal(ui.recapPresenter.steps.length,originalCount);ui.recapPresenter.finish();
 });

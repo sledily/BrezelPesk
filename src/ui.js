@@ -1,5 +1,6 @@
 import {
   ACTIVE_SUIT_BY_PHASE,
+  SEASON_BY_PHASE,
   DECK,
   LEVEL_BY_TYPE,
   NOBLE_NAME,
@@ -26,6 +27,7 @@ import {
 import { actionCostDescription, harvestCardDetails, formatNoble, formatResource, formatUnit, title } from "./format.js";
 import { pieceIcon, nobleCardHtml, harvestListHtml, HARVEST_COORDINATE_GUIDE } from "./presentation.js";
 import { PresentationTracker, CombatPresenter, combatHTML, combatConsequence } from "./event-presentation.js";
+import { reconnectRecap, RecapPresenter, recapStepHTML, phaseTransition, phaseTransitionHTML, phaseLesson, describePublishedAction } from './recap.js';
 import { calendarHtml, constantsHtml, tabletopRegionsHtml, unitInspectionHtml, nobleInspectionHtml } from "./tabletop.js";
 import { formatChronicle, formatGameRecord } from "./notation.js";
 import { deserializeMatch, loadFromBrowser, saveToBrowser, serializeMatch } from "./persistence.js";
@@ -131,6 +133,31 @@ const combatPanel = document.querySelector('#combat-presentation');
 let deferredCombatHandoff = null;
 let deferredCourtHandoff = null;
 let routineAnimations = [];
+const recapDialog = document.querySelector('#recap-dialog');
+let pendingReconnectRecap = false;
+let localResumeRecap = false;
+try { localResumeRecap = Boolean(localStorage.getItem('dendarv.autosave')); } catch { /* Local play remains available without storage. */ }
+let recapThrough = 0;
+let recapScope = null;
+let phaseArrival = null, phaseArrivalTimer = null, storyTimer = null;
+let missedOnlineConnection = false, recapPausedForBackground = false;
+const recapPresenter = new RecapPresenter({
+  setTimer:(fn,ms)=>window.setTimeout(fn,ms),clearTimer:id=>window.clearTimeout(id),
+  render:(step,position)=>{
+    document.querySelector('#recap-step').className=`recap-step ${position.paused?'paused':''} ${position.reducedMotion?'static-recap':''}`;
+    document.querySelector('#recap-step').innerHTML=recapStepHTML(step,position);
+    document.querySelector('#recap-position').textContent=`${position.index+1} / ${position.count}`;
+    document.querySelector('#recap-context').textContent=`Year ${step.year} · ${title(step.phase)} · ${playerName(step.actor)}`;
+    document.querySelector('#recap-back').disabled=position.index===0;
+    document.querySelector('#recap-pause').textContent=position.paused?'Play':'Pause';
+    document.querySelector('#recap-next').textContent=position.index===position.count-1?'Return to current board':'Next action';
+  },
+  onComplete:()=>{
+    if(recapDialog.open)recapDialog.close();
+    if(state.status==='ACTIVE')phaseArrival={year:state.year_number,season:SEASON_BY_PHASE[state.phase],phase:state.phase===PHASE.HARVEST&&state.harvest?.stage==='POKER'?'POKER':state.phase,suit:ACTIVE_SUIT_BY_PHASE[state.phase],actor:state.current_actor,previous:'Recap complete',heading:'Back at the table',lesson:state.pending_combat?'The saved battle is awaiting Quarter or No Quarter.':state.pending_conquest?'Choose the fallen Sovereign Card or the captured Queen Holding.':phaseLesson(state.phase===PHASE.HARVEST&&state.harvest?.stage==='POKER'?'POKER':state.phase)};
+    render();showPhaseArrival();maybeShowPhaseNotice();dom.actionControls.tabIndex=-1;dom.actionControls.focus();
+  },
+});
 const combatPresenter = new CombatPresenter({
   setTimer: (fn,ms)=>window.setTimeout(fn,ms),clearTimer:id=>window.clearTimeout(id),
   render:(model,stage)=>{
@@ -154,15 +181,53 @@ const combatPresenter = new CombatPresenter({
   },
 });
 function clearPresentation() {
+  recapPresenter.clear();if(recapDialog.open)recapDialog.close();pendingReconnectRecap=false;recapThrough=0;recapScope=null;
+  window.clearTimeout(phaseArrivalTimer);window.clearTimeout(storyTimer);phaseArrival=null;
+  document.querySelector('#phase-transition').hidden=true;document.querySelector('#table-story').hidden=true;
   combatPresenter.clear();presentationTracker.reset();deferredCombatHandoff=null;deferredCourtHandoff=null;
   combatPanel.hidden=true;combatPanel.innerHTML='';dom.actionControls.inert=false;
   for(const animation of routineAnimations)animation.cancel();routineAnimations=[];
 }
 function reducedMotion(){return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? true;}
-function renderEventPresentation() {
+function startPersonalRecap({afterSequence=null}={}) {
+  const viewer=onlinePayload?.viewer.role==='PLAYER'?onlinePayload.viewer.seat:onlinePayload?null:privateViewer();
+  if(!viewer||!dom.handoff.hidden)return false;
+  const view=onlinePayload?state:projectForPlayer(state,viewer,{revealComplete:false});
+  const recap=reconnectRecap(view,viewer,{afterSequence});
+  recapThrough=recap.through;recapScope=onlinePayload?`${onlinePayload.room.code}:${viewer}`:`${state.match_id}:${viewer}`;
+  if(!recap.steps.length)return false;
+  closeInspection();combatPresenter.clear();combatPanel.hidden=true;combatPanel.innerHTML='';
+  document.querySelector('#recap-title').textContent=`${playerName(viewer)} · Since your last turn`;
+  recapPresenter.show(recap.steps,{reducedMotion:reducedMotion()});
+  if(!recapDialog.open)recapDialog.showModal();
+  document.querySelector('#recap-skip').focus();
+  return true;
+}
+function showPhaseArrival() {
+  if(!phaseArrival||!dom.handoff.hidden||recapPresenter.busy||combatPresenter.busy||dom.inspection.open||!dom.phaseNotice.hidden||pendingAutomaticNotices().length)return;
+  const panel=document.querySelector('#phase-transition');
+  panel.innerHTML=phaseTransitionHTML(phaseArrival);panel.hidden=false;phaseArrival=null;
+  window.clearTimeout(phaseArrivalTimer);phaseArrivalTimer=window.setTimeout(()=>{panel.hidden=true;},5000);
+}
+function captureMotionAnchors() {
+  const result={units:new Map(),cards:new Map(),offers:new Map(),squares:new Map()};
+  for(const [selector,key,attribute] of [['[data-motion-unit]','units','data-motion-unit'],['[data-motion-card]','cards','data-motion-card'],['[data-harvest-card]','offers','data-harvest-card'],['[data-square]','squares','data-square']]) {
+    for(const element of document.querySelectorAll(selector))if(element.getBoundingClientRect)result[key].set(element.getAttribute(attribute),element.getBoundingClientRect());
+  }
+  return result;
+}
+function renderEventPresentation(anchors={units:new Map(),cards:new Map(),offers:new Map(),squares:new Map()}) {
   const scope=onlinePayload?`${onlinePayload.room.code}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`:`local:${state.match_id}`;
   const transition=presentationTracker.read(state,scope);
   if(transition.baseline){deferredCombatHandoff=null;combatPresenter.clear();combatPanel.hidden=true;combatPanel.innerHTML='';dom.actionControls.inert=false;}
+  const phase=phaseTransition(transition.previous,state);
+  if(phase)phaseArrival=phase;
+  if(pendingReconnectRecap){pendingReconnectRecap=false;if(!recapPresenter.busy&&startPersonalRecap())return;}
+  if(recapPresenter.busy){
+    const viewer=onlinePayload?.viewer.seat;
+    if(viewer && recapScope===`${onlinePayload.room.code}:${viewer}`){const extra=reconnectRecap(state,viewer,{afterSequence:recapThrough});recapThrough=extra.through;recapPresenter.append(extra.steps);}
+    return;
+  }
   if(transition.restored)combatPresenter.show(transition.restored,{reducedMotion:true});
   if(transition.combat)combatPresenter.show(transition.combat,{reducedMotion:reducedMotion()});
   else if(combatPresenter.model && !combatPresenter.busy && state.phase!==PHASE.SIEGE && !state.pending_combat && !state.pending_conquest && state.status!=='COMPLETE') {
@@ -172,6 +237,7 @@ function renderEventPresentation() {
     document.querySelector('#dismiss-combat')?.addEventListener('click',()=>{combatPanel.hidden=true;combatPanel.innerHTML='';combatPresenter.clear();});
   }
   dom.actionControls.inert=combatPresenter.busy;
+  window.setTimeout(showPhaseArrival,0);
   // Reveal only a fresh, visible draw or play. Baselines/reconnects do not
   // replay old reveals, and the inspection guard still enforces Court privacy.
   const reveal=transition.events.findLast(event=>!event.payload.hidden && (
@@ -184,14 +250,23 @@ function renderEventPresentation() {
     for(const animation of routineAnimations)animation.cancel();routineAnimations=[];
     for(const change of transition.changes) {
       const element=change.kind==='unit'?dom.board.querySelector?.(`[data-square="${change.square}"] .piece`):dom.playerSummary.querySelector?.(`[data-motion-card="${change.id}"]`);
-      if(element?.animate)routineAnimations.push(element.animate([{opacity:.5,transform:change.kind==='unit'?'translateY(-5px)':'translateY(-6px) scale(.96)'},{opacity:1,transform:'none'}],{duration:240,easing:'ease-out'}));
+      const from=change.kind==='unit'?anchors.units.get(change.id):anchors.offers.get(change.id)??anchors.cards.get(change.id);
+      const to=element?.getBoundingClientRect?.();
+      const transform=from&&to?`translate(${from.left-to.left}px, ${from.top-to.top}px) scale(.92)`:'translateY(-16px) scale(.9)';
+      if(element?.animate)routineAnimations.push(element.animate([{opacity:.45,transform},{opacity:1,transform:'none'}],{duration:650,easing:'cubic-bezier(.2,.7,.2,1)'}));
+      const counter=element?.querySelector?.('.card-counter');
+      if(counter?.animate&&change.kind==='card'&&!transition.previous.cards[change.id]?.counter)routineAnimations.push(counter.animate([{transform:'scale(0) rotate(-90deg)'},{transform:'scale(1.25)'},{transform:'scale(1)'}],{duration:600,delay:300,fill:'backwards'}));
+      const token=element?.querySelector?.('.card-token');
+      if(token?.animate&&change.kind==='card'&&!transition.previous.cards[change.id]?.tapped&&state.resources_by_id[change.id]?.tapped)routineAnimations.push(token.animate([{transform:'rotate(0deg)'},{transform:'rotate(90deg) scale(.78)'}],{duration:550,easing:'ease-in-out'}));
     }
-    if(transition.offerChanged)dom.harvestTable.querySelectorAll?.('.harvest-card').forEach(card=>{if(card.animate)routineAnimations.push(card.animate([{opacity:0,transform:'translateY(-7px)'},{opacity:1,transform:'none'}],{duration:180}));});
+    if(transition.offerChanged)dom.harvestTable.querySelectorAll?.('.harvest-card').forEach((card,i)=>{if(card.animate)routineAnimations.push(card.animate([{opacity:0,transform:'translateY(-25px) rotate(-8deg)'},{opacity:1,transform:'none'}],{duration:420,delay:i*100,fill:'backwards'}));});
     if(transition.actionChanged && dom.actionSummary.animate)routineAnimations.push(dom.actionSummary.animate([{opacity:.4},{opacity:1}],{duration:180}));
   }
+  const explained=transition.events.map(e=>describePublishedAction(e,onlinePayload?state:projectForPlayer(state,privateViewer(),{revealComplete:false}))).filter(Boolean).findLast(step=>!['phase','pass','combat'].includes(step.kind));
+  if(explained&&!combatPresenter.busy){const panel=document.querySelector('#table-story');panel.innerHTML=`<strong>${escapeHtml(explained.heading)}</strong><p>${escapeHtml(explained.text)}</p>`;panel.hidden=false;window.clearTimeout(storyTimer);storyTimer=window.setTimeout(()=>{panel.hidden=true;},6000);}
 }
-window.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('change',event=>{if(event.matches){combatPresenter.skip();for(const animation of routineAnimations)animation.cancel();routineAnimations=[];}});
-document.addEventListener?.('visibilitychange',()=>{if(document.hidden)combatPresenter.skip();});
+window.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('change',event=>{if(event.matches){combatPresenter.skip();recapPresenter.reduce();for(const animation of routineAnimations)animation.cancel();routineAnimations=[];}});
+document.addEventListener?.('visibilitychange',()=>{if(document.hidden){combatPresenter.skip();recapPausedForBackground=recapPresenter.busy&&!recapPresenter.paused;recapPresenter.pause();}else if(recapPausedForBackground){recapPausedForBackground=false;recapPresenter.resume();}});
 
 function loadInitialState() {
   try {
@@ -233,7 +308,7 @@ function escapeHtml(value) {
 }
 
 async function run(command, { keepSelection = false } = {}) {
-  if (!dom.handoff.hidden || combatPresenter.busy || deferredCourtHandoff) return false;
+  if (!dom.handoff.hidden || combatPresenter.busy || recapPresenter.busy || deferredCourtHandoff) return false;
   const planning = command.type === "SET_STOCKPILE_INSTRUCTIONS";
   if (!planning && pendingAutomaticNotices().length) { maybeShowPhaseNotice(); return false; }
   const retainTarget = ["TAP_RESOURCES", "MOBILIZE_UNIT"].includes(command.type);
@@ -290,17 +365,18 @@ async function run(command, { keepSelection = false } = {}) {
   return true;
 }
 
-function applyOnlinePayload(payload, { resetSelection = false, force = false, retainedInteraction = null } = {}) {
+function applyOnlinePayload(payload, { resetSelection = false, force = false, retainedInteraction = null, reconnect = false } = {}) {
   const oldContext=onlinePayload?`${onlinePayload.room.code}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`:null;
   const newContext=`${payload.room.code}:${payload.viewer.role}:${payload.viewer.seat}`;
   if(oldContext!==newContext)clearPresentation();
+  if((reconnect||oldContext!==newContext)&&payload.viewer.role==='PLAYER'&&payload.game)pendingReconnectRecap=true;
   const previousSignature = onlinePayload
     ? `${onlinePayload.room.status}:${onlinePayload.room.revision}:${onlinePayload.viewer.private_revision}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`
     : null;
   const nextSignature = `${payload.room.status}:${payload.room.revision}:${payload.viewer.private_revision}:${payload.viewer.role}:${payload.viewer.seat}`;
   if (previousSignature !== nextSignature) closeInspection();
   onlinePayload = payload;
-  if (payload.game && (force || previousSignature !== nextSignature)) {
+  if (payload.game && (force || reconnect || previousSignature !== nextSignature)) {
     state = payload.game;
     if (resetSelection) {
       selectedResourceIds = new Set();
@@ -317,6 +393,7 @@ function applyOnlinePayload(payload, { resetSelection = false, force = false, re
 }
 
 function newLocalMatch(seed, playerCount = 4) {
+  localResumeRecap=false;
   leaveOnlineMode({ updateLocation: true });
   state = newMatch({ seed: seed || "dendarv", playerCount, rules: V2_RULES });
   selectedResourceIds = new Set();
@@ -351,7 +428,8 @@ function showHandoff(player) {
 function hideHandoff() {
   dom.handoff.hidden = true;
   document.querySelector(".app-shell").inert = false;
-  render();
+  if(localResumeRecap){localResumeRecap=false;pendingReconnectRecap=true;}
+  render();showPhaseArrival();
   maybeShowPhaseNotice();
 }
 
@@ -407,7 +485,7 @@ function renderPhaseNotice() {
 
 function maybeShowPhaseNotice() {
   renderPhaseNotice();
-  if (!dom.handoff.hidden || !onlinePlayerCanAct() || combatPresenter.busy) return;
+  if (!dom.handoff.hidden || !onlinePlayerCanAct() || combatPresenter.busy || recapPresenter.busy) return;
   if (!pendingAutomaticNotices().length && !state.phase_notice) return;
   dom.phaseNotice.hidden = false;
   document.querySelector(".app-shell").inert = true;
@@ -425,7 +503,7 @@ function acknowledgeCurrentPhaseNotice(event) {
     dom.phaseNotice.hidden = true;
     document.querySelector(".app-shell").inert = false;
     maybeShowPhaseNotice();
-    if (dom.phaseNotice.hidden) { dom.actionControls.tabIndex = -1; dom.actionControls.focus(); }
+    if (dom.phaseNotice.hidden) { showPhaseArrival();dom.actionControls.tabIndex = -1; dom.actionControls.focus(); }
   } else if (state.phase_notice) {
     dom.phaseNotice.hidden = true;
     document.querySelector(".app-shell").inert = false;
@@ -443,6 +521,7 @@ function showToast(message, success = false) {
 }
 
 function render() {
+  const anchors=captureMotionAnchors();
   closeInspection();
   if (boardCandidate && !candidateStillLegal()) boardCandidate = null;
   syncRecommendedStockpile();
@@ -458,10 +537,12 @@ function render() {
   renderActionSummary();
   dom.undoAction.disabled = onlinePayload ? !onlinePayload.viewer.can_undo : undoStack.length === 0;
   bindDynamicControls();
-  renderEventPresentation();
+  renderEventPresentation(anchors);
 }
 
 function renderStatus() {
+  document.querySelector('.app-shell').setAttribute('data-season',SEASON_BY_PHASE[state.phase]??'HARVEST');
+  document.querySelector('.app-shell').setAttribute('data-suit',ACTIVE_SUIT_BY_PHASE[state.phase]??'');
   const phase = state.status === "SETUP" ? "Sovereign selection" : state.status === "COMPLETE" ? "Match complete" : title(state.phase);
   const season = state.phase ? seasonForPhase(state.phase) : "Setup";
   dom.matchStatus.innerHTML = `${calendarHtml(state)}<div class="year-heading"><span class="eyebrow">${season}</span><h2>${phase}</h2><p>${playerName(state.current_actor)}${state.status === 'COMPLETE' ? '' : ' to act'} · Button: ${playerName(state.button_holder)}</p><details class="phase-key"><summary>Year sequence</summary><ol>${PHASE_ORDER.map(p => `<li ${p === state.phase ? 'aria-current="step"' : ''}>${title(p)}</li>`).join('')}</ol></details></div>`;
@@ -605,7 +686,7 @@ function renderBoard() {
       const pieceColor = unit?.piece_color ?? unit?.owner;
       const rejectCount = (state.harvest?.rejects ?? []).filter(item => item.unit_id === unit?.unit_id).length;
       const unitHtml = unit ? `
-        <span class="piece ${pieceColor.toLowerCase()}" aria-hidden="true">${pieceIcon(unit)}</span>
+        <span class="piece ${pieceColor.toLowerCase()}" data-motion-unit="${unit.unit_id}" aria-hidden="true">${pieceIcon(unit)}</span>
         ${pieceColor !== unit.owner ? `<span class="controller-banner ${unit.owner.toLowerCase()}" title="Controlled by ${playerName(unit.owner)}"></span>` : ''}
       ` : "";
       parts.push(`
@@ -644,7 +725,7 @@ function boardHint() {
 }
 
 function handleBoardClick(square) {
-  if (!dom.handoff.hidden || combatPresenter.busy) return;
+  if (!dom.handoff.hidden || combatPresenter.busy || recapPresenter.busy) return;
   const unit = unitAt(state, square);
   if (!onlinePlayerCanAct()) { inspectUnit(unit); return; }
   if (unit && unit.unit_id === interaction.unitId) { inspectUnit(unit); return; }
@@ -1361,7 +1442,7 @@ function commandLabel(command) {
 }
 
 async function passOnlineTurn() {
-  if(combatPresenter.busy)return;
+  if(combatPresenter.busy||recapPresenter.busy)return;
   if (!onlineClient || onlineRequestPending) return;
   if (pendingAutomaticNotices().length) { maybeShowPhaseNotice(); return; }
   onlineRequestPending = true;
@@ -1378,7 +1459,7 @@ async function passOnlineTurn() {
 }
 
 async function undoLastAction() {
-  if(combatPresenter.busy)return;
+  if(combatPresenter.busy||recapPresenter.busy)return;
   if (onlineClient) {
     if (!onlinePayload?.viewer.can_undo || onlineRequestPending) return;
     if (!window.confirm("Undo your latest unpublished action?")) return;
@@ -1516,7 +1597,7 @@ function renderOnlineLobby() {
 }
 
 async function onlineLifecycle(action,body={}) {
-  if(!onlineClient || onlineRequestPending) return;
+  if(!onlineClient || onlineRequestPending || recapPresenter.busy) return;
   if(['resign','abandon'].includes(action)) {
     if(!window.confirm(action==='resign'?'Resign permanently? This cannot be undone.':'Close this game as Unfinished / Abandoned, without a winner? This cannot be undone.')) return;
     body.confirmed=true;
@@ -1564,8 +1645,9 @@ function beginOnlinePolling() {
         const payload = await client.view();
         if (onlineClient !== client) return;
         delay = before === payload ? Math.min(delay * 1.5, 20000) : 3000;
-        applyOnlinePayload(payload);
+        applyOnlinePayload(payload,{reconnect:missedOnlineConnection});missedOnlineConnection=false;
       } catch (error) {
+        missedOnlineConnection=true;
         if (error.code === 'ROOM_CANCELLED' && onlineClient === client) {
           client.forgetSeat(); leaveOnlineMode({restoreLocal:true}); showToast(error.message); return;
         }
@@ -1585,7 +1667,7 @@ document.addEventListener?.("visibilitychange", async () => {
     const client = onlineClient;
     try {
       const payload = await client.view();
-      if (onlineClient === client) applyOnlinePayload(payload);
+      if (onlineClient === client) applyOnlinePayload(payload,{reconnect:true});
     } catch (error) {
       if (onlineClient === client) {
         if (error.code === 'ROOM_CANCELLED') { client.forgetSeat(); leaveOnlineMode({restoreLocal:true}); }
@@ -1607,7 +1689,7 @@ async function enterOnlineRoom(code, { spectate = false } = {}) {
     dom.handoff.hidden = true;
     dom.onlineDialog.close();
     rememberOnlineLocation(candidate.code);
-    applyOnlinePayload(payload, { resetSelection: true, force: true });
+    applyOnlinePayload(payload, { resetSelection: true, force: true, reconnect:true });
     beginOnlinePolling();
   } catch (error) {
     showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
@@ -1795,7 +1877,7 @@ document.querySelector("#recover-online-seat").addEventListener("click", async (
   try {
     const payload = await candidate.recover(codeInput.value);
     codeInput.value = ""; onlineClient = candidate; dom.onlineDialog.close(); dom.handoff.hidden = true;
-    rememberOnlineLocation(candidate.code); applyOnlinePayload(payload, { resetSelection: true, force: true }); beginOnlinePolling();
+    rememberOnlineLocation(candidate.code); applyOnlinePayload(payload, { resetSelection: true, force: true, reconnect:true }); beginOnlinePolling();
   } catch (error) { showToast(error.message); }
   finally { onlineRequestPending = false; }
 });
@@ -1805,12 +1887,20 @@ document.querySelector("#leave-online").addEventListener("click", () => leaveOnl
 document.querySelector("#lobby-close").addEventListener("click", () => leaveOnlineMode({ restoreLocal: true }));
 dom.undoAction.addEventListener("click", undoLastAction);
 document.querySelector("#dismiss-phase-notice").addEventListener("click", acknowledgeCurrentPhaseNotice);
+document.querySelector('#review-turns').addEventListener('click',()=>{if(!startPersonalRecap())showToast('No published actions since your last completed turn.',true);});
+document.querySelector('#recap-next').addEventListener('click',()=>recapPresenter.next());
+document.querySelector('#recap-back').addEventListener('click',()=>recapPresenter.back());
+document.querySelector('#recap-pause').addEventListener('click',()=>recapPresenter.toggle());
+document.querySelector('#recap-skip').addEventListener('click',()=>recapPresenter.finish());
+recapDialog.addEventListener('cancel',event=>{event.preventDefault();recapPresenter.finish();});
+recapDialog.addEventListener('close',()=>{if(recapPresenter.busy)recapPresenter.finish();});
 document.querySelector("#load-autosave").addEventListener("click", () => {
   try {
     if (onlineClient) leaveOnlineMode();
     const loaded = loadFromBrowser();
     if (!loaded) return showToast("No browser autosave exists yet.");
     state = upgradeToV15(loaded);
+    localResumeRecap=true;
     selectedResourceIds = new Set();
     interaction = emptyInteraction();
     stockpileSelectionKey = null;

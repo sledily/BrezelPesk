@@ -22,6 +22,7 @@ const sourceOrder = [
   "src/presentation.js",
   "src/tabletop.js",
   "src/event-presentation.js",
+  "src/recap.js",
   "src/ui.js",
 ];
 
@@ -47,13 +48,14 @@ const application = sourceOrder
   })
   .join("\n");
 
-const css = readFileSync(join(projectRoot, "src/styles.css"), "utf8");
+const css = ["src/styles.css", "src/court-theme.css"].map(path=>readFileSync(join(projectRoot,path),"utf8")).join('\n');
 let html = readFileSync(join(projectRoot, "index.html"), "utf8");
 
 html = html.replace(
   /\s*<link rel="stylesheet" href="\.\/src\/styles\.css">/,
   `\n    <style>\n${css}\n    </style>`,
 );
+html = html.replace(/\s*<link rel="stylesheet" href="\.\/src\/court-theme\.css">/, '');
 html = html.replace(
   /\s*<script type="module" src="\.\/src\/ui\.js"><\/script>/,
   `\n    <script>\n(() => {\n  "use strict";\n${application}\n})();\n    </script>`,

@@ -9,6 +9,7 @@
     <meta name="description" content="Play Dendarv locally or online with guided Harvest, clear seasonal costs and a standardized game chronicle.">
     <title>Dendarv: Age of Crusader Kings</title>
     <link rel="stylesheet" href="./src/styles.css">
+    <link rel="stylesheet" href="./src/court-theme.css">
   </head>
   <body>
     <div class="app-shell">
@@ -26,6 +27,7 @@
           <button id="new-game" class="button quiet">New</button>
           <button id="undo-action" class="button quiet" disabled>Undo</button>
           <button id="load-autosave" class="button quiet">Resume</button>
+          <button id="review-turns" class="button quiet">Since my last turn</button>
           <button id="export-save" class="button quiet">Export save</button>
           <button id="import-save" class="button quiet">Import</button>
           <input id="import-file" type="file" accept="application/json,.json" hidden>
@@ -50,6 +52,7 @@
 
       <section class="current-action" aria-label="Current Action">
         <div class="action-rubric"><span class="eyebrow">Current Action</span><strong id="current-action-summary" role="status" aria-live="polite"></strong></div>
+        <section id="phase-transition" class="phase-transition" role="status" aria-live="polite" hidden></section>
       </section>
       <section id="action-controls" class="panel action-panel" aria-label="Action controls"></section>
       <main class="game-layout">
@@ -63,6 +66,7 @@
           </div>
           <div id="turn-card" class="board-constants"></div>
           <div id="board-hint" class="board-hint">Select an action to see legal squares.</div>
+          <div id="table-story" class="table-story" role="status" aria-live="polite" hidden></div>
           <details class="board-vocabulary"><summary>Read the board and cards</summary>
             <p>A Holding is a chess piece without a card. A small Vassal card marks a Levy, which can also move and attack. Select a piece to inspect it; select its card separately to inspect the Vassal.</p>
             <p>Vassal badges use Vz, Dx and Rx, with their suit symbols. The same titles identify the named Court cards below.</p>
@@ -87,6 +91,14 @@
         </aside>
       </main>
     </div>
+
+    <dialog id="recap-dialog" class="game-dialog recap-dialog" aria-labelledby="recap-title">
+      <header class="recap-heading"><div><p class="eyebrow">The table remembers</p><h1 id="recap-title">Since your last turn</h1></div><span id="recap-position"></span></header>
+      <p id="recap-context" class="recap-context"></p>
+      <div id="recap-step" class="recap-step" aria-live="polite"></div>
+      <div class="recap-controls"><button id="recap-back" class="button quiet">Previous</button><button id="recap-pause" class="button">Pause</button><button id="recap-next" class="button primary">Next action</button><button id="recap-skip" class="button quiet">Skip to current board</button></div>
+      <p class="recap-footnote">Recorded actions and original dice. The board behind this replay is the current position.</p>
+    </dialog>
 
     <dialog id="inspection-dialog" class="game-dialog inspection-dialog" aria-label="Card or Unit inspection">
       <div id="inspection-content"></div>

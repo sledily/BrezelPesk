@@ -615,7 +615,7 @@ function finishPoker(state, command) {
   requireCondition(state.harvest?.stage === "POKER", "WRONG_HARVEST_STAGE", "Poker declarations have not begun");
   requireActor(state, command.player);
   state.harvest.completed_poker_players.push(command.player);
-  recordEvent(state, "PokerDeclarationsFinished", { player: command.player });
+  recordEvent(state, "PokerDeclarationsFinished", { player: command.player, automatic: Boolean(command.automatic) });
   if (state.rules.resource_flow_v2 && state.harvest.completed_draw_players.length < state.phase_actor_order.length) {
     initializeHarvestActor(state, nextActorInOrder(state, command.player, new Set(state.harvest.completed_draw_players)));
     return;
@@ -714,7 +714,7 @@ function respondRansom(state, command) {
   const noble = state.nobles_by_id[offer.noble_id];
   const cost = actionCost(state, "RANSOM", { actor: command.player, noble_id: noble.noble_id });
   if (!command.pay) {
-    recordEvent(state, "RansomDeclined", { player: command.player, noble_id: noble.noble_id, role: offer.stage });
+    recordEvent(state, "RansomDeclined", { player: command.player, noble_id: noble.noble_id, role: offer.stage, automatic: Boolean(command.automatic) });
     if (offer.stage === "OWNER") {
       offer.stage = "CAPTOR";
       state.current_actor = offer.captor;
@@ -1324,7 +1324,7 @@ function passPhase(state, command) {
   requireActor(state, command.player);
   requireCondition(!state.passed_players.includes(command.player), "ALREADY_PASSED", "This player already passed");
   state.passed_players.push(command.player);
-  recordEvent(state, "ActorPassed", { player: command.player, phase: state.phase });
+  recordEvent(state, "ActorPassed", { player: command.player, phase: state.phase, automatic: Boolean(command.automatic) });
   if (state.passed_players.length < state.phase_actor_order.length) {
     state.current_actor = nextActorInOrder(state, command.player, new Set(state.passed_players));
     return;
@@ -1361,7 +1361,7 @@ function chooseStockpile(state, command) {
   state.players[command.player].resource_hand_ids = [...kept];
   for (const deck of affectedDecks) shuffleDeck(state, deck);
   state.stockpile_committed[command.player] = true;
-  recordEvent(state, "ResourceStockpileCommitted", { player: command.player, kept_card_ids: kept, discarded_card_ids: discarded });
+  recordEvent(state, "ResourceStockpileCommitted", { player: command.player, kept_card_ids: kept, discarded_card_ids: discarded, automatic: Boolean(command.automatic) });
   if (Object.keys(state.stockpile_committed).length < state.phase_actor_order.length) {
     state.current_actor = nextActorInOrder(state, command.player, new Set(Object.keys(state.stockpile_committed)));
     return;
@@ -1439,18 +1439,18 @@ export function settleAutomaticPhases(state) {
       if (state.harvest.stage === "DRAW") return;
       if (availablePokerHands(state, player).length) return;
       if (!state.rules.resource_flow_v2) queueAutomaticNotice(state, "No available Poker Hand can add a bonus.", "POKER");
-      finishPoker(state, { player });
+      finishPoker(state, { player, automatic: true });
     } else if (state.phase === PHASE.STOCKPILE) {
       if (state.rules.resource_flow_v2) {
         const plan = stockpilePlan(state, player);
         if (!plan.submitted || plan.error) return;
-        chooseStockpile(state, { player, card_ids: plan.card_ids });
+        chooseStockpile(state, { player, card_ids: plan.card_ids, automatic: true });
         continue;
       }
       const cards = state.players[player].resource_hand_ids;
       if (validateStockpile(state, player, cards)) return;
       queueAutomaticNotice(state, "Every remaining card fits your Stockpile. All were retained automatically.");
-      chooseStockpile(state, { player, card_ids: [...cards] });
+      chooseStockpile(state, { player, card_ids: [...cards], automatic: true });
     } else if (state.phase === PHASE.RANSOM) {
       const offer = state.active_ransom;
       if (!offer) {
@@ -1462,12 +1462,12 @@ export function settleAutomaticPhases(state) {
       const value = availableResourceValue(state, player, SUIT.DIAMONDS);
       if (value >= cost) return;
       queueAutomaticNotice(state, `Ransom costs ${cost} Diamonds; only ${value} are available. The unaffordable offer was declined.`);
-      respondRansom(state, { player, pay: false });
+      respondRansom(state, { player, pay: false, automatic: true });
     } else {
       const availability = phaseAvailability(state, player);
       if (availability.available) return;
       queueAutomaticNotice(state, availability.reason);
-      passPhase(state, { player });
+      passPhase(state, { player, automatic: true });
     }
   }
   requireCondition(state.status !== "ACTIVE", "AUTOMATIC_PASS_LIMIT", "Automatic phase progression did not reach a decision.");

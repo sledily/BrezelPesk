@@ -30,11 +30,11 @@ Show result now bypasses only the local sequence. During it, local gameplay cont
 
 Each tracker reads only the currently supplied state projection. A player's private Siege appears for that player when saved; opponents/spectators receive it only at the agreed publication boundary. Repeated polls and retries do not replay the same outcome. Undo event-sequence reuse cannot suppress a new battle. Room/seat/role changes clear the previous presentation context.
 
-The first load does not replay an old game history. If Quarter, Conquest or a King-defeat ending is already current, its latest saved comparison is restored statically. Legacy combat events without combatant snapshots use the available Unit/public Noble data; an original position or already removed General may be unavailable. A batch publication containing several battles presents the latest battle and labels that batch; all outcomes remain in the Chronicle. It does not make an absent viewer sit through a historical queue of eleven-second sequences.
+Fresh local setup does not replay an old game history. The reconnect recap below supersedes the earlier baseline-suppression policy for returning participants. If Quarter, Conquest or a King-defeat ending is already current, its latest saved comparison is restored statically. Legacy combat events without combatant snapshots use the available Unit/public Noble data; an original position or already removed General may be unavailable. A batch publication containing several battles presents the latest battle and labels that batch; all outcomes remain in the Chronicle. It does not make an absent viewer sit through a historical queue of eleven-second sequences.
 
 ## Routine cues and Current Action
 
-Saved changes to visible Units and hand cards receive a brief 240 ms cue. Newly offered Harvest cards receive a 180 ms reveal. Selection, unmodified polls and ordinary rerenders do not replay reveal/Counter effects. Reduced motion suppresses these effects and smooth Stockpile scrolling.
+Saved changes to visible Units and hand cards travel from their previous visible positions over 650 ms. Newly offered Harvest cards are dealt with a staggered 420 ms reveal. A newly earned Counter is placed after the card arrives; tapping rotates the physical card and the teaching caption explains the recorded pool value. Selection, unmodified polls and ordinary rerenders do not replay reveal/Counter effects. Reduced motion suppresses these effects and smooth Stockpile scrolling.
 
 Pass becomes prominent after an ordinary action when no legal affordable continuation remains; eligible Undo is retained until Pass. The Current Action line states Quarter, Conquest, resignation negotiation and terminal review directly. This introduces no new confirmations or rules.
 
@@ -59,3 +59,22 @@ saves, storage reservations, or archives.
 
 In shared-device play, a played Sovereign's artwork remains open until dismissed;
 the next player's Ready handover then covers the private view as usual.
+
+
+## Returning to the table
+
+A returning online participant automatically receives a chronological animated recap of the published actions since their last completed personal opportunity. The anchor is derived from the authenticated projection's saved event log, so refresh, seat recovery and another device do not require a browser-local read cursor. Manual Pass, completed personal Harvest/Poker, setup choice, manual Stockpile and Ransom decisions are recognised; automatically skipped opportunities and queued Stockpile resolution do not erase missed history. New event metadata distinguishes automatic and deliberate completion, with conservative handling for older records.
+
+The recap includes every recorded intervening movement and battle, with separate explanations of funding, Harvest choices, Counters, declarations, assignment, casualties, Quarter, Conquest, passes, cleanup and phase changes. Battle playback uses the saved combatant snapshots, dice and arithmetic. A later unrelated terminal result cannot make an earlier battle appear to end the game. Additional published events append once during playback. The board behind the recap stays at the current authoritative position; individual action cards illustrate the historical changes and name their coordinates.
+
+The player can pause, go back, advance, or skip to the current board. Playback never dispatches a command, consumes RNG, writes a game save or acknowledges a gameplay opportunity. Current gameplay is locally guarded while the recap is open; other devices are unaffected. Reduced motion presents every explanation statically without an automatic wait. Backgrounding pauses rather than discarding the queue. Reconnecting with an unchanged revision still offers the recap. Spectators have no private participant recap. Hidden recruitment is described using only the public Chronicle wording; private planning and unrevealed Court identities stay excluded.
+
+The same **Since my last turn** control is available during local and online play. An autosave resumed on a shared device starts its recap only after Ready establishes the incoming player's private view.
+
+## Court-inspired visual language
+
+Warm paper, dark printed outlines, olive foliage, crimson geometry, blue thorns and gold stems extend the supplied Court artwork onto the existing Tabletop composition. Resource cards remain legible; ordinary Noble markers remain rank and suit, with the complete original illustrations confined to draw, play, inspection and those explicit recap events. The artwork bytes are unchanged. No additional raster assets or external fonts are required.
+
+Phase, season, Year and personal Harvest-to-Poker arrivals receive a framed suit cue naming the destination, the acting player and its rules. Year arrival includes the recorded Button and action order. Cues wait behind Court reveals, shared-device handover, combat and required automatic explanations; they add no confirmation. A completed recap also orients the player to the current decision.
+
+`tests/recap.test.js` and the standalone interaction checks cover queue completeness, personal anchors, automatic skips, hidden recruitment and Court spoils, all recorded battles, later terminal events, pause/back/skip, static reduced motion and append deduplication. `scripts/browser-presentation.mjs` checks the actual modular and generated interfaces, native setup/reveal/handover, refresh recap, rendered dice motion/arithmetic, local playback controls, native reduced motion and touch landscape bounds. It runs in the separate browser CI job and retains screenshots. Visual tuning remains subject to playtest feedback; this is not a claim of final artistic parity.
