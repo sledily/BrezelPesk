@@ -139,13 +139,15 @@ let localResumeRecap = false;
 try { localResumeRecap = Boolean(localStorage.getItem('dendarv.autosave')); } catch { /* Local play remains available without storage. */ }
 let recapThrough = 0;
 let recapScope = null;
+let recapRenderedStep = null;
 let phaseArrival = null, phaseArrivalTimer = null, storyTimer = null;
 let missedOnlineConnection = false, recapPausedForBackground = false;
 const recapPresenter = new RecapPresenter({
   setTimer:(fn,ms)=>window.setTimeout(fn,ms),clearTimer:id=>window.clearTimeout(id),
   render:(step,position)=>{
     document.querySelector('#recap-step').className=`recap-step ${position.paused?'paused':''} ${position.reducedMotion?'static-recap':''}`;
-    document.querySelector('#recap-step').innerHTML=recapStepHTML(step,position);
+    const renderedStep=`${step.eventId}:${step.kind==='combat'?position.combatStage:'action'}`;
+    if(recapRenderedStep!==renderedStep){document.querySelector('#recap-step').innerHTML=recapStepHTML(step,position);recapRenderedStep=renderedStep;}
     document.querySelector('#recap-position').textContent=`${position.index+1} / ${position.count}`;
     document.querySelector('#recap-context').textContent=`Year ${step.year} · ${title(step.phase)} · ${playerName(step.actor)}`;
     document.querySelector('#recap-back').disabled=position.index===0;
@@ -153,6 +155,7 @@ const recapPresenter = new RecapPresenter({
     document.querySelector('#recap-next').textContent=position.index===position.count-1?'Return to current board':'Next action';
   },
   onComplete:()=>{
+    recapRenderedStep=null;
     if(recapDialog.open)recapDialog.close();
     if(state.status==='ACTIVE')phaseArrival={year:state.year_number,season:SEASON_BY_PHASE[state.phase],phase:state.phase===PHASE.HARVEST&&state.harvest?.stage==='POKER'?'POKER':state.phase,suit:ACTIVE_SUIT_BY_PHASE[state.phase],actor:state.current_actor,previous:'Recap complete',heading:'Back at the table',lesson:state.pending_combat?'The saved battle is awaiting Quarter or No Quarter.':state.pending_conquest?'Choose the fallen Sovereign Card or the captured Queen Holding.':phaseLesson(state.phase===PHASE.HARVEST&&state.harvest?.stage==='POKER'?'POKER':state.phase)};
     render();showPhaseArrival();maybeShowPhaseNotice();dom.actionControls.tabIndex=-1;dom.actionControls.focus();
@@ -181,6 +184,7 @@ const combatPresenter = new CombatPresenter({
   },
 });
 function clearPresentation() {
+  recapRenderedStep=null;
   recapPresenter.clear();if(recapDialog.open)recapDialog.close();pendingReconnectRecap=false;recapThrough=0;recapScope=null;
   window.clearTimeout(phaseArrivalTimer);window.clearTimeout(storyTimer);phaseArrival=null;
   document.querySelector('#phase-transition').hidden=true;document.querySelector('#table-story').hidden=true;
@@ -198,6 +202,7 @@ function startPersonalRecap({afterSequence=null}={}) {
   if(!recap.steps.length)return false;
   closeInspection();combatPresenter.clear();combatPanel.hidden=true;combatPanel.innerHTML='';
   document.querySelector('#recap-title').textContent=`${playerName(viewer)} · Since your last turn`;
+  recapRenderedStep=null;
   recapPresenter.show(recap.steps,{reducedMotion:reducedMotion()});
   if(!recapDialog.open)recapDialog.showModal();
   document.querySelector('#recap-skip').focus();
@@ -585,6 +590,7 @@ function finishInspection() {
   const incoming = deferredCourtHandoff;
   deferredCourtHandoff = null;
   if (incoming && !onlineClient && state.current_actor === incoming) showHandoff(incoming);
+  else window.setTimeout(showPhaseArrival,0);
 }
 
 function inspectNoble(id, court = false, reveal = null) {

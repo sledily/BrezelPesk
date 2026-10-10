@@ -101,7 +101,7 @@ test('an earlier move retains its earlier piece type after a subsequent Upgrade'
 test('pause, backwards navigation, skip and late timers cannot change a saved game',()=>{
   const s=history(),before=JSON.stringify(s),steps=reconnectRecap(projectForPlayer(s,'WHITE'),'WHITE').steps,c=clock();let finished=0;
   const p=new RecapPresenter({...c,render:()=>{},onComplete:()=>finished++});p.show(steps);c.advance(1000);p.pause();assert.equal(c.pending(),0);c.advance(20000);assert.equal(p.index,0);
-  p.resume();c.advance(1600);assert.equal(p.index,1);p.back();assert.equal(p.index,0);p.finish();assert.equal(c.pending(),0);assert.equal(finished,1);c.advance(20000);assert.equal(finished,1);assert.equal(JSON.stringify(s),before);
+  p.resume();c.advance(steps[0].duration-1000);assert.equal(p.index,1);p.back();assert.equal(p.index,0);p.finish();assert.equal(c.pending(),0);assert.equal(finished,1);c.advance(20000);assert.equal(finished,1);assert.equal(JSON.stringify(s),before);
 });
 test('reduced motion keeps every explanation statically without an artificial wait',()=>{
   const s=history();addBattle(s,'static');const c=clock(),renders=[];const p=new RecapPresenter({...c,render:(step,position)=>renders.push(position)});

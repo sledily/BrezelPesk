@@ -65,7 +65,9 @@ try {
   await page.route('**/api/rooms/ABC234',route=>route.fulfill({json:payload}));
   await page.goto(`${origin}/Dendarv_Play.html?room=ABC234`);
   await page.locator('#recap-dialog').waitFor({state:'visible'});
+  const firstIllustration=await page.locator('#recap-step .story-visual').elementHandle();
   await page.getByRole('button',{name:'Pause',exact:true}).click();
+  assert.equal(await firstIllustration.evaluate(el=>el.isConnected),true,'pause preserves the existing animation');
   const original=await page.evaluate(()=>JSON.stringify(__dendarv.getState()));
   assert.equal(await page.evaluate(()=>__dendarv.recapPresenter.steps.filter(s=>s.kind==='move').length),2);
   assert.equal(await page.evaluate(()=>__dendarv.recapPresenter.steps.filter(s=>s.kind==='combat').length),1);

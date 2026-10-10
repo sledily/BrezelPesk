@@ -18,6 +18,7 @@ function loadUI({motion=false}={}) {
   class Element {
     constructor(id) { this.id = id; this.hidden = false; this.value = ""; this.scrollHeight = 0; this.clientHeight = 0; this.scrollTop = 0; this.listeners = {}; }
     set innerHTML(text) {
+      this.htmlWrites=(this.htmlWrites??0)+1;
       contents.set(this.id, text);
       for (const match of text.matchAll(/id="([^"]+)"/g)) if (!elements.has(match[1])) elements.set(match[1], new Element(match[1]));
     }
@@ -30,7 +31,7 @@ function loadUI({motion=false}={}) {
     close() { this.open = false; this.listeners.close?.(); }
   }
   for (const match of html.matchAll(/id="([^"]+)"/g)) elements.set(match[1], new Element(match[1]));
-  for (const id of ["handoff", "phase-notice", "online-strip", "online-lobby"]) elements.get(id).hidden = true;
+  for (const id of ["handoff", "phase-notice", "online-strip", "online-lobby", "phase-transition", "table-story"]) elements.get(id).hidden = true;
   elements.get("online-create-count").value = "4";
   elements.get("online-create-seat").value = "WHITE";
   const app = new Element("app-shell");
@@ -170,6 +171,21 @@ test('a played Sovereign remains visible until dismissed before the next local h
   assert.equal(elements.get('inspection-content').innerHTML,'');
   assert.equal(elements.get('handoff').hidden,false);
   assert.equal(elements.get('handoff-title').textContent,'White to act');
+});
+
+test('the Year arrival waits for Court artwork and appears when the same actor returns to Harvest', async () => {
+  const {ui,elements,timers}=loadUI();
+  ui.setState(newMatch({seed:'phase-after-art',playerCount:2,rules:V2_RULES}));ui.hideHandoff();
+  await ui.run({type:'CHOOSE_SOVEREIGN',player:PLAYER.BLACK,noble_id:'NC-K-C'});ui.closeInspection();ui.hideHandoff();
+  await ui.run({type:'CHOOSE_SOVEREIGN',player:PLAYER.WHITE,noble_id:'NC-K-S'});
+  for(const t of timers.filter(t=>t.ms===0&&!t.cancelled)){t.cancelled=true;t.fn();}
+  assert.equal(elements.get('phase-transition').hidden,true,'the artwork stays in front of the cue');
+  const saved=JSON.stringify(ui.getState());ui.closeInspection();
+  for(const t of timers.filter(t=>t.ms===0&&!t.cancelled)){t.cancelled=true;t.fn();}
+  assert.equal(elements.get('phase-transition').hidden,false);
+  assert.match(elements.get('phase-transition').innerHTML,/Year 1 begins/);
+  assert.match(elements.get('phase-transition').innerHTML,/Harvest/);
+  assert.equal(JSON.stringify(ui.getState()),saved);
 });
 
 test("an unfunded Build preview survives tapping, and only Commit changes the board", async () => {
@@ -371,6 +387,15 @@ test('a reconnect opens a personal recap and rejects gameplay until playback is 
   assert.equal(ui.startPersonalRecap(),true);assert.equal(elements.get('recap-dialog').open,true);
   const before=JSON.stringify(ui.getState());assert.equal(await ui.run({type:'PASS_PHASE',player:state.current_actor}),false);
   assert.equal(JSON.stringify(ui.getState()),before);ui.recapPresenter.finish();assert.equal(elements.get('recap-dialog').open,false);
+});
+
+test('pausing and resuming a recap preserves its existing illustration and animation frame',()=>{
+  const {ui,elements}=loadUI({motion:true});ui.setState(forcePhase(setUpMatch('recap-pausing',V2_RULES),PHASE.MOBILIZE));ui.hideHandoff();
+  assert.equal(ui.startPersonalRecap(),true);const writes=elements.get('recap-step').htmlWrites;
+  ui.recapPresenter.pause();assert.equal(elements.get('recap-step').htmlWrites,writes);
+  assert.match(elements.get('recap-step').className,/paused/);
+  ui.recapPresenter.resume();assert.equal(elements.get('recap-step').htmlWrites,writes);
+  assert.doesNotMatch(elements.get('recap-step').className,/paused/);ui.recapPresenter.finish();
 });
 
 test('reconnecting again with an unchanged published revision still offers the complete recap',()=>{

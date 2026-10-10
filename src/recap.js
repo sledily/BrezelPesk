@@ -94,7 +94,10 @@ export function describePublishedAction(event, state) {
   const who = title(actor), suit = ACTIVE_SUIT_BY_PHASE[event.phase];
   const base = { eventId: event.event_id, sequence: event.sequence, year: event.year, phase: event.phase,
     actor, suit, kind: 'notice', heading: '', text: '', cards: [], duration: 2600 };
-  const finish = (heading, text, extra = {}) => ({ ...base, heading, text, ...extra });
+  // Give the explanation time to be read after the illustration arrives.
+  // Saved combat keeps its separately approved timing.
+  const finish = (heading, text, extra = {}) => ({ ...base, heading, text,
+    duration: Math.max(3600,Math.min(10000,1000+`${heading} ${text}`.split(/\s+/).length*185)), ...extra });
   if (p.hidden) {
     // Only the projection's public Chronicle wording is allowed here. Do not
     // look up an unrevealed identity from the current state's dictionaries.
@@ -115,10 +118,10 @@ export function describePublishedAction(event, state) {
     case 'YearStarted': return finish(`Year ${p.year} begins`, `${title(p.button_holder)} holds the Button. Initiative follows this Year’s recorded action order.`, {kind:'phase'});
     case 'SetupCompleted': return finish('The Sovereigns are chosen', 'Year 1 begins with personal Harvest, followed immediately by each player’s Poker window.', {kind:'phase'});
     case 'PokerDeclarationsStarted': return finish(`${who} enters Poker`, phaseLesson('POKER'), {kind:'phase'});
-    case 'ActorPassed': return p.automatic ? null : finish(`${who} passed ${phaseLabel(p.phase ?? event.phase)}`, 'Their accepted actions are published. The next eligible player or phase follows.', {kind:'pass',duration:1600});
+    case 'ActorPassed': return p.automatic ? null : finish(`${who} passed ${phaseLabel(p.phase ?? event.phase)}`, 'Their accepted actions are published. The next eligible player or phase follows.', {kind:'pass'});
     case 'PhaseAutomaticallyPassed': return finish(`${who} · ${phaseLabel(p.section ?? event.phase)} passed`, p.reason, {kind:'pass'});
     case 'PhaseUnavailable': return finish(`${phaseLabel(event.phase)} unavailable`, p.reason, {kind:'pass'});
-    case 'PokerDeclarationsFinished': return finish(`${who} finished Poker`, 'The one immediate declaration window has closed for this player.', {kind:'pass',duration:1600});
+    case 'PokerDeclarationsFinished': return finish(`${who} finished Poker`, 'The one immediate declaration window has closed for this player.', {kind:'pass'});
     case 'HarvestActorCompleted': return null; // The following Poker entry explains this same boundary.
     case 'HarvestCardsDrawn': return finish(`${who} drew for the ${piece}`, `${p.card_ids.length} card${p.card_ids.length===1?'':'s'} from the ${title(p.deck)} deck. Keep one actual card.`, {kind:'draw',cards:cardModels(state,p.card_ids),unit});
     case 'HarvestCardKept': return finish(`${who} kept a Harvest card`,
