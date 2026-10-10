@@ -931,6 +931,8 @@ body { background:repeating-linear-gradient(14deg,#61421805 0 1px,transparent 1p
 .realm-hand { border-top:3px double #2f3422; }
 .realm-hand h2,.realm-side h3,.chronicle-panel h2 { font-weight:800; }
 .realm-hand header { border-bottom:1px solid #ae9151; padding-bottom:9px; }
+.online-strip { color:#433b29; background:#e9dab7; border-color:#6b5b39; }
+.online-strip strong { color:#2e3823; }
 .court-back,.hostage-card,.reserve-group { border-color:#5c603a; }
 .court-back { background:repeating-linear-gradient(45deg,#405536 0 2px,#66754c 2px 5px); box-shadow:inset 0 0 0 3px #d3b572,inset 0 0 0 4px #273822; color:#f6e8bd; }
 .board-frame { border:6px double #2c3425; background:#b58c45; box-shadow:0 2px 0 #ae8540,0 8px 18px #30271433; }
@@ -1004,6 +1006,8 @@ body { background:repeating-linear-gradient(14deg,#61421805 0 1px,transparent 1p
 .travel-line { position:relative; height:88px; flex:1; border-bottom:2px dashed #8c7f55; text-align:center; }
 .travel-line > b { position:absolute; right:8px; bottom:-14px; color:#7b733f; }
 .story-traveller { position:absolute; left:8%; top:7px; width:58px; }
+.static-recap .story-traveller { left:76%; }
+.static-recap .story-payment .story-card { transform:rotate(90deg) scale(.83); }
 .story-traveller .realm-piece,.story-pieces .realm-piece { width:58px; height:72px; }
 .story-pieces { display:flex; gap:20px; align-items:center; }
 .story-pieces strong { font:900 27px Georgia,serif; }
@@ -1060,6 +1064,41 @@ body { background:repeating-linear-gradient(14deg,#61421805 0 1px,transparent 1p
   .recap-controls .button { font-size:12px; padding:8px; }
   .phase-seal { width:43px; height:54px; font-size:36px; }
   .phase-transition { padding-inline:12px; }
+}
+@media (max-height:650px) and (min-width:650px) {
+  .recap-dialog { padding:10px 18px; max-height:95dvh; }
+  .recap-heading { padding-bottom:6px; }
+  .recap-heading h1 { font-size:22px; margin-top:3px; }
+  .recap-heading .eyebrow { font-size:9px; }
+  .recap-context { margin:6px 0 2px; font-size:11px; }
+  .recap-step { display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; min-height:0; }
+  .recap-step > .suit-frieze,.recap-step > h2,.recap-step > .story-order,.recap-step > .recap-combat { grid-column:1 / -1; }
+  .recap-step > .suit-frieze { margin:2px 0 4px; }
+  .recap-step > .suit-frieze svg { height:17px; }
+  .recap-step > .suit-frieze span { font-size:20px; }
+  .recap-step > h2 { margin:4px 0 6px; font-size:24px; }
+  .recap-step > .story-visual { grid-column:1; min-height:85px; gap:4px; }
+  .recap-step > .story-explanation { grid-column:2; align-self:center; text-align:left; margin:0; font-size:13px; line-height:1.45; }
+  .story-card { width:48px; height:66px; font-size:24px; }
+  .story-cards { gap:8px; }
+  .story-pool { font-size:24px; }
+  .story-pool small { margin:2px; font-size:10px; }
+  .story-travel { width:100%; gap:10px; font-size:23px; }
+  .travel-line { height:68px; }
+  .story-traveller { width:42px; }
+  .story-traveller .realm-piece,.story-pieces .realm-piece { width:42px; height:55px; }
+  .story-noble { width:94px; }
+  .story-noble .noble-art { max-height:141px; }
+  .story-noble .noble-caption { font-size:10px; }
+  .recap-controls { padding:8px 0; gap:7px; }
+  .recap-controls .button { min-height:34px; padding:6px 10px; font-size:12px; }
+  .recap-footnote { font-size:10px; line-height:1.2; }
+  .recap-combat h2 { margin:6px 0; font-size:23px; }
+  .recap-combat .combat-die { width:36px; height:36px; }
+  .recap-combat .combat-dice { min-height:60px; }
+  .recap-combat .combat-unit .realm-piece { width:32px; height:42px; }
+  .recap-combat .combat-arithmetic { font-size:13px; }
+  .recap-combat .combat-narration { margin:8px 0; font-size:13px; }
 }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
 
@@ -5060,7 +5099,10 @@ function describePublishedAction(event, state) {
   const who = title(actor), suit = ACTIVE_SUIT_BY_PHASE[event.phase];
   const base = { eventId: event.event_id, sequence: event.sequence, year: event.year, phase: event.phase,
     actor, suit, kind: 'notice', heading: '', text: '', cards: [], duration: 2600 };
-  const finish = (heading, text, extra = {}) => ({ ...base, heading, text, ...extra });
+  // Give the explanation time to be read after the illustration arrives.
+  // Saved combat keeps its separately approved timing.
+  const finish = (heading, text, extra = {}) => ({ ...base, heading, text,
+    duration: Math.max(3600,Math.min(10000,1000+`${heading} ${text}`.split(/\s+/).length*185)), ...extra });
   if (p.hidden) {
     // Only the projection's public Chronicle wording is allowed here. Do not
     // look up an unrevealed identity from the current state's dictionaries.
@@ -5081,10 +5123,10 @@ function describePublishedAction(event, state) {
     case 'YearStarted': return finish(`Year ${p.year} begins`, `${title(p.button_holder)} holds the Button. Initiative follows this Year’s recorded action order.`, {kind:'phase'});
     case 'SetupCompleted': return finish('The Sovereigns are chosen', 'Year 1 begins with personal Harvest, followed immediately by each player’s Poker window.', {kind:'phase'});
     case 'PokerDeclarationsStarted': return finish(`${who} enters Poker`, phaseLesson('POKER'), {kind:'phase'});
-    case 'ActorPassed': return p.automatic ? null : finish(`${who} passed ${phaseLabel(p.phase ?? event.phase)}`, 'Their accepted actions are published. The next eligible player or phase follows.', {kind:'pass',duration:1600});
+    case 'ActorPassed': return p.automatic ? null : finish(`${who} passed ${phaseLabel(p.phase ?? event.phase)}`, 'Their accepted actions are published. The next eligible player or phase follows.', {kind:'pass'});
     case 'PhaseAutomaticallyPassed': return finish(`${who} · ${phaseLabel(p.section ?? event.phase)} passed`, p.reason, {kind:'pass'});
     case 'PhaseUnavailable': return finish(`${phaseLabel(event.phase)} unavailable`, p.reason, {kind:'pass'});
-    case 'PokerDeclarationsFinished': return finish(`${who} finished Poker`, 'The one immediate declaration window has closed for this player.', {kind:'pass',duration:1600});
+    case 'PokerDeclarationsFinished': return finish(`${who} finished Poker`, 'The one immediate declaration window has closed for this player.', {kind:'pass'});
     case 'HarvestActorCompleted': return null; // The following Poker entry explains this same boundary.
     case 'HarvestCardsDrawn': return finish(`${who} drew for the ${piece}`, `${p.card_ids.length} card${p.card_ids.length===1?'':'s'} from the ${title(p.deck)} deck. Keep one actual card.`, {kind:'draw',cards:cardModels(state,p.card_ids),unit});
     case 'HarvestCardKept': return finish(`${who} kept a Harvest card`,
@@ -5183,7 +5225,7 @@ class RecapPresenter {
   show(steps,{reducedMotion=false}={}){this.clear();if(!steps.length)return false;this.steps=steps;this.index=0;this.busy=true;this.reducedMotion=reducedMotion;this.paused=reducedMotion;this.begin();return true;}
   begin(){this.cancelTimers();this.elapsed=0;this.started=this.now();this.paint();this.schedule();}
   stage(){if(this.reducedMotion)return 'complete';return COMBAT_BEATS.findLast(b=>b.at<=this.elapsed)?.stage??'opening';}
-  paint(){this.render(this.steps[this.index],{index:this.index,count:this.steps.length,paused:this.paused,reducedMotion:this.reducedMotion,combatStage:this.stage()});}
+  paint(){const staticFrame=this.reducedMotion||this.paused&&this.elapsed===0;this.render(this.steps[this.index],{index:this.index,count:this.steps.length,paused:this.paused,reducedMotion:this.reducedMotion,staticFrame,combatStage:staticFrame?'complete':this.stage()});}
   schedule(){
     if(!this.busy||this.paused)return;
     const step=this.steps[this.index],generation=this.generation;
@@ -5277,13 +5319,15 @@ let localResumeRecap = false;
 try { localResumeRecap = Boolean(localStorage.getItem('dendarv.autosave')); } catch { /* Local play remains available without storage. */ }
 let recapThrough = 0;
 let recapScope = null;
+let recapRenderedStep = null;
 let phaseArrival = null, phaseArrivalTimer = null, storyTimer = null;
 let missedOnlineConnection = false, recapPausedForBackground = false;
 const recapPresenter = new RecapPresenter({
   setTimer:(fn,ms)=>window.setTimeout(fn,ms),clearTimer:id=>window.clearTimeout(id),
   render:(step,position)=>{
-    document.querySelector('#recap-step').className=`recap-step ${position.paused?'paused':''} ${position.reducedMotion?'static-recap':''}`;
-    document.querySelector('#recap-step').innerHTML=recapStepHTML(step,position);
+    document.querySelector('#recap-step').className=`recap-step ${position.paused?'paused':''} ${position.staticFrame?'static-recap':''}`;
+    const renderedStep=`${step.eventId}:${step.kind==='combat'?position.combatStage:'action'}`;
+    if(recapRenderedStep!==renderedStep){document.querySelector('#recap-step').innerHTML=recapStepHTML(step,position);recapRenderedStep=renderedStep;}
     document.querySelector('#recap-position').textContent=`${position.index+1} / ${position.count}`;
     document.querySelector('#recap-context').textContent=`Year ${step.year} · ${title(step.phase)} · ${playerName(step.actor)}`;
     document.querySelector('#recap-back').disabled=position.index===0;
@@ -5291,6 +5335,7 @@ const recapPresenter = new RecapPresenter({
     document.querySelector('#recap-next').textContent=position.index===position.count-1?'Return to current board':'Next action';
   },
   onComplete:()=>{
+    recapRenderedStep=null;
     if(recapDialog.open)recapDialog.close();
     if(state.status==='ACTIVE')phaseArrival={year:state.year_number,season:SEASON_BY_PHASE[state.phase],phase:state.phase===PHASE.HARVEST&&state.harvest?.stage==='POKER'?'POKER':state.phase,suit:ACTIVE_SUIT_BY_PHASE[state.phase],actor:state.current_actor,previous:'Recap complete',heading:'Back at the table',lesson:state.pending_combat?'The saved battle is awaiting Quarter or No Quarter.':state.pending_conquest?'Choose the fallen Sovereign Card or the captured Queen Holding.':phaseLesson(state.phase===PHASE.HARVEST&&state.harvest?.stage==='POKER'?'POKER':state.phase)};
     render();showPhaseArrival();maybeShowPhaseNotice();dom.actionControls.tabIndex=-1;dom.actionControls.focus();
@@ -5319,6 +5364,7 @@ const combatPresenter = new CombatPresenter({
   },
 });
 function clearPresentation() {
+  recapRenderedStep=null;
   recapPresenter.clear();if(recapDialog.open)recapDialog.close();pendingReconnectRecap=false;recapThrough=0;recapScope=null;
   window.clearTimeout(phaseArrivalTimer);window.clearTimeout(storyTimer);phaseArrival=null;
   document.querySelector('#phase-transition').hidden=true;document.querySelector('#table-story').hidden=true;
@@ -5336,6 +5382,7 @@ function startPersonalRecap({afterSequence=null}={}) {
   if(!recap.steps.length)return false;
   closeInspection();combatPresenter.clear();combatPanel.hidden=true;combatPanel.innerHTML='';
   document.querySelector('#recap-title').textContent=`${playerName(viewer)} · Since your last turn`;
+  recapRenderedStep=null;
   recapPresenter.show(recap.steps,{reducedMotion:reducedMotion()});
   if(!recapDialog.open)recapDialog.showModal();
   document.querySelector('#recap-skip').focus();
@@ -5723,6 +5770,7 @@ function finishInspection() {
   const incoming = deferredCourtHandoff;
   deferredCourtHandoff = null;
   if (incoming && !onlineClient && state.current_actor === incoming) showHandoff(incoming);
+  else window.setTimeout(showPhaseArrival,0);
 }
 
 function inspectNoble(id, court = false, reveal = null) {
