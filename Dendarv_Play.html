@@ -916,6 +916,153 @@ button:disabled { opacity: .6; }
   *,*::before,*::after { animation:none !important; scroll-behavior:auto !important; }
 }
 
+/* The Court's printed ink, warm paper and suit borders continue onto the table. */
+:root { --ink:#24251b; --muted:#665a43; --surface:#f5e9cc; --surface-2:#e9dab7; --surface-3:#ead9ae; --line:#ab9363; --gold:#976324; --gold-soft:#bf9348; --black:#d4bc8e; --dark-square:#49647a; --light-square:#ead8ae; --woodcut-green:#58653b; --woodcut-red:#972f25; --woodcut-blue:#194765; --woodcut-gold:#a9762e; }
+body { background:repeating-linear-gradient(14deg,#61421805 0 1px,transparent 1px 5px),radial-gradient(ellipse at top,#f7ecd0,#dac599 85%); }
+.app-shell { --season-ink:var(--woodcut-green); }
+.app-shell[data-suit="DIAMONDS"] { --season-ink:var(--woodcut-red); }
+.app-shell[data-suit="SPADES"] { --season-ink:var(--woodcut-blue); }
+.app-shell[data-suit="HEARTS"] { --season-ink:#79392b; }
+.topbar { background:#f4e7c9; border-bottom:4px double #3a3524; box-shadow:0 2px 0 #b18e4c; }
+.brand-lockup h1 { font-weight:900; text-transform:uppercase; letter-spacing:.035em; color:#202318; text-shadow:1px 1px #c8ad6b; }
+.labyrinth-mark { background:#58633c; color:#f6e9bb; border:2px solid #20291c; outline-color:#d8b25b; transform:none; border-radius:4px 16px 4px 16px; }
+.year-heading h2 { color:var(--season-ink); }
+.realm-hand,.realm-side,.chronicle-panel,.board-constants { background:#f4e7c9; border-color:#6b5b39; }
+.realm-hand { border-top:3px double #2f3422; }
+.realm-hand h2,.realm-side h3,.chronicle-panel h2 { font-weight:800; }
+.realm-hand header { border-bottom:1px solid #ae9151; padding-bottom:9px; }
+.court-back,.hostage-card,.reserve-group { border-color:#5c603a; }
+.court-back { background:repeating-linear-gradient(45deg,#405536 0 2px,#66754c 2px 5px); box-shadow:inset 0 0 0 3px #d3b572,inset 0 0 0 4px #273822; color:#f6e8bd; }
+.board-frame { border:6px double #2c3425; background:#b58c45; box-shadow:0 2px 0 #ae8540,0 8px 18px #30271433; }
+.board { border-color:#373829; }
+.square.dark { background:repeating-linear-gradient(0deg,#ffffff08 0 1px,transparent 1px 4px),var(--dark-square); }
+.square.light { background:repeating-linear-gradient(0deg,#4d301207 0 1px,transparent 1px 4px),var(--light-square); }
+.square.selected { outline-color:#bd892a; }
+.current-action { background:#f8edcf; border-bottom:3px double var(--season-ink); box-shadow:0 3px 10px #4734171a; }
+.action-rubric > .eyebrow { color:var(--season-ink); font-weight:900; }
+.action-panel { background:#f0e2bf; }
+.button { border-color:#7e693d; border-radius:4px; background:#eee0bb; box-shadow:inset 0 0 0 1px #fff5da; }
+.button:hover:not(:disabled) { background:#e1cfa2; border-color:#272e21; color:#252919; }
+.button.primary { color:#fff2c9; border:2px solid #252b1c; background:#526139; box-shadow:inset 0 0 0 1px #c5a45b,1px 2px 0 #4d3c2466; }
+.button.primary:hover:not(:disabled) { background:#3e512d; color:#fff4d9; }
+.button.danger { color:#fff2d8; background:#913d2f; }
+.button.quiet { color:#51412c; }
+.button:focus-visible,.court-back:focus-visible { outline:3px solid #1f6586; outline-offset:3px; }
+.card-token,.card-choice .card-token,.harvest-card { border-color:#343628; background:#fff4d8; box-shadow:1px 2px 0 #bba16b; }
+.card-token { border-width:1.5px; }
+.card-counter { background:#a33525; border-color:#f7eac4; box-shadow:0 0 0 1px #602e1d; }
+.table-pool { color:var(--season-ink); }
+.table-pool strong { font-weight:800; }
+.game-dialog,.handoff-card,.phase-notice-card { background:#f5e8c5; color:#2d3020; border:5px double #35452c; box-shadow:0 18px 70px #18211377; }
+.game-dialog::backdrop { background:#1b241e80; backdrop-filter:blur(2px); }
+.handoff-card h2,.phase-notice-card h2 { color:#2c3924; }
+.handoff-card p,.phase-notice-card p { color:#544830; }
+.inspection-dialog .noble-art { box-shadow:0 6px 16px #38250d33; }
+.phase-transition { width:min(960px,100%); margin:auto; padding:0 18px 14px; color:var(--season-ink); }
+.phase-arrival { display:flex; gap:16px; align-items:center; justify-content:center; text-align:left; }
+.phase-arrival h2 { margin:4px 0; font:900 clamp(22px,3vw,34px)/1.1 Georgia,serif; }
+.phase-arrival p { margin:0; }
+.phase-arrival .eyebrow { font-size:10px; color:var(--muted); }
+.phase-seal { width:58px; height:70px; display:grid; place-items:center; border:3px double currentColor; outline:1px solid #aa8749; outline-offset:3px; background:#fff3d2; font:900 48px/1 Georgia,serif; border-radius:6px; }
+.phase-lesson { max-width:700px; text-align:center; margin:13px auto 0; color:var(--ink); font-size:13px; line-height:1.6; }
+.suit-frieze { display:flex; align-items:center; gap:12px; width:100%; margin:6px 0 14px; color:#607044; }
+.suit-frieze svg { height:24px; flex:1; min-width:0; fill:#77804c; stroke:#2d3526; stroke-width:1.3; }
+.suit-frieze svg:last-child { transform:scaleX(-1); }
+.suit-frieze .frieze-stem { fill:none; stroke:#ac7c31; stroke-width:2; }
+.suit-frieze span { font:900 25px/1 Georgia,serif; color:currentColor; }
+.suit-frieze.diamonds { color:#952f25; }
+.suit-frieze.diamonds svg { fill:#a44231; stroke:#493122; }
+.suit-frieze.spades { color:#1e4d70; }
+.suit-frieze.spades svg { fill:#2a5974; stroke:#1e2f31; }
+.suit-frieze.hearts { color:#9a342b; }
+.suit-frieze.hearts svg { fill:#62784b; }
+.table-story { padding:12px 14px; margin:10px 0; border-left:4px solid var(--season-ink); background:#f6e8c5; color:#393624; box-shadow:2px 3px 0 #baa17066; }
+.table-story strong { font:800 17px Georgia,serif; }
+.table-story p { margin:5px 0 0; font-size:12px; line-height:1.6; }
+.recap-dialog { width:min(790px,calc(100% - 24px)); max-width:790px; max-height:90dvh; padding:20px 26px 14px; overflow:auto; }
+.recap-heading { display:flex; justify-content:space-between; gap:16px; align-items:center; border-bottom:3px double #8c7549; padding-bottom:12px; }
+.recap-heading h1 { font:900 clamp(21px,3vw,29px)/1.15 Georgia,serif; margin:5px 0 0; }
+.recap-heading .eyebrow { color:#647142; font-size:10px; }
+#recap-position { flex-shrink:0; font:700 22px Georgia,serif; color:#736134; }
+.recap-context { color:#74623e; text-align:center; font-size:12px; letter-spacing:.07em; margin:14px 0 4px; }
+.recap-step { min-height:275px; text-align:center; }
+.recap-step h2 { margin:15px 0; font:900 clamp(21px,3vw,32px)/1.2 Georgia,serif; }
+.story-explanation { max-width:620px; margin:18px auto; color:#433b29; font-size:15px; line-height:1.65; }
+.story-order { color:#665937; font-size:13px; }
+.story-visual { min-height:100px; display:grid; justify-content:center; align-content:center; position:relative; gap:12px; }
+.story-emblem { font:900 65px/1 Georgia,serif; color:#636c3d; }
+.story-cards { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; max-width:650px; }
+.story-card { position:relative; display:grid; place-items:center; width:72px; height:103px; background:#fff5d9; border:3px double #353825; border-radius:5px; box-shadow:2px 3px 0 #aa8f55; color:#2a382d; font:800 30px Georgia,serif; }
+.story-card.red-card { color:#9b3022; }
+.story-card .card-counter { width:21px; height:21px; bottom:-5px; right:-5px; }
+.story-rejects { display:flex; gap:8px; align-items:center; font-size:11px; }
+.story-back { display:grid; place-items:center; width:60px; height:90px; background:repeating-linear-gradient(45deg,#46603e 0 2px,#73804d 2px 6px); border:4px double #e4bc66; border-radius:5px; outline:1px solid #283820; color:#efe2b7; font:900 34px Georgia,serif; box-shadow:2px 3px 0 #b99c56; }
+.story-private { display:flex; align-items:center; gap:20px; color:#685a39; }
+.story-pool { font:900 32px Georgia,serif; color:#576d3c; }
+.story-pool small { display:block; margin:5px; font:12px system-ui,sans-serif; color:#5b533e; }
+.story-travel { display:flex; align-items:center; gap:18px; width:min(480px,70vw); color:#513f29; font:800 27px Georgia,serif; }
+.travel-line { position:relative; height:88px; flex:1; border-bottom:2px dashed #8c7f55; text-align:center; }
+.travel-line > b { position:absolute; right:8px; bottom:-14px; color:#7b733f; }
+.story-traveller { position:absolute; left:8%; top:7px; width:58px; }
+.story-traveller .realm-piece,.story-pieces .realm-piece { width:58px; height:72px; }
+.story-pieces { display:flex; gap:20px; align-items:center; }
+.story-pieces strong { font:900 27px Georgia,serif; }
+.story-noble { width:190px; margin:auto; }
+.story-noble .noble-art { max-height:285px; width:100%; object-fit:contain; }
+.recap-controls { position:sticky; bottom:0; display:flex; flex-wrap:wrap; justify-content:center; gap:9px; padding:12px 0; border-top:3px double #8c7549; background:#f5e8c5; z-index:2; }
+.recap-controls .button { min-height:40px; }
+.recap-footnote { color:#786849; font-size:11px; line-height:1.5; text-align:center; margin:2px 0; }
+.recap-combat { padding:0 6px; }
+.recap-combat h2 { font-size:28px; }
+.recap-combat .combat-die { width:48px; height:48px; border:2px solid #303727; box-shadow:2px 4px 0 #57472166; }
+.recap-combat .combat-dice { min-height:95px; }
+.recap-combat .combat-arithmetic { font-size:15px; }
+.recap-combat .combat-unit .realm-piece { width:44px; height:58px; }
+.recap-combat .combat-narration { font-size:15px; }
+.combat-presentation { border:5px double #38432a; border-radius:8px; background:radial-gradient(ellipse at top,#fff2cb,#e5d09e); }
+.combat-die { border-color:#313328; box-shadow:2px 4px 0 #352f2177; }
+.combat-general { border:3px double #5c613e; background:#f3e1b2; }
+.combat-die.retained { outline-color:#b48222; }
+@media (prefers-reduced-motion:no-preference) {
+  .phase-transition { animation:phase-unfold .65s cubic-bezier(.2,.7,.2,1) both; }
+  .phase-seal { animation:seal-placed .65s cubic-bezier(.2,.8,.3,1) both; }
+  .phase-arrival h2 { animation:ink-reveal .7s .18s both; }
+  .table-story { animation:ink-reveal .3s both; }
+  .story-card { animation:card-dealt .7s calc(var(--story-index)*.09s) both; }
+  .story-card .card-counter { animation:seal-placed .6s .7s both; }
+  .story-traveller { animation:piece-travel 1.1s .15s cubic-bezier(.25,.7,.2,1) both; }
+  .story-build .story-piece { animation:seal-placed .7s both; }
+  .story-casualty .story-piece { animation:piece-lost 1.2s .2s both; }
+  .story-payment .story-card { animation:card-tapped .7s both; }
+  .story-pool { animation:seal-placed .7s .65s both; }
+  .combat-rolling .combat-die { animation:printed-die-tumble .46s linear infinite; animation-delay:calc(var(--die-index)*-140ms); }
+  .combat-bonus .combat-general,.combat-bonus .combat-rank { animation:seal-placed .7s both; }
+  .paused *, .static-recap * { animation-play-state:paused!important; }
+  .static-recap * { animation:none!important; }
+  @keyframes phase-unfold { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:none; } }
+  @keyframes ink-reveal { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+  @keyframes seal-placed { 0% { opacity:0; transform:translateY(-12px) scale(1.3) rotate(-10deg); } 65% { opacity:1; transform:scale(.93); } 100% { opacity:1; transform:none; } }
+  @keyframes card-dealt { from { opacity:0; transform:translateY(-28px) rotate(-18deg); } to { opacity:1; transform:none; } }
+  @keyframes card-tapped { from { transform:rotate(0deg); } to { transform:rotate(90deg) scale(.83); } }
+  @keyframes piece-travel { 0% { left:8%; transform:translateY(0) rotate(-5deg); } 45% { transform:translateY(-18px); } 100% { left:76%; transform:none; } }
+  @keyframes piece-lost { from { transform:rotate(0deg); opacity:1; } to { transform:rotate(70deg) translateY(8px); opacity:.4; } }
+  @keyframes printed-die-tumble { 0% { transform:translateY(-8px) perspective(100px) rotateX(0deg) rotateY(0deg) rotate(-12deg); } 50% { transform:translateY(5px) perspective(100px) rotateX(160deg) rotateY(180deg) rotate(12deg); } 100% { transform:translateY(-8px) perspective(100px) rotateX(360deg) rotateY(360deg) rotate(-12deg); } }
+}
+@media (max-width:600px) {
+  .recap-dialog { padding:14px; max-height:95dvh; }
+  .recap-heading h1 { font-size:20px; }
+  .recap-step { min-height:240px; }
+  .recap-step h2 { font-size:22px; }
+  .story-explanation { font-size:14px; }
+  .recap-combat .combat-die { width:34px; height:34px; }
+  .recap-combat .combat-unit { flex-direction:column; }
+  .recap-controls { gap:6px; }
+  .recap-controls .button { font-size:12px; padding:8px; }
+  .phase-seal { width:43px; height:54px; font-size:36px; }
+  .phase-transition { padding-inline:12px; }
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
+
     </style>
   </head>
   <body>
@@ -934,6 +1081,7 @@ button:disabled { opacity: .6; }
           <button id="new-game" class="button quiet">New</button>
           <button id="undo-action" class="button quiet" disabled>Undo</button>
           <button id="load-autosave" class="button quiet">Resume</button>
+          <button id="review-turns" class="button quiet">Since my last turn</button>
           <button id="export-save" class="button quiet">Export save</button>
           <button id="import-save" class="button quiet">Import</button>
           <input id="import-file" type="file" accept="application/json,.json" hidden>
@@ -958,6 +1106,7 @@ button:disabled { opacity: .6; }
 
       <section class="current-action" aria-label="Current Action">
         <div class="action-rubric"><span class="eyebrow">Current Action</span><strong id="current-action-summary" role="status" aria-live="polite"></strong></div>
+        <section id="phase-transition" class="phase-transition" role="status" aria-live="polite" hidden></section>
       </section>
       <section id="action-controls" class="panel action-panel" aria-label="Action controls"></section>
       <main class="game-layout">
@@ -971,6 +1120,7 @@ button:disabled { opacity: .6; }
           </div>
           <div id="turn-card" class="board-constants"></div>
           <div id="board-hint" class="board-hint">Select an action to see legal squares.</div>
+          <div id="table-story" class="table-story" role="status" aria-live="polite" hidden></div>
           <details class="board-vocabulary"><summary>Read the board and cards</summary>
             <p>A Holding is a chess piece without a card. A small Vassal card marks a Levy, which can also move and attack. Select a piece to inspect it; select its card separately to inspect the Vassal.</p>
             <p>Vassal badges use Vz, Dx and Rx, with their suit symbols. The same titles identify the named Court cards below.</p>
@@ -995,6 +1145,14 @@ button:disabled { opacity: .6; }
         </aside>
       </main>
     </div>
+
+    <dialog id="recap-dialog" class="game-dialog recap-dialog" aria-labelledby="recap-title">
+      <header class="recap-heading"><div><p class="eyebrow">The table remembers</p><h1 id="recap-title">Since your last turn</h1></div><span id="recap-position"></span></header>
+      <p id="recap-context" class="recap-context"></p>
+      <div id="recap-step" class="recap-step" aria-live="polite"></div>
+      <div class="recap-controls"><button id="recap-back" class="button quiet">Previous</button><button id="recap-pause" class="button">Pause</button><button id="recap-next" class="button primary">Next action</button><button id="recap-skip" class="button quiet">Skip to current board</button></div>
+      <p class="recap-footnote">Recorded actions and original dice. The board behind this replay is the current position.</p>
+    </dialog>
 
     <dialog id="inspection-dialog" class="game-dialog inspection-dialog" aria-label="Card or Unit inspection">
       <div id="inspection-content"></div>
@@ -3015,7 +3173,7 @@ function finishPoker(state, command) {
   requireCondition(state.harvest?.stage === "POKER", "WRONG_HARVEST_STAGE", "Poker declarations have not begun");
   requireActor(state, command.player);
   state.harvest.completed_poker_players.push(command.player);
-  recordEvent(state, "PokerDeclarationsFinished", { player: command.player });
+  recordEvent(state, "PokerDeclarationsFinished", { player: command.player, automatic: Boolean(command.automatic) });
   if (state.rules.resource_flow_v2 && state.harvest.completed_draw_players.length < state.phase_actor_order.length) {
     initializeHarvestActor(state, nextActorInOrder(state, command.player, new Set(state.harvest.completed_draw_players)));
     return;
@@ -3114,7 +3272,7 @@ function respondRansom(state, command) {
   const noble = state.nobles_by_id[offer.noble_id];
   const cost = actionCost(state, "RANSOM", { actor: command.player, noble_id: noble.noble_id });
   if (!command.pay) {
-    recordEvent(state, "RansomDeclined", { player: command.player, noble_id: noble.noble_id, role: offer.stage });
+    recordEvent(state, "RansomDeclined", { player: command.player, noble_id: noble.noble_id, role: offer.stage, automatic: Boolean(command.automatic) });
     if (offer.stage === "OWNER") {
       offer.stage = "CAPTOR";
       state.current_actor = offer.captor;
@@ -3724,7 +3882,7 @@ function passPhase(state, command) {
   requireActor(state, command.player);
   requireCondition(!state.passed_players.includes(command.player), "ALREADY_PASSED", "This player already passed");
   state.passed_players.push(command.player);
-  recordEvent(state, "ActorPassed", { player: command.player, phase: state.phase });
+  recordEvent(state, "ActorPassed", { player: command.player, phase: state.phase, automatic: Boolean(command.automatic) });
   if (state.passed_players.length < state.phase_actor_order.length) {
     state.current_actor = nextActorInOrder(state, command.player, new Set(state.passed_players));
     return;
@@ -3761,7 +3919,7 @@ function chooseStockpile(state, command) {
   state.players[command.player].resource_hand_ids = [...kept];
   for (const deck of affectedDecks) shuffleDeck(state, deck);
   state.stockpile_committed[command.player] = true;
-  recordEvent(state, "ResourceStockpileCommitted", { player: command.player, kept_card_ids: kept, discarded_card_ids: discarded });
+  recordEvent(state, "ResourceStockpileCommitted", { player: command.player, kept_card_ids: kept, discarded_card_ids: discarded, automatic: Boolean(command.automatic) });
   if (Object.keys(state.stockpile_committed).length < state.phase_actor_order.length) {
     state.current_actor = nextActorInOrder(state, command.player, new Set(Object.keys(state.stockpile_committed)));
     return;
@@ -3839,18 +3997,18 @@ function settleAutomaticPhases(state) {
       if (state.harvest.stage === "DRAW") return;
       if (availablePokerHands(state, player).length) return;
       if (!state.rules.resource_flow_v2) queueAutomaticNotice(state, "No available Poker Hand can add a bonus.", "POKER");
-      finishPoker(state, { player });
+      finishPoker(state, { player, automatic: true });
     } else if (state.phase === PHASE.STOCKPILE) {
       if (state.rules.resource_flow_v2) {
         const plan = stockpilePlan(state, player);
         if (!plan.submitted || plan.error) return;
-        chooseStockpile(state, { player, card_ids: plan.card_ids });
+        chooseStockpile(state, { player, card_ids: plan.card_ids, automatic: true });
         continue;
       }
       const cards = state.players[player].resource_hand_ids;
       if (validateStockpile(state, player, cards)) return;
       queueAutomaticNotice(state, "Every remaining card fits your Stockpile. All were retained automatically.");
-      chooseStockpile(state, { player, card_ids: [...cards] });
+      chooseStockpile(state, { player, card_ids: [...cards], automatic: true });
     } else if (state.phase === PHASE.RANSOM) {
       const offer = state.active_ransom;
       if (!offer) {
@@ -3862,12 +4020,12 @@ function settleAutomaticPhases(state) {
       const value = availableResourceValue(state, player, SUIT.DIAMONDS);
       if (value >= cost) return;
       queueAutomaticNotice(state, `Ransom costs ${cost} Diamonds; only ${value} are available. The unaffordable offer was declined.`);
-      respondRansom(state, { player, pay: false });
+      respondRansom(state, { player, pay: false, automatic: true });
     } else {
       const availability = phaseAvailability(state, player);
       if (availability.available) return;
       queueAutomaticNotice(state, availability.reason);
-      passPhase(state, { player });
+      passPhase(state, { player, automatic: true });
     }
   }
   requireCondition(state.status !== "ACTIVE", "AUTOMATIC_PASS_LIMIT", "Automatic phase progression did not reach a decision.");
@@ -4710,7 +4868,7 @@ function visibleSnapshot(state) {
   const nobles={};for(const unit of Object.values(units)) {
     const noble=state.nobles_by_id[unit.vassal_noble_id];if(noble && !noble.hidden)nobles[noble.noble_id]={...noble};
   }
-  return {units,nobles,cards,sequence:state.event_log.reduce((n,e)=>Math.max(n,e.sequence),0),actor:state.current_actor,phase:state.phase,year:state.year_number,offer:state.harvest?.offer_ids?.length?JSON.stringify([state.harvest.unit_id,state.harvest.offer_ids]):null};
+  return {units,nobles,cards,status:state.status,harvestStage:state.harvest?.stage,sequence:state.event_log.reduce((n,e)=>Math.max(n,e.sequence),0),actor:state.current_actor,phase:state.phase,year:state.year_number,offer:state.harvest?.offer_ids?.length?JSON.stringify([state.harvest.unit_id,state.harvest.offer_ids]):null};
 }
 function combatFromEvent(event,state,old=visibleSnapshot(state),next=visibleSnapshot(state),battleCount=1) {
   if(!event || event.payload.hidden)return null;
@@ -4755,7 +4913,7 @@ class PresentationTracker {
       if(!previous || previous.tapped!==card.tapped || previous.counter!==card.counter)changes.push({kind:'card',id});
     }
     this.previous=next;
-    return {baseline:false,combat,changes,events,offerChanged:next.offer!==null && old.offer!==next.offer,actionChanged:old.actor!==next.actor || old.phase!==next.phase || old.year!==next.year};
+    return {baseline:false,combat,changes,events,previous:old,offerChanged:next.offer!==null && old.offer!==next.offer,actionChanged:old.actor!==next.actor || old.phase!==next.phase || old.year!==next.year};
   }
 }
 
@@ -4807,6 +4965,240 @@ class CombatPresenter {
     this.timers.push(this.setTimer(finish,model.kingFall?KING_COMBAT_DURATION:COMBAT_DURATION));
   }
   skip(){if(this.busy)this.finish();}
+}
+
+
+/* src/recap.js */
+const PHASE_LESSONS = Object.freeze({
+  HARVEST: 'Each Unit draws Resources. Keep one card; a matching Vassal or a Center square adds one Counter.',
+  POKER: 'Your Harvest is complete. Declare exact, non-overlapping groups now, or Pass. Declared cards must be spent or returned this Year.',
+  BUILD: 'Spend Clubs to place a Pawn beside a suitable friendly General.',
+  UPGRADE: 'Spend Clubs to raise a Holding’s Level. Your physical reserve limits the available pieces.',
+  RANSOM: 'Diamonds can release a Hostage. The price depends on the Noble’s rank and the current Diamond constant.',
+  RECRUIT: 'Spend Diamonds to draw a Noble into your private, face-down Court.',
+  MOBILIZE: 'Only Levies move. Spend Spades using your Unit count plus the moving Unit’s Level.',
+  SIEGE: 'An adjacent enemy can be attacked. The Spade cost uses the defender’s Unit count plus its Level.',
+  VASSALIZE: 'Spend Hearts to assign a Court Noble to a Holding. The Holding becomes a Levy.',
+  EXECUTE: 'Spend Hearts to Execute a Hostage. The Noble returns to the shuffled Noble deck.',
+  STOCKPILE: 'Keep your legal Stockpile. Unspent Resources can survive; tapped and mandatory-return cards cannot.',
+});
+
+function phaseLabel(phase) { return phase === 'POKER' ? 'Poker Hands' : title(phase); }
+function phaseLesson(phase) { return PHASE_LESSONS[phase] ?? 'Follow Current Action for the next decision.'; }
+function phaseTransition(before, state) {
+  if (!before || state.status !== 'ACTIVE') return null;
+  const nextPhase = state.phase === PHASE.HARVEST && state.harvest?.stage === 'POKER' ? 'POKER' : state.phase;
+  const oldPhase = before.phase === PHASE.HARVEST && before.harvestStage === 'POKER' ? 'POKER' : before.phase;
+  if (before.status === state.status && before.year === state.year_number && oldPhase === nextPhase) return null;
+  const season = SEASON_BY_PHASE[state.phase], oldSeason = SEASON_BY_PHASE[before.phase];
+  const newYear = before.year !== state.year_number;
+  const order = (state.phase_actor_order ?? []).map(title).join(' → ');
+  return { phase: nextPhase, season, suit: ACTIVE_SUIT_BY_PHASE[state.phase], year: state.year_number,
+    previous: before.status === 'SETUP' ? 'Sovereigns chosen' : `${phaseLabel(oldPhase)} complete`,
+    heading: newYear ? `Year ${state.year_number} begins` : season !== oldSeason ? `${title(season)} begins` : `${phaseLabel(nextPhase)} begins`,
+    actor: state.current_actor, lesson: phaseLesson(nextPhase),
+    initiative: newYear ? `${title(state.button_holder)} holds the Button. ${order ? `Action order: ${order}.` : ''}` : '' };
+}
+
+// These ornaments are drawn in code, following the suits' leaf, thorn,
+// geometric and vine borders. They never alter or sample a Court portrait.
+function suitFrieze(suit) {
+  const glyph = SUIT_GLYPH[suit] ?? '✦';
+  const shapes = suit === 'DIAMONDS'
+    ? Array.from({length: 11}, (_, i) => `<path d="M${i*30+10} 4l9 10-9 10-9-10Z"/>`).join('')
+    : Array.from({length: 11}, (_, i) => `<path d="M${i*30+3} 14q8-15 20-11q-2 11-20 11q8 15 20 11q-2-11-20-11"/>`).join('');
+  return `<div class="suit-frieze ${String(suit ?? 'HARVEST').toLowerCase()}" aria-hidden="true"><svg viewBox="0 0 330 28" preserveAspectRatio="none"><path class="frieze-stem" d="M0 14Q70 4 150 14T330 14"/>${shapes}</svg><span>${glyph}</span><svg viewBox="0 0 330 28" preserveAspectRatio="none"><path class="frieze-stem" d="M0 14Q70 4 150 14T330 14"/>${shapes}</svg></div>`;
+}
+
+function phaseTransitionHTML(cue) {
+  return `${suitFrieze(cue.suit)}<div class="phase-arrival"><span class="phase-seal" aria-hidden="true">${SUIT_GLYPH[cue.suit] ?? '✦'}</span><div><p class="eyebrow">${escapeMarkup(cue.previous)} · Year ${cue.year}</p><h2>${escapeMarkup(cue.heading)}</h2><p>${phaseLabel(cue.phase)} · ${title(cue.actor)} to act</p></div></div><p class="phase-lesson">${escapeMarkup(cue.lesson)}${cue.initiative ? ` <strong>${escapeMarkup(cue.initiative)}</strong>` : ''}</p>`;
+}
+
+const TURN_ENDS = new Set(['ActorPassed', 'PokerDeclarationsFinished', 'SovereignChosen', 'HostageRansomed', 'RansomDeclined']);
+function lastPersonalTurn(state, viewer) {
+  let boundary = null;
+  for (let i = 0; i < state.event_log.length; i++) {
+    const e = state.event_log[i], p = e.payload;
+    if (!p || p.hidden || p.automatic && e.type !== 'PokerDeclarationsFinished') continue;
+    const who = p.player ?? p.buyer;
+    const preceding = state.event_log[i-1];
+    // Old saves lack the automatic flag. Never let a skipped opportunity
+    // erase actions a person has not seen while away.
+    if (e.type !== 'PokerDeclarationsFinished' && preceding?.type === 'PhaseAutomaticallyPassed' && preceding.payload.player === viewer) continue;
+    if (who === viewer && (TURN_ENDS.has(e.type) || e.type === 'ResourceStockpileCommitted' && p.automatic === false)) boundary = e;
+  }
+  return boundary;
+}
+
+function unitAtEvent(state, event, id, owner) {
+  const current = state.units_by_id[id];
+  if (!current) return null;
+  const unit = { ...current, owner: owner ?? current.owner };
+  // Later upgrades must not make an earlier Pawn move look like a Queen move.
+  for (let i = state.event_log.length-1; i >= 0; i--) {
+    const e = state.event_log[i]; if (e.sequence <= event.sequence) break;
+    if (!e.payload.hidden && e.type === 'UnitUpgraded' && e.payload.unit_id === id) unit.unit_type = e.payload.from_type;
+  }
+  return unit;
+}
+function nobleLabel(state, id) {
+  const noble = state.nobles_by_id[id];
+  return noble && !noble.hidden ? `${NOBLE_DISPLAY_CODE[noble.face]}${SUIT_GLYPH[noble.suit]}` : 'the Noble';
+}
+function cardModels(state, ids, counters = null) {
+  return (ids ?? []).map(id => {
+    const card = state.resources_by_id[id];
+    if (!card || card.hidden) return null;
+    return { card_id: id, suit: card.suit, face_value: card.face_value, has_counter: counters ?? false };
+  }).filter(Boolean);
+}
+const INTERNAL = new Set(['MatchCreated', 'UsabilityRevisionApplied', 'StockpileInstructionsSaved', 'PhaseUnavailableAcknowledged', 'ButtonPassed', 'ConquestResolved']);
+
+function describePublishedAction(event, state) {
+  if (!event.payload || INTERNAL.has(event.type)) return null;
+  const p = event.payload, actor = p.player ?? p.buyer ?? p.victor ?? p.captor ?? event.actor;
+  const who = title(actor), suit = ACTIVE_SUIT_BY_PHASE[event.phase];
+  const base = { eventId: event.event_id, sequence: event.sequence, year: event.year, phase: event.phase,
+    actor, suit, kind: 'notice', heading: '', text: '', cards: [], duration: 2600 };
+  const finish = (heading, text, extra = {}) => ({ ...base, heading, text, ...extra });
+  if (p.hidden) {
+    // Only the projection's public Chronicle wording is allowed here. Do not
+    // look up an unrevealed identity from the current state's dictionaries.
+    const publicText = p.chronicle?.text;
+    if (!publicText) return null;
+    return finish(event.type === 'NobleRecruited' ? `${who} recruited a Noble` : `${who} acted`,
+      `${publicText} The unrevealed Court identity remains private.`, { kind: 'private' });
+  }
+  const unit = unitAtEvent(state, event, p.unit_id, actor);
+  const piece = unit ? title(unit.unit_type) : 'Unit';
+  const pay = Number.isFinite(p.cost) ? ` Paid ${p.cost} ${SUIT_GLYPH[suit] ?? ''} from the pool.` : '';
+  switch (event.type) {
+    case 'PhaseStarted': {
+      const phase = p.phase ?? event.phase;
+      return finish(`${title(SEASON_BY_PHASE[phase])} · ${phaseLabel(phase)}`, phaseLesson(phase),
+        { kind: 'phase', suit: ACTIVE_SUIT_BY_PHASE[phase], order: (p.actor_order ?? []).map(title).join(' → ') });
+    }
+    case 'YearStarted': return finish(`Year ${p.year} begins`, `${title(p.button_holder)} holds the Button. Initiative follows this Year’s recorded action order.`, {kind:'phase'});
+    case 'SetupCompleted': return finish('The Sovereigns are chosen', 'Year 1 begins with personal Harvest, followed immediately by each player’s Poker window.', {kind:'phase'});
+    case 'PokerDeclarationsStarted': return finish(`${who} enters Poker`, phaseLesson('POKER'), {kind:'phase'});
+    case 'ActorPassed': return p.automatic ? null : finish(`${who} passed ${phaseLabel(p.phase ?? event.phase)}`, 'Their accepted actions are published. The next eligible player or phase follows.', {kind:'pass',duration:1600});
+    case 'PhaseAutomaticallyPassed': return finish(`${who} · ${phaseLabel(p.section ?? event.phase)} passed`, p.reason, {kind:'pass'});
+    case 'PhaseUnavailable': return finish(`${phaseLabel(event.phase)} unavailable`, p.reason, {kind:'pass'});
+    case 'PokerDeclarationsFinished': return finish(`${who} finished Poker`, 'The one immediate declaration window has closed for this player.', {kind:'pass',duration:1600});
+    case 'HarvestActorCompleted': return null; // The following Poker entry explains this same boundary.
+    case 'HarvestCardsDrawn': return finish(`${who} drew for the ${piece}`, `${p.card_ids.length} card${p.card_ids.length===1?'':'s'} from the ${title(p.deck)} deck. Keep one actual card.`, {kind:'draw',cards:cardModels(state,p.card_ids),unit});
+    case 'HarvestCardKept': return finish(`${who} kept a Harvest card`,
+      `One card joins the Resource hand. ${p.returned_card_ids.length ? `${p.returned_card_ids.length} rejected card${p.returned_card_ids.length===1?'':'s'} wait face down.` : 'The single-card offer was kept automatically.'}${p.counter_sources.length ? ` One Counter adds 1: ${p.counter_sources.map(s=>s==='CENTER'?'Center square':'matching Vassal suit').join(' and ')}; bonuses do not stack.` : ''}`,
+      {kind:'harvest',cards:cardModels(state,[p.kept_card_id],p.counter_sources.length>0),rejects:p.returned_card_ids.length,unit});
+    case 'HarvestFailsafeUsed': return finish(`${who} took the Harvest failsafe`, 'The full normal Harvest was exchanged for one Black Resource Card.', {kind:'harvest',cards:cardModels(state,[p.card_id])});
+    case 'HarvestFailsafeDeclined': return finish(`${who} chose normal Harvest`, 'The offered Black-card exchange was declined. Each Unit Harvests normally.');
+    case 'HarvestSupplyShortage': return finish('The deck could not fill the offer', p.message ?? 'Only physically available cards can be drawn.');
+    case 'HarvestRejectsReturned': case 'HarvestRejectsRecycled': return finish('Harvest rejects returned', 'The face-down rejected cards returned to their recorded deck and were shuffled.', {kind:'cleanup'});
+    case 'PokerHandDeclared': return finish(`${who} declared ${title(p.kind)}`, 'These exact physical cards gain a Counter. They cannot overlap another declaration and must be spent or returned this Year.', {kind:'poker',cards:cardModels(state,p.card_ids,true)});
+    case 'ResourceCardsTapped': return finish(`${who} tapped Resources`, `${p.value} ${SUIT_GLYPH[p.suit]} moves into the seasonal pool. The physical cards remain tapped until season cleanup.`, {kind:'payment',suit:p.suit,value:p.value,cards:cardModels(state,p.card_ids)});
+    case 'UnitBuilt': return finish(`${who} built a Pawn`, `A new Pawn entered ${p.square}.${pay}`, {kind:'build',unit:{owner:actor,unit_type:'PAWN'},destination:p.square});
+    case 'UnitUpgraded': return finish(`${who} upgraded ${title(p.from_type)} → ${title(p.to_type)}`, `The Holding’s Level changes; physical reserve limits still apply.${pay}`, {kind:'upgrade',unit:{owner:actor,unit_type:p.to_type},oldUnit:{owner:actor,unit_type:p.from_type}});
+    case 'UnitMobilized': return finish(`${who} moved the ${piece}`, `${p.origin} → ${p.destination}.${pay}`, {kind:'move',unit,origin:p.origin,destination:p.destination});
+    case 'SovereignChosen': case 'NobleVassalized': case 'NobleRecruited': {
+      const noble = state.nobles_by_id[p.noble_id];
+      const heading = event.type==='NobleRecruited' ? `${who} drew a Court Noble` : event.type==='SovereignChosen' ? `${who} chose a Sovereign` : `${who} assigned ${nobleLabel(state,p.noble_id)}`;
+      const text = event.type==='NobleVassalized' ? `The ${piece} becomes a Levy: it can now move and attack, and its General’s rank adds a Combat bonus.${pay}` : event.type==='SovereignChosen' ? 'The Sovereign remains assigned to the King, adding its rank in Combat and a Counter to a matching Harvest card.' : `The drawn Noble stays face down in its owner’s Court.${pay}`;
+      return finish(heading,text,{kind:'noble',unit,noble:noble&&!noble.hidden?{face:noble.face,suit:noble.suit,rank:noble.rank,noble_id:noble.noble_id}:null});
+    }
+    case 'CombatResolved': {
+      const following=state.event_log.filter(e=>e.sequence>event.sequence);
+      const stop=following.findIndex(e=>e.type==='CombatResolved');
+      const ending=following.slice(0,stop<0?following.length:stop).find(e=>e.type==='MatchCompleted'&&[p.attacker_id,p.defender_id].includes(e.payload.defeated_king_id));
+      const model=combatFromEvent(event,{...state,status:ending?'COMPLETE':'ACTIVE',winner:ending?.payload.winner});
+      if(!model) return finish('A battle resolved','The saved Chronicle records the comparison and result.');
+      return finish('Recorded battle', 'Replay of the saved dice; no new roll is made.', {kind:'combat',combat:model,duration:model.kingFall?KING_COMBAT_DURATION:COMBAT_DURATION});
+    }
+    case 'UnitDefeated': return finish(`${title(p.defeated_owner)} lost a Unit`, p.attacker_occupied_square ? `${title(p.victor)} won. The attacker advances to ${p.attacker_occupied_square}; the defeated piece leaves the board.` : `${title(p.victor)} won. The defeated piece leaves the board. The following recorded consequences show the Noble’s fate and any Conquest choice.`, {kind:'casualty',unit:unitAtEvent(state,event,p.unit_id,p.defeated_owner)});
+    case 'QuarterDecisionRequested': return finish(`${title(p.victor)} was offered Quarter`, 'The battle is already resolved. The victor chooses whether the defeated General becomes a Hostage.');
+    case 'NobleCaptured': return finish(`${title(p.captor)} granted Quarter`, `${nobleLabel(state,p.noble_id)} entered the Dungeon as a Hostage.`);
+    case 'NobleKilledInBattle': return finish('No Hostage retained', `${nobleLabel(state,p.noble_id)} returned to the Noble deck: ${p.reason==='DUNGEON_FULL'?'the Dungeon was already full':'No Quarter was chosen'}.`, {kind:'cleanup'});
+    case 'RansomOffered': return finish(`${title(p.owner)} received a Ransom offer`, `The Hostage costs ${p.cost} ◇ to release. The original owner has first choice.`, {suit:'DIAMONDS'});
+    case 'RansomDeclined': return finish(`${who} declined Ransom`, 'The offer advances to its next recorded choice.', {suit:'DIAMONDS'});
+    case 'HostageRansomed': return finish(`${title(p.buyer)} paid Ransom`, `${nobleLabel(state,p.noble_id)} returned to the buyer’s Court. Paid ${p.cost} ◇; ${p.proceeds} goes to the captor.`, {suit:'DIAMONDS',kind:'private'});
+    case 'HostageExecuted': return finish(`${who} Executed a Hostage`, `Paid ${p.cost} ♡. The Noble returned to the shuffled Noble deck.`, {kind:'cleanup'});
+    case 'SeasonCleaned': return finish(`${title(p.suit)} season closes`, `${p.returned_card_ids.length} tapped card${p.returned_card_ids.length===1?'':'s'} returned to the ${title(p.deck)} deck. The ${SUIT_GLYPH[p.suit]} pools reset to zero.`, {kind:'cleanup',suit:p.suit,count:p.returned_card_ids.length});
+    case 'ResourceStockpileCommitted': return finish(`${who} kept a Stockpile`, `${p.kept_card_ids.length} cards retained; ${p.discarded_card_ids.length} returned. The actual saved selection is preserved.`, {kind:'stockpile',cards:cardModels(state,p.kept_card_ids),count:p.discarded_card_ids.length});
+    case 'DefeatedCourtClaimed': return finish(`${title(p.victor)} received Court spoils`, `${p.captured_count} face-down Nobles claimed; ${p.returned_count} returned. Unrevealed identities remain private.`, {kind:'private'});
+    case 'DefeatedCourtDispersed': return finish(`${title(p.defeated_player)}’s remaining Court returned`, `${p.returned_count ?? p.noble_ids?.length ?? 0} face-down Nobles returned to the shuffled Noble deck.`, {kind:'private',privateLabel:'Returned Court'});
+    case 'DefeatedResourcesClaimed': return finish(`${title(p.victor)} received Resource spoils`, `${p.card_ids.length} untapped Resources transferred from ${title(p.defeated_player)}.`, {kind:'harvest',cards:cardModels(state,p.card_ids)});
+    case 'HostageReleasedOnDefeat': return finish('A Hostage was released', 'The defeated player’s Hostage returned to its surviving original owner’s Court.', {kind:'private'});
+    case 'HostageKilledOnDefeat': return finish('A Hostage returned to the deck', 'The Hostage’s original owner had already been defeated. The Noble returned to the shuffled Noble deck.', {kind:'cleanup'});
+    case 'DefeatedPlayersHostagesKilled': return finish(`${title(p.defeated_player)}’s Hostages returned`, `${p.noble_ids.length} Hostage${p.noble_ids.length===1?'':'s'} belonging to the defeated player returned from other Dungeons to the shuffled Noble deck.`, {kind:'cleanup'});
+    case 'DefeatedVassalsKilled': return finish(`${title(p.defeated_player)}’s Vassals returned`, `${p.noble_ids.length} assigned Noble${p.noble_ids.length===1?'':'s'} returned to the shuffled Noble deck as the remaining Units were removed.`, {kind:'cleanup'});
+    case 'DefeatedSovereignReturned': return finish('The fallen Sovereign returned', 'The victor chose the Holding. The fallen Sovereign returned to the shuffled Noble deck.', {kind:'cleanup'});
+    case 'CapturedQueenDestroyed': return finish('A captured Queen was lost', 'The irreplaceable Queen left the board permanently.', {kind:'casualty',unit:unitAtEvent(state,event,p.unit_id)});
+    case 'PlayerEliminated': return finish(`${title(p.defeated_player)} was defeated`, 'Their King is gone. The recorded spoils and remaining-Unit cleanup resolve before the Conquest choice.', {kind:'casualty'});
+    case 'ConquestChoiceRequested': return finish(`${title(p.victor)} received the Conquest choice`, 'Choose the fallen Sovereign Card or the captured Queen Holding.');
+    case 'ConquestCardTaken': return finish(`${title(p.victor)} chose the Card`, 'The fallen Sovereign entered the victor’s Court; the defeated pieces were removed.', {kind:'private'});
+    case 'ConquestHoldingTaken': return finish(`${title(p.victor)} chose the Holding`, 'The captured Queen is controlled by the victor. Its original piece colour remains visible.', {kind:'build',unit:{owner:p.victor,piece_color:p.defeated_player,unit_type:'QUEEN'},destination:p.square});
+    case 'PlayerResigned': return finish(`${who} resigned`, 'The resignation is permanent. Any required surviving-player spoils ballot follows.');
+    case 'ResignationVoteCast': return finish(`${who} voted`, p.choice==='NONE'?'No spoils. This public vote may be changed before resolution.':`Spoils to ${title(p.choice)}. This public vote may be changed before resolution.`);
+    case 'ResignationResolved': return finish('Resignation resolved', p.beneficiary?`${title(p.beneficiary)} receives the agreed spoils.`:'No spoils were awarded.');
+    case 'ResignedNoblesReturned': return finish(`${who}’s Nobles returned`, `${p.returned_count ?? p.noble_ids?.length ?? 0} Nobles returned to the shuffled Noble deck after resignation. Unrevealed Court identities remain private.`, {kind:'private',privateLabel:'Returned Nobles'});
+    case 'MatchCompleted': return finish(`${title(p.winner)} wins`, 'The game ended immediately. The terminal board and game record remain available.', {kind:'victory'});
+    default: return p.chronicle?.text ? finish(`${who} · ${phaseLabel(event.phase)}`,p.chronicle.text) : null;
+  }
+}
+
+function reconnectRecap(state, viewer, {afterSequence = null} = {}) {
+  if (!viewer || !state.players[viewer]) return {steps:[],boundary:null,through:0};
+  const boundary = lastPersonalTurn(state,viewer);
+  // A player who has never acted has no last turn to recap. The live
+  // presentation handles setup and their first decision normally.
+  if (afterSequence === null && !boundary) return {steps:[],boundary:null,through:0};
+  const floor = afterSequence ?? boundary.sequence;
+  const events = state.event_log.filter(e=>e.sequence>floor);
+  return { boundary, through: Math.max(floor,...events.map(e=>e.sequence)),
+    steps:events.map(e=>describePublishedAction(e,state)).filter(Boolean) };
+}
+
+function storyCards(step) {
+  return `<div class="story-cards">${step.cards.map((card,i)=>`<span class="story-card ${['DIAMONDS','HEARTS'].includes(card.suit)?'red-card':''}" style="--story-index:${i}"><strong>${formatResource({...card,has_counter:false})}</strong>${card.has_counter?'<i class="card-counter" aria-label="One Counter adds one"></i>':''}</span>`).join('')}${step.rejects?`<span class="story-rejects"><i class="story-back">◇</i><small>${step.rejects} face down</small></span>`:''}</div>`;
+}
+function recapStepHTML(step,{combatStage='complete'}={}) {
+  if(step.kind==='combat')return `<div class="recap-combat combat-${combatStage}${step.combat.victory?' ceremonial-victory':''}">${combatHTML(step.combat,combatStage,'This is the recorded outcome. Continue the recap to see its actual consequences.').replace(/<button[\s\S]*?<\/button>/g,'')}</div>`;
+  const pieces=step.unit?pieceIcon(step.unit):'';
+  let visual=step.cards.length?storyCards(step):`<div class="story-emblem" aria-hidden="true">${SUIT_GLYPH[step.suit]??(step.kind==='victory'?'♔':'✦')}</div>`;
+  if(step.kind==='move')visual=`<div class="story-travel"><span>${step.origin}</span><div class="travel-line"><i class="story-traveller">${pieces}</i><b>→</b></div><span>${step.destination}</span></div>`;
+  if(['build','upgrade','casualty'].includes(step.kind))visual=`<div class="story-pieces">${step.oldUnit?`${pieceIcon(step.oldUnit)}<b>→</b>`:''}<span class="story-piece">${pieces}</span>${step.destination?`<strong>${step.destination}</strong>`:''}</div>`;
+  if(step.kind==='noble' && step.noble)visual=`<div class="story-noble">${nobleCardHtml(step.noble,{illustrated:true})}</div>`;
+  if(step.kind==='private')visual=`<div class="story-private"><i class="story-back">◇</i><span>${escapeMarkup(step.privateLabel??'Face-down Court')}</span></div>`;
+  if(step.kind==='payment')visual+=`<div class="story-pool">+${step.value} ${SUIT_GLYPH[step.suit]} <small>seasonal pool</small></div>`;
+  return `${suitFrieze(step.suit)}<h2>${escapeMarkup(step.heading)}</h2><div class="story-visual story-${step.kind}" aria-hidden="true">${visual}</div><p class="story-explanation">${escapeMarkup(step.text)}</p>${step.order?`<p class="story-order">${escapeMarkup(step.order)}</p>`:''}`;
+}
+
+// Presentation only. No engine, network, RNG, storage or gameplay callback is
+// called by a timer or by pause/back/skip. The supplied steps are immutable.
+class RecapPresenter {
+  constructor({render,onComplete=()=>{},setTimer=setTimeout,clearTimer=clearTimeout,now=Date.now}) {
+    Object.assign(this,{render,onComplete,setTimer,clearTimer,now});this.timers=[];this.generation=0;this.busy=false;this.steps=[];
+  }
+  cancelTimers(){for(const t of this.timers)this.clearTimer(t);this.timers=[];this.generation++;}
+  clear(){this.cancelTimers();this.busy=false;this.steps=[];this.index=0;}
+  show(steps,{reducedMotion=false}={}){this.clear();if(!steps.length)return false;this.steps=steps;this.index=0;this.busy=true;this.reducedMotion=reducedMotion;this.paused=reducedMotion;this.begin();return true;}
+  begin(){this.cancelTimers();this.elapsed=0;this.started=this.now();this.paint();this.schedule();}
+  stage(){if(this.reducedMotion)return 'complete';return COMBAT_BEATS.findLast(b=>b.at<=this.elapsed)?.stage??'opening';}
+  paint(){this.render(this.steps[this.index],{index:this.index,count:this.steps.length,paused:this.paused,reducedMotion:this.reducedMotion,combatStage:this.stage()});}
+  schedule(){
+    if(!this.busy||this.paused)return;
+    const step=this.steps[this.index],generation=this.generation;
+    this.started=this.now();
+    if(step.kind==='combat')for(const beat of COMBAT_BEATS.filter(b=>b.at>this.elapsed))this.timers.push(this.setTimer(()=>{if(generation===this.generation){this.elapsed=beat.at;this.started=this.now();this.paint();}},beat.at-this.elapsed));
+    this.timers.push(this.setTimer(()=>{if(generation===this.generation)this.next();},Math.max(0,step.duration-this.elapsed)));
+  }
+  pause(){if(!this.busy||this.paused)return;this.elapsed+=this.now()-this.started;this.cancelTimers();this.paused=true;this.paint();}
+  resume(){if(!this.busy||!this.paused)return;this.paused=false;this.paint();this.schedule();}
+  toggle(){if(this.paused)this.resume();else this.pause();}
+  next(){if(!this.busy)return;if(++this.index>=this.steps.length){this.finish();return;}this.begin();}
+  back(){if(!this.busy)return;this.index=Math.max(0,this.index-1);this.begin();}
+  finish(){if(!this.busy)return;this.clear();this.onComplete();}
+  reduce(){if(!this.busy)return;this.pause();this.reducedMotion=true;this.paint();}
+  append(steps){if(!this.busy)return;const seen=new Set(this.steps.map(s=>s.eventId));const extra=steps.filter(s=>!seen.has(s.eventId));if(!extra.length)return;this.steps=[...this.steps,...extra];this.paint();}
 }
 
 
@@ -4879,6 +5271,31 @@ const combatPanel = document.querySelector('#combat-presentation');
 let deferredCombatHandoff = null;
 let deferredCourtHandoff = null;
 let routineAnimations = [];
+const recapDialog = document.querySelector('#recap-dialog');
+let pendingReconnectRecap = false;
+let localResumeRecap = false;
+try { localResumeRecap = Boolean(localStorage.getItem('dendarv.autosave')); } catch { /* Local play remains available without storage. */ }
+let recapThrough = 0;
+let recapScope = null;
+let phaseArrival = null, phaseArrivalTimer = null, storyTimer = null;
+let missedOnlineConnection = false, recapPausedForBackground = false;
+const recapPresenter = new RecapPresenter({
+  setTimer:(fn,ms)=>window.setTimeout(fn,ms),clearTimer:id=>window.clearTimeout(id),
+  render:(step,position)=>{
+    document.querySelector('#recap-step').className=`recap-step ${position.paused?'paused':''} ${position.reducedMotion?'static-recap':''}`;
+    document.querySelector('#recap-step').innerHTML=recapStepHTML(step,position);
+    document.querySelector('#recap-position').textContent=`${position.index+1} / ${position.count}`;
+    document.querySelector('#recap-context').textContent=`Year ${step.year} · ${title(step.phase)} · ${playerName(step.actor)}`;
+    document.querySelector('#recap-back').disabled=position.index===0;
+    document.querySelector('#recap-pause').textContent=position.paused?'Play':'Pause';
+    document.querySelector('#recap-next').textContent=position.index===position.count-1?'Return to current board':'Next action';
+  },
+  onComplete:()=>{
+    if(recapDialog.open)recapDialog.close();
+    if(state.status==='ACTIVE')phaseArrival={year:state.year_number,season:SEASON_BY_PHASE[state.phase],phase:state.phase===PHASE.HARVEST&&state.harvest?.stage==='POKER'?'POKER':state.phase,suit:ACTIVE_SUIT_BY_PHASE[state.phase],actor:state.current_actor,previous:'Recap complete',heading:'Back at the table',lesson:state.pending_combat?'The saved battle is awaiting Quarter or No Quarter.':state.pending_conquest?'Choose the fallen Sovereign Card or the captured Queen Holding.':phaseLesson(state.phase===PHASE.HARVEST&&state.harvest?.stage==='POKER'?'POKER':state.phase)};
+    render();showPhaseArrival();maybeShowPhaseNotice();dom.actionControls.tabIndex=-1;dom.actionControls.focus();
+  },
+});
 const combatPresenter = new CombatPresenter({
   setTimer: (fn,ms)=>window.setTimeout(fn,ms),clearTimer:id=>window.clearTimeout(id),
   render:(model,stage)=>{
@@ -4902,15 +5319,53 @@ const combatPresenter = new CombatPresenter({
   },
 });
 function clearPresentation() {
+  recapPresenter.clear();if(recapDialog.open)recapDialog.close();pendingReconnectRecap=false;recapThrough=0;recapScope=null;
+  window.clearTimeout(phaseArrivalTimer);window.clearTimeout(storyTimer);phaseArrival=null;
+  document.querySelector('#phase-transition').hidden=true;document.querySelector('#table-story').hidden=true;
   combatPresenter.clear();presentationTracker.reset();deferredCombatHandoff=null;deferredCourtHandoff=null;
   combatPanel.hidden=true;combatPanel.innerHTML='';dom.actionControls.inert=false;
   for(const animation of routineAnimations)animation.cancel();routineAnimations=[];
 }
 function reducedMotion(){return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? true;}
-function renderEventPresentation() {
+function startPersonalRecap({afterSequence=null}={}) {
+  const viewer=onlinePayload?.viewer.role==='PLAYER'?onlinePayload.viewer.seat:onlinePayload?null:privateViewer();
+  if(!viewer||!dom.handoff.hidden)return false;
+  const view=onlinePayload?state:projectForPlayer(state,viewer,{revealComplete:false});
+  const recap=reconnectRecap(view,viewer,{afterSequence});
+  recapThrough=recap.through;recapScope=onlinePayload?`${onlinePayload.room.code}:${viewer}`:`${state.match_id}:${viewer}`;
+  if(!recap.steps.length)return false;
+  closeInspection();combatPresenter.clear();combatPanel.hidden=true;combatPanel.innerHTML='';
+  document.querySelector('#recap-title').textContent=`${playerName(viewer)} · Since your last turn`;
+  recapPresenter.show(recap.steps,{reducedMotion:reducedMotion()});
+  if(!recapDialog.open)recapDialog.showModal();
+  document.querySelector('#recap-skip').focus();
+  return true;
+}
+function showPhaseArrival() {
+  if(!phaseArrival||!dom.handoff.hidden||recapPresenter.busy||combatPresenter.busy||dom.inspection.open||!dom.phaseNotice.hidden||pendingAutomaticNotices().length)return;
+  const panel=document.querySelector('#phase-transition');
+  panel.innerHTML=phaseTransitionHTML(phaseArrival);panel.hidden=false;phaseArrival=null;
+  window.clearTimeout(phaseArrivalTimer);phaseArrivalTimer=window.setTimeout(()=>{panel.hidden=true;},5000);
+}
+function captureMotionAnchors() {
+  const result={units:new Map(),cards:new Map(),offers:new Map(),squares:new Map()};
+  for(const [selector,key,attribute] of [['[data-motion-unit]','units','data-motion-unit'],['[data-motion-card]','cards','data-motion-card'],['[data-harvest-card]','offers','data-harvest-card'],['[data-square]','squares','data-square']]) {
+    for(const element of document.querySelectorAll(selector))if(element.getBoundingClientRect)result[key].set(element.getAttribute(attribute),element.getBoundingClientRect());
+  }
+  return result;
+}
+function renderEventPresentation(anchors={units:new Map(),cards:new Map(),offers:new Map(),squares:new Map()}) {
   const scope=onlinePayload?`${onlinePayload.room.code}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`:`local:${state.match_id}`;
   const transition=presentationTracker.read(state,scope);
   if(transition.baseline){deferredCombatHandoff=null;combatPresenter.clear();combatPanel.hidden=true;combatPanel.innerHTML='';dom.actionControls.inert=false;}
+  const phase=phaseTransition(transition.previous,state);
+  if(phase)phaseArrival=phase;
+  if(pendingReconnectRecap){pendingReconnectRecap=false;if(!recapPresenter.busy&&startPersonalRecap())return;}
+  if(recapPresenter.busy){
+    const viewer=onlinePayload?.viewer.seat;
+    if(viewer && recapScope===`${onlinePayload.room.code}:${viewer}`){const extra=reconnectRecap(state,viewer,{afterSequence:recapThrough});recapThrough=extra.through;recapPresenter.append(extra.steps);}
+    return;
+  }
   if(transition.restored)combatPresenter.show(transition.restored,{reducedMotion:true});
   if(transition.combat)combatPresenter.show(transition.combat,{reducedMotion:reducedMotion()});
   else if(combatPresenter.model && !combatPresenter.busy && state.phase!==PHASE.SIEGE && !state.pending_combat && !state.pending_conquest && state.status!=='COMPLETE') {
@@ -4920,6 +5375,7 @@ function renderEventPresentation() {
     document.querySelector('#dismiss-combat')?.addEventListener('click',()=>{combatPanel.hidden=true;combatPanel.innerHTML='';combatPresenter.clear();});
   }
   dom.actionControls.inert=combatPresenter.busy;
+  window.setTimeout(showPhaseArrival,0);
   // Reveal only a fresh, visible draw or play. Baselines/reconnects do not
   // replay old reveals, and the inspection guard still enforces Court privacy.
   const reveal=transition.events.findLast(event=>!event.payload.hidden && (
@@ -4932,14 +5388,23 @@ function renderEventPresentation() {
     for(const animation of routineAnimations)animation.cancel();routineAnimations=[];
     for(const change of transition.changes) {
       const element=change.kind==='unit'?dom.board.querySelector?.(`[data-square="${change.square}"] .piece`):dom.playerSummary.querySelector?.(`[data-motion-card="${change.id}"]`);
-      if(element?.animate)routineAnimations.push(element.animate([{opacity:.5,transform:change.kind==='unit'?'translateY(-5px)':'translateY(-6px) scale(.96)'},{opacity:1,transform:'none'}],{duration:240,easing:'ease-out'}));
+      const from=change.kind==='unit'?anchors.units.get(change.id):anchors.offers.get(change.id)??anchors.cards.get(change.id);
+      const to=element?.getBoundingClientRect?.();
+      const transform=from&&to?`translate(${from.left-to.left}px, ${from.top-to.top}px) scale(.92)`:'translateY(-16px) scale(.9)';
+      if(element?.animate)routineAnimations.push(element.animate([{opacity:.45,transform},{opacity:1,transform:'none'}],{duration:650,easing:'cubic-bezier(.2,.7,.2,1)'}));
+      const counter=element?.querySelector?.('.card-counter');
+      if(counter?.animate&&change.kind==='card'&&!transition.previous.cards[change.id]?.counter)routineAnimations.push(counter.animate([{transform:'scale(0) rotate(-90deg)'},{transform:'scale(1.25)'},{transform:'scale(1)'}],{duration:600,delay:300,fill:'backwards'}));
+      const token=element?.querySelector?.('.card-token');
+      if(token?.animate&&change.kind==='card'&&!transition.previous.cards[change.id]?.tapped&&state.resources_by_id[change.id]?.tapped)routineAnimations.push(token.animate([{transform:'rotate(0deg)'},{transform:'rotate(90deg) scale(.78)'}],{duration:550,easing:'ease-in-out'}));
     }
-    if(transition.offerChanged)dom.harvestTable.querySelectorAll?.('.harvest-card').forEach(card=>{if(card.animate)routineAnimations.push(card.animate([{opacity:0,transform:'translateY(-7px)'},{opacity:1,transform:'none'}],{duration:180}));});
+    if(transition.offerChanged)dom.harvestTable.querySelectorAll?.('.harvest-card').forEach((card,i)=>{if(card.animate)routineAnimations.push(card.animate([{opacity:0,transform:'translateY(-25px) rotate(-8deg)'},{opacity:1,transform:'none'}],{duration:420,delay:i*100,fill:'backwards'}));});
     if(transition.actionChanged && dom.actionSummary.animate)routineAnimations.push(dom.actionSummary.animate([{opacity:.4},{opacity:1}],{duration:180}));
   }
+  const explained=transition.events.map(e=>describePublishedAction(e,onlinePayload?state:projectForPlayer(state,privateViewer(),{revealComplete:false}))).filter(Boolean).findLast(step=>!['phase','pass','combat'].includes(step.kind));
+  if(explained&&!combatPresenter.busy){const panel=document.querySelector('#table-story');panel.innerHTML=`<strong>${escapeHtml(explained.heading)}</strong><p>${escapeHtml(explained.text)}</p>`;panel.hidden=false;window.clearTimeout(storyTimer);storyTimer=window.setTimeout(()=>{panel.hidden=true;},6000);}
 }
-window.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('change',event=>{if(event.matches){combatPresenter.skip();for(const animation of routineAnimations)animation.cancel();routineAnimations=[];}});
-document.addEventListener?.('visibilitychange',()=>{if(document.hidden)combatPresenter.skip();});
+window.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('change',event=>{if(event.matches){combatPresenter.skip();recapPresenter.reduce();for(const animation of routineAnimations)animation.cancel();routineAnimations=[];}});
+document.addEventListener?.('visibilitychange',()=>{if(document.hidden){combatPresenter.skip();recapPausedForBackground=recapPresenter.busy&&!recapPresenter.paused;recapPresenter.pause();}else if(recapPausedForBackground){recapPausedForBackground=false;recapPresenter.resume();}});
 
 function loadInitialState() {
   try {
@@ -4981,7 +5446,7 @@ function escapeHtml(value) {
 }
 
 async function run(command, { keepSelection = false } = {}) {
-  if (!dom.handoff.hidden || combatPresenter.busy || deferredCourtHandoff) return false;
+  if (!dom.handoff.hidden || combatPresenter.busy || recapPresenter.busy || deferredCourtHandoff) return false;
   const planning = command.type === "SET_STOCKPILE_INSTRUCTIONS";
   if (!planning && pendingAutomaticNotices().length) { maybeShowPhaseNotice(); return false; }
   const retainTarget = ["TAP_RESOURCES", "MOBILIZE_UNIT"].includes(command.type);
@@ -5038,17 +5503,18 @@ async function run(command, { keepSelection = false } = {}) {
   return true;
 }
 
-function applyOnlinePayload(payload, { resetSelection = false, force = false, retainedInteraction = null } = {}) {
+function applyOnlinePayload(payload, { resetSelection = false, force = false, retainedInteraction = null, reconnect = false } = {}) {
   const oldContext=onlinePayload?`${onlinePayload.room.code}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`:null;
   const newContext=`${payload.room.code}:${payload.viewer.role}:${payload.viewer.seat}`;
   if(oldContext!==newContext)clearPresentation();
+  if((reconnect||oldContext!==newContext)&&payload.viewer.role==='PLAYER'&&payload.game)pendingReconnectRecap=true;
   const previousSignature = onlinePayload
     ? `${onlinePayload.room.status}:${onlinePayload.room.revision}:${onlinePayload.viewer.private_revision}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`
     : null;
   const nextSignature = `${payload.room.status}:${payload.room.revision}:${payload.viewer.private_revision}:${payload.viewer.role}:${payload.viewer.seat}`;
   if (previousSignature !== nextSignature) closeInspection();
   onlinePayload = payload;
-  if (payload.game && (force || previousSignature !== nextSignature)) {
+  if (payload.game && (force || reconnect || previousSignature !== nextSignature)) {
     state = payload.game;
     if (resetSelection) {
       selectedResourceIds = new Set();
@@ -5065,6 +5531,7 @@ function applyOnlinePayload(payload, { resetSelection = false, force = false, re
 }
 
 function newLocalMatch(seed, playerCount = 4) {
+  localResumeRecap=false;
   leaveOnlineMode({ updateLocation: true });
   state = newMatch({ seed: seed || "dendarv", playerCount, rules: V2_RULES });
   selectedResourceIds = new Set();
@@ -5099,7 +5566,8 @@ function showHandoff(player) {
 function hideHandoff() {
   dom.handoff.hidden = true;
   document.querySelector(".app-shell").inert = false;
-  render();
+  if(localResumeRecap){localResumeRecap=false;pendingReconnectRecap=true;}
+  render();showPhaseArrival();
   maybeShowPhaseNotice();
 }
 
@@ -5155,7 +5623,7 @@ function renderPhaseNotice() {
 
 function maybeShowPhaseNotice() {
   renderPhaseNotice();
-  if (!dom.handoff.hidden || !onlinePlayerCanAct() || combatPresenter.busy) return;
+  if (!dom.handoff.hidden || !onlinePlayerCanAct() || combatPresenter.busy || recapPresenter.busy) return;
   if (!pendingAutomaticNotices().length && !state.phase_notice) return;
   dom.phaseNotice.hidden = false;
   document.querySelector(".app-shell").inert = true;
@@ -5173,7 +5641,7 @@ function acknowledgeCurrentPhaseNotice(event) {
     dom.phaseNotice.hidden = true;
     document.querySelector(".app-shell").inert = false;
     maybeShowPhaseNotice();
-    if (dom.phaseNotice.hidden) { dom.actionControls.tabIndex = -1; dom.actionControls.focus(); }
+    if (dom.phaseNotice.hidden) { showPhaseArrival();dom.actionControls.tabIndex = -1; dom.actionControls.focus(); }
   } else if (state.phase_notice) {
     dom.phaseNotice.hidden = true;
     document.querySelector(".app-shell").inert = false;
@@ -5191,6 +5659,7 @@ function showToast(message, success = false) {
 }
 
 function render() {
+  const anchors=captureMotionAnchors();
   closeInspection();
   if (boardCandidate && !candidateStillLegal()) boardCandidate = null;
   syncRecommendedStockpile();
@@ -5206,10 +5675,12 @@ function render() {
   renderActionSummary();
   dom.undoAction.disabled = onlinePayload ? !onlinePayload.viewer.can_undo : undoStack.length === 0;
   bindDynamicControls();
-  renderEventPresentation();
+  renderEventPresentation(anchors);
 }
 
 function renderStatus() {
+  document.querySelector('.app-shell').setAttribute('data-season',SEASON_BY_PHASE[state.phase]??'HARVEST');
+  document.querySelector('.app-shell').setAttribute('data-suit',ACTIVE_SUIT_BY_PHASE[state.phase]??'');
   const phase = state.status === "SETUP" ? "Sovereign selection" : state.status === "COMPLETE" ? "Match complete" : title(state.phase);
   const season = state.phase ? seasonForPhase(state.phase) : "Setup";
   dom.matchStatus.innerHTML = `${calendarHtml(state)}<div class="year-heading"><span class="eyebrow">${season}</span><h2>${phase}</h2><p>${playerName(state.current_actor)}${state.status === 'COMPLETE' ? '' : ' to act'} · Button: ${playerName(state.button_holder)}</p><details class="phase-key"><summary>Year sequence</summary><ol>${PHASE_ORDER.map(p => `<li ${p === state.phase ? 'aria-current="step"' : ''}>${title(p)}</li>`).join('')}</ol></details></div>`;
@@ -5353,7 +5824,7 @@ function renderBoard() {
       const pieceColor = unit?.piece_color ?? unit?.owner;
       const rejectCount = (state.harvest?.rejects ?? []).filter(item => item.unit_id === unit?.unit_id).length;
       const unitHtml = unit ? `
-        <span class="piece ${pieceColor.toLowerCase()}" aria-hidden="true">${pieceIcon(unit)}</span>
+        <span class="piece ${pieceColor.toLowerCase()}" data-motion-unit="${unit.unit_id}" aria-hidden="true">${pieceIcon(unit)}</span>
         ${pieceColor !== unit.owner ? `<span class="controller-banner ${unit.owner.toLowerCase()}" title="Controlled by ${playerName(unit.owner)}"></span>` : ''}
       ` : "";
       parts.push(`
@@ -5392,7 +5863,7 @@ function boardHint() {
 }
 
 function handleBoardClick(square) {
-  if (!dom.handoff.hidden || combatPresenter.busy) return;
+  if (!dom.handoff.hidden || combatPresenter.busy || recapPresenter.busy) return;
   const unit = unitAt(state, square);
   if (!onlinePlayerCanAct()) { inspectUnit(unit); return; }
   if (unit && unit.unit_id === interaction.unitId) { inspectUnit(unit); return; }
@@ -6109,7 +6580,7 @@ function commandLabel(command) {
 }
 
 async function passOnlineTurn() {
-  if(combatPresenter.busy)return;
+  if(combatPresenter.busy||recapPresenter.busy)return;
   if (!onlineClient || onlineRequestPending) return;
   if (pendingAutomaticNotices().length) { maybeShowPhaseNotice(); return; }
   onlineRequestPending = true;
@@ -6126,7 +6597,7 @@ async function passOnlineTurn() {
 }
 
 async function undoLastAction() {
-  if(combatPresenter.busy)return;
+  if(combatPresenter.busy||recapPresenter.busy)return;
   if (onlineClient) {
     if (!onlinePayload?.viewer.can_undo || onlineRequestPending) return;
     if (!window.confirm("Undo your latest unpublished action?")) return;
@@ -6264,7 +6735,7 @@ function renderOnlineLobby() {
 }
 
 async function onlineLifecycle(action,body={}) {
-  if(!onlineClient || onlineRequestPending) return;
+  if(!onlineClient || onlineRequestPending || recapPresenter.busy) return;
   if(['resign','abandon'].includes(action)) {
     if(!window.confirm(action==='resign'?'Resign permanently? This cannot be undone.':'Close this game as Unfinished / Abandoned, without a winner? This cannot be undone.')) return;
     body.confirmed=true;
@@ -6312,8 +6783,9 @@ function beginOnlinePolling() {
         const payload = await client.view();
         if (onlineClient !== client) return;
         delay = before === payload ? Math.min(delay * 1.5, 20000) : 3000;
-        applyOnlinePayload(payload);
+        applyOnlinePayload(payload,{reconnect:missedOnlineConnection});missedOnlineConnection=false;
       } catch (error) {
+        missedOnlineConnection=true;
         if (error.code === 'ROOM_CANCELLED' && onlineClient === client) {
           client.forgetSeat(); leaveOnlineMode({restoreLocal:true}); showToast(error.message); return;
         }
@@ -6333,7 +6805,7 @@ document.addEventListener?.("visibilitychange", async () => {
     const client = onlineClient;
     try {
       const payload = await client.view();
-      if (onlineClient === client) applyOnlinePayload(payload);
+      if (onlineClient === client) applyOnlinePayload(payload,{reconnect:true});
     } catch (error) {
       if (onlineClient === client) {
         if (error.code === 'ROOM_CANCELLED') { client.forgetSeat(); leaveOnlineMode({restoreLocal:true}); }
@@ -6355,7 +6827,7 @@ async function enterOnlineRoom(code, { spectate = false } = {}) {
     dom.handoff.hidden = true;
     dom.onlineDialog.close();
     rememberOnlineLocation(candidate.code);
-    applyOnlinePayload(payload, { resetSelection: true, force: true });
+    applyOnlinePayload(payload, { resetSelection: true, force: true, reconnect:true });
     beginOnlinePolling();
   } catch (error) {
     showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
@@ -6543,7 +7015,7 @@ document.querySelector("#recover-online-seat").addEventListener("click", async (
   try {
     const payload = await candidate.recover(codeInput.value);
     codeInput.value = ""; onlineClient = candidate; dom.onlineDialog.close(); dom.handoff.hidden = true;
-    rememberOnlineLocation(candidate.code); applyOnlinePayload(payload, { resetSelection: true, force: true }); beginOnlinePolling();
+    rememberOnlineLocation(candidate.code); applyOnlinePayload(payload, { resetSelection: true, force: true, reconnect:true }); beginOnlinePolling();
   } catch (error) { showToast(error.message); }
   finally { onlineRequestPending = false; }
 });
@@ -6553,12 +7025,20 @@ document.querySelector("#leave-online").addEventListener("click", () => leaveOnl
 document.querySelector("#lobby-close").addEventListener("click", () => leaveOnlineMode({ restoreLocal: true }));
 dom.undoAction.addEventListener("click", undoLastAction);
 document.querySelector("#dismiss-phase-notice").addEventListener("click", acknowledgeCurrentPhaseNotice);
+document.querySelector('#review-turns').addEventListener('click',()=>{if(!startPersonalRecap())showToast('No published actions since your last completed turn.',true);});
+document.querySelector('#recap-next').addEventListener('click',()=>recapPresenter.next());
+document.querySelector('#recap-back').addEventListener('click',()=>recapPresenter.back());
+document.querySelector('#recap-pause').addEventListener('click',()=>recapPresenter.toggle());
+document.querySelector('#recap-skip').addEventListener('click',()=>recapPresenter.finish());
+recapDialog.addEventListener('cancel',event=>{event.preventDefault();recapPresenter.finish();});
+recapDialog.addEventListener('close',()=>{if(recapPresenter.busy)recapPresenter.finish();});
 document.querySelector("#load-autosave").addEventListener("click", () => {
   try {
     if (onlineClient) leaveOnlineMode();
     const loaded = loadFromBrowser();
     if (!loaded) return showToast("No browser autosave exists yet.");
     state = upgradeToV15(loaded);
+    localResumeRecap=true;
     selectedResourceIds = new Set();
     interaction = emptyInteraction();
     stockpileSelectionKey = null;

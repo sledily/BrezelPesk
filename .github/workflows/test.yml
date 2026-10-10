@@ -36,8 +36,6 @@ jobs:
       - run: git diff --exit-code -- Dendarv_Play.html
   browser:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,11 +44,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:local
-      - name: Store the generated standalone for this draft update
-        if: github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          DENDARV_GIT_TOKEN: ${{ github.token }}
-        run: node scripts/store-standalone-blob.mjs
       - run: npm install --no-save --package-lock=false playwright@1.62.1
       - run: npx playwright install --with-deps chromium
       - run: node scripts/browser-presentation.mjs

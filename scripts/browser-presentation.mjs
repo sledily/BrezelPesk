@@ -18,19 +18,19 @@ const artifacts=join(process.cwd(),'browser-artifacts');await mkdir(artifacts,{r
 const temporary=await mkdtemp(join(tmpdir(),'dendarv-browser-'));
 const port=4187,origin=`http://127.0.0.1:${port}`;
 const server=spawn(process.execPath,['server.mjs'],{env:{...process.env,PORT:String(port),DENDARV_DATA_DIR:temporary},stdio:'pipe'});
-let browser;
+let browser,activePage;
 const errors=[];
 try {
   for(let i=0;i<100;i++){try{const response=await fetch(`${origin}/api/health`);if(response.ok)break;}catch{}await new Promise(resolve=>setTimeout(resolve,100));}
   browser=await playwright.chromium.launch({headless:true,args:['--no-sandbox']});
   const desktop=await browser.newContext({viewport:{width:1440,height:1050},reducedMotion:'no-preference'});
-  const page=await desktop.newPage();page.on('pageerror',e=>errors.push(e.message));
+  const page=await desktop.newPage();activePage=page;page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin);await page.getByRole('button',{name:'Ready',exact:true}).click();
   assert.equal(await page.locator('#board .square').count(),64);
   assert.equal(await page.locator('.realm-hand').count(),4);
   assert.equal(await page.locator('#review-turns').isVisible(),true);
   await page.screenshot({path:join(artifacts,'four-player-table.png'),fullPage:true});
-  await page.getByRole('button',{name:'New',exact:true}).click();await page.getByLabel('Players',{exact:true}).selectOption('2');
+  await page.getByRole('button',{name:'New',exact:true}).click();await page.locator('#new-game-form').getByLabel('Players',{exact:true}).selectOption('2');
   await page.locator('#new-game-form button[value="start"]').click();await page.getByRole('button',{name:'Ready',exact:true}).click();
   await page.getByRole('button',{name:/BOUDICA/}).click();await page.getByRole('button',{name:'Return to table',exact:true}).click();await page.getByRole('button',{name:'Ready',exact:true}).click();
   await page.getByRole('button',{name:/DAVID/}).click();await page.getByRole('button',{name:'Return to table',exact:true}).click();
@@ -89,7 +89,7 @@ try {
   await page.getByRole('button',{name:'Since my last turn',exact:true}).click();await page.locator('#recap-dialog').waitFor({state:'visible'});
 
   const mobile=await browser.newContext({viewport:{width:960,height:540},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
-  const phone=await mobile.newPage();phone.on('pageerror',e=>errors.push(e.message));
+  const phone=await mobile.newPage();activePage=phone;phone.on('pageerror',e=>errors.push(e.message));
   await phone.route('**/Dendarv_Play.html*',route=>route.fulfill({contentType:'text/html',body:testBundle}));await phone.route('**/api/rooms/ABC234',route=>route.fulfill({json:payload}));
   await phone.goto(`${origin}/Dendarv_Play.html?room=ABC234`);await phone.locator('#recap-dialog').waitFor({state:'visible'});
   assert.equal(await phone.evaluate(()=>__dendarv.recapPresenter.paused),true);
@@ -103,4 +103,11 @@ try {
   assert.deepEqual(errors,[]);
   await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['modular and offline-bundle startup','native local setup and Court reveal handover','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds'],battleEvent:battle.event_id},null,2));
   console.log('Browser presentation checks passed; screenshots in browser-artifacts.');
+} catch(error) {
+  if(activePage){
+    await activePage.screenshot({path:join(artifacts,'failure.png'),fullPage:true}).catch(()=>{});
+    const visible=await activePage.evaluate(()=>[...document.querySelectorAll('button')].filter(el=>el.getClientRects().length).map(el=>({id:el.id,text:el.textContent.trim()}))).catch(()=>[]);
+    console.error('Browser failure:',activePage.url(),JSON.stringify({pageErrors:errors,visibleButtons:visible}));
+  }
+  throw error;
 } finally {await browser?.close();server.kill();await rm(temporary,{recursive:true,force:true});}
