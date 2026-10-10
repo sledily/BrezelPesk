@@ -30,7 +30,7 @@ Show result now bypasses only the local sequence. During it, local gameplay cont
 
 Each tracker reads only the currently supplied state projection. A player's private Siege appears for that player when saved; opponents/spectators receive it only at the agreed publication boundary. Repeated polls and retries do not replay the same outcome. Undo event-sequence reuse cannot suppress a new battle. Room/seat/role changes clear the previous presentation context.
 
-Fresh local setup does not replay an old game history. The reconnect recap below supersedes the earlier baseline-suppression policy for returning participants. If Quarter, Conquest or a King-defeat ending is already current, its latest saved comparison is restored statically. Legacy combat events without combatant snapshots use the available Unit/public Noble data; an original position or already removed General may be unavailable. A batch publication containing several battles presents the latest battle and labels that batch; all outcomes remain in the Chronicle. It does not make an absent viewer sit through a historical queue of eleven-second sequences.
+Fresh local setup does not replay an old game history. The reconnect recap below supersedes the earlier baseline-suppression policy for returning participants and includes every intervening battle. If Quarter, Conquest or a King-defeat ending is already current, its latest saved comparison remains available after the recap. Legacy combat events without combatant snapshots use the available Unit/public Noble data; an original position or already removed General may be unavailable. During ordinary live play, a batch publication containing several battles presents the latest battle and labels that batch; all outcomes remain in the Chronicle and the personal recap.
 
 ## Routine cues and Current Action
 
@@ -42,7 +42,7 @@ Pass becomes prominent after an ordinary action when no legal affordable continu
 
 The automated checks include authoritative arithmetic, recorded combatants after casualty cleanup, pending/terminal reconnect without replay, exact approved timer boundaries, skip/cancellation/reduced-motion paths, publication of private Siege only at Pass, duplicate polling, Undo sequence reuse, routine deltas, pre-impact board rendering, immutable saved outcomes and prominent Pass with Undo.
 
-The complete standalone and server regression suite is also run. These are logic and simulated-DOM checks. Chromium installation was attempted again but the downloaded archive was truncated/invalid, so no fresh rendered animation, mobile/touch, contrast, focus traversal or real OS reduced-motion proof is available for this increment. Those remain release gates, along with visual comparison to the approved studies and fuller casualty/Conquest choreography. No live deployment is performed here.
+The complete standalone and server regression suite contains 196 tests and also runs against native PostgreSQL 17 in CI. A separate Chromium job now exercises the actual interface and generated bundle, retains screenshots, and checks rendered motion, recorded arithmetic, reconnect controls, phase arrival, native reduced-motion emulation and phone landscape bounds. Manual contrast/focus review, physical-device motion preferences, visual comparison to the approved studies and fuller casualty/Conquest choreography remain refinement work. No live deployment is performed here.
 ## Court illustrations
 
 The twelve user-supplied illustrations are mapped by Noble rank and suit in
@@ -50,7 +50,7 @@ The twelve user-supplied illustrations are mapped by Noble rank and suit in
 in `.png`), with no recompression, cropping, or pixel changes at 1024 × 1536. Ordinary Noble labels remain Rank and Suit icons, without
 thumbnails. A freshly drawn private Noble, a freshly played public Noble, or
 an explicit inspection shows the complete double-ended card without cropping
-or added lettering. Reconnects do not replay old draws/plays. Court cards remain face-down,
+or added lettering. Ordinary polls and rerenders do not reopen old draws/plays; the explicit returning-player recap includes the appropriate historical events. Court cards remain face-down,
 including the owner's own Court,
 until privately inspected. The standalone build embeds all twelve assets for
 offline use, increasing the file to about 13 MiB. The hosted build loads the

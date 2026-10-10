@@ -32,8 +32,10 @@ try {
   await page.screenshot({path:join(artifacts,'four-player-table.png'),fullPage:true});
   await page.getByRole('button',{name:'New',exact:true}).click();await page.locator('#new-game-form').getByLabel('Players',{exact:true}).selectOption('2');
   await page.locator('#new-game-form button[value="start"]').click();await page.getByRole('button',{name:'Ready',exact:true}).click();
-  await page.getByRole('button',{name:/BOUDICA/}).click();await page.getByRole('button',{name:'Return to table',exact:true}).click();await page.getByRole('button',{name:'Ready',exact:true}).click();
-  await page.getByRole('button',{name:/DAVID/}).click();await page.getByRole('button',{name:'Return to table',exact:true}).click();
+  await page.locator('.sovereign-choice[data-noble-id="NC-K-C"]').click();assert.match(await page.locator('#inspection-dialog img.noble-art').getAttribute('alt'),/BOUDICA/i);
+  await page.getByRole('button',{name:'Return to table',exact:true}).click();await page.getByRole('button',{name:'Ready',exact:true}).click();
+  await page.locator('.sovereign-choice[data-noble-id="NC-K-S"]').click();assert.match(await page.locator('#inspection-dialog img.noble-art').getAttribute('alt'),/DAVID/i);
+  await page.getByRole('button',{name:'Return to table',exact:true}).click();
   if(await page.locator('#handoff').isVisible())await page.getByRole('button',{name:'Ready',exact:true}).click();
   await page.locator('#phase-transition').waitFor({state:'visible',timeout:5000});
   assert.match(await page.locator('#phase-transition').innerText(),/Year 1|Harvest/);
