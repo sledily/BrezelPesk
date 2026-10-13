@@ -680,12 +680,18 @@ button:disabled { opacity: .6; }
 .reserve-group { display: flex; flex-wrap: wrap; max-width: 100%; }
 .reserve-group .realm-piece { width: 26px; height: 30px; display: block; margin-right: -5px; }
 .realm-piece { display: inline-block; width: 40px; height: 44px; text-shadow: none; }
-.realm-piece.white { color: #f4edda; --piece-edge: #645c4b; }
-.realm-piece.black { color: #394342; --piece-edge: #172323; }
-.realm-piece.green { color: #64876a; --piece-edge: #264b32; }
-.realm-piece.red { color: #ad5e50; --piece-edge: #652f27; }
+.realm-piece.white { color: #f0dfb8; --piece-edge: #282b24; --miniature-highlight: #ffefd0; --miniature-shade: #877046; }
+.realm-piece.black { color: #304047; --piece-edge: #172027; --miniature-highlight: #b1b6a0; --miniature-shade: #15252b; }
+.realm-piece.green { color: #71854b; --piece-edge: #26352a; --miniature-highlight: #d5dc99; --miniature-shade: #3d4d29; }
+.realm-piece.red { color: #b35a3e; --piece-edge: #482a23; --miniature-highlight: #edb489; --miniature-shade: #722b25; }
 .chess-piece { width: 100%; height: 100%; display: block; filter: drop-shadow(0 2px 1px #31241633); }
 .piece-eye { fill: #2d2c26; stroke: none; }
+.chess-piece .miniature-body { fill: currentColor; stroke: var(--piece-edge); stroke-width: 1.9; stroke-linejoin: round; stroke-linecap: round; }
+.chess-piece .miniature-etch { fill: none; stroke: var(--piece-edge); stroke-width: .95; stroke-linejoin: round; stroke-linecap: round; }
+.chess-piece .miniature-highlight { fill: none; stroke: var(--miniature-highlight); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.chess-piece .miniature-shade { fill: var(--miniature-shade); }
+.chess-piece .miniature-gold { fill: #c7a354; stroke: var(--piece-edge); stroke-width: 1.35; stroke-linejoin: round; }
+.chess-piece .miniature-face { fill: #e7c89b; stroke: var(--piece-edge); stroke-width: 1.5; stroke-linejoin: round; }
 .board-frame { width: 100%; padding: 9px; border: 3px double #79654a; border-radius: 3px; background: #75644b; box-shadow: 0 8px 18px #3226192b; }
 .board { width: 100%; aspect-ratio: 1; }
 .board-frame { position: relative; }

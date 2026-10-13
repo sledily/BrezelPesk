@@ -8,6 +8,7 @@ import {newMatch,dispatch} from '../src/engine.js';
 import {recordEvent} from '../src/model.js';
 import {projectForPlayer} from '../src/projection.js';
 import {V2_RULES,PHASE,SUIT} from '../src/constants.js';
+import {pieceIcon} from '../src/presentation.js';
 import {forcePhase,giveResource} from '../tests/helpers.js';
 
 const require=createRequire(import.meta.url);
@@ -30,6 +31,17 @@ try {
   assert.equal(await page.locator('.realm-hand').count(),4);
   assert.equal(await page.locator('#review-turns').isVisible(),true);
   await page.screenshot({path:join(artifacts,'four-player-table.png'),fullPage:true});
+  // Inspect all six approved miniatures with the app's actual SVG and colour rules.
+  const pieceTypes=['PAWN','ROOK','KNIGHT','BISHOP','QUEEN','KING'];
+  const piecePlayers=['WHITE','BLACK','GREEN','RED'];
+  const pieceStudy=piecePlayers.map(player=>`<div style="display:grid;grid-template-columns:60px repeat(6,70px);align-items:center;gap:8px"><strong>${player}</strong>${pieceTypes.map(unit_type=>`<div style="background:${unit_type==='ROOK'||unit_type==='BISHOP'||unit_type==='KING'?'#49647a':'#ead8ae'};padding:8px;display:grid;place-items:center">${pieceIcon({owner:player,unit_type})}</div>`).join('')}</div>`).join('');
+  await page.evaluate(markup=>{const el=document.createElement('section');el.id='miniature-art-qa';el.setAttribute('aria-label','Painted miniatures in all four player colours');el.style.cssText='position:absolute;left:20px;top:20px;z-index:10000;padding:18px;background:#f5e9cc;display:grid;gap:8px;color:#24251b';el.innerHTML=markup;document.body.append(el);},pieceStudy);
+  assert.equal(await page.locator('#miniature-art-qa .painted-miniature').count(),24);
+  const paints=await page.locator('#miniature-art-qa .realm-piece').evaluateAll(els=>els.map(el=>({colour:getComputedStyle(el.querySelector('.miniature-body')).fill,gold:getComputedStyle(el.querySelector('.miniature-gold')??el.querySelector('.miniature-body')).fill,viewBox:el.querySelector('svg').getAttribute('viewBox')})));
+  assert.equal(new Set(paints.map(p=>p.colour)).size,4);
+  assert.ok(paints.every(p=>p.viewBox==='0 0 64 80'&&p.colour!=='none'&&p.gold!=='none'));
+  await page.locator('#miniature-art-qa').screenshot({path:join(artifacts,'painted-miniatures.png')});
+  await page.locator('#miniature-art-qa').evaluate(el=>el.remove());
   await page.getByRole('button',{name:'New',exact:true}).click();await page.locator('#new-game-form').getByLabel('Players',{exact:true}).selectOption('2');
   await page.locator('#new-game-form button[value="start"]').click();await page.getByRole('button',{name:'Ready',exact:true}).click();
   await page.locator('.sovereign-choice[data-noble-id="NC-K-C"]').click();assert.match(await page.locator('#inspection-dialog img.noble-art').getAttribute('alt'),/BOUDICA/i);
