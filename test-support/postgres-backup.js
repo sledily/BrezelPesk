@@ -24,16 +24,16 @@ function runTool(command, args, env, input) {
   });
 }
 
-export async function backupDatabase(t) {
+export async function backupDatabase(t, limits = defaultLimits) {
   if (!process.env.DENDARV_TEST_DATABASE_URL) {
     const {PGlite}=await import('@electric-sql/pglite');
     const pg=await PGlite.create();let sourceClosed=false,restored;
-    const source=new PostgresRoomStorage(embeddedPool(pg),defaultLimits);await source.init();
+    const source=new PostgresRoomStorage(embeddedPool(pg),limits);await source.init();
     t.after(async()=>{if(!sourceClosed)await source.close();if(restored)await restored.close();});
     return {source,kind:'embedded data-directory backup',restore:async()=>{
       const backup=await pg.dumpDataDir();
       await source.close();sourceClosed=true;
-      restored=new PostgresRoomStorage(embeddedPool(await PGlite.create({loadDataDir:backup})),defaultLimits);
+      restored=new PostgresRoomStorage(embeddedPool(await PGlite.create({loadDataDir:backup})),limits);
       await restored.init();return restored;
     }};
   }
@@ -52,7 +52,7 @@ export async function backupDatabase(t) {
   });
   for(const name of names){await bootstrap.query(`CREATE DATABASE ${name}`);created.push(name);}
   const poolFor=name=>{const target=new URL(url);target.pathname=`/${name}`;return new Pool({connectionString:target.toString()});};
-  source=new PostgresRoomStorage(poolFor(names[0]),defaultLimits);await source.init();
+  source=new PostgresRoomStorage(poolFor(names[0]),limits);await source.init();
   const container=process.env.DENDARV_TEST_POSTGRES_CONTAINER;
   const tool=(program,database,args,input)=>{
     const env={...process.env,PGUSER:decodeURIComponent(url.username),PGPASSWORD:decodeURIComponent(url.password),PGDATABASE:database,
@@ -65,6 +65,6 @@ export async function backupDatabase(t) {
     await source.close();sourceClosed=true;
     await bootstrap.query(`DROP DATABASE ${names[0]}`);
     await tool('pg_restore',names[1],['--dbname',names[1],'--no-owner','--no-acl','--no-password','--single-transaction','--exit-on-error'],backup);
-    restored=new PostgresRoomStorage(poolFor(names[1]),defaultLimits);await restored.init();return restored;
+    restored=new PostgresRoomStorage(poolFor(names[1]),limits);await restored.init();return restored;
   }};
 }
