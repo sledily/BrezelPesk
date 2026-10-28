@@ -8,6 +8,7 @@
     "test": "node --test",
     "test:watch": "node --test --watch",
     "build:local": "node build_single_file.mjs",
+    "postinstall": "npm run build:local",
     "measure:storage": "node scripts/measure-storage.mjs"
   },
   "engines": {

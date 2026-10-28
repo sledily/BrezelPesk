@@ -67,7 +67,9 @@ npm run build:local
 npm run measure:storage
 ```
 
-`Dendarv_Play.html` is the generated, self-contained local game. Open it directly for hot-seat play. Rebuild it whenever browser modules change. Do not open the modular `index.html` using `file://`.
+`Dendarv_Play.html` is the generated, self-contained local game. `npm ci` and `npm install` build it automatically; use `npm run build:local` to rebuild after changing browser modules. Open the generated file directly for hot-seat play. Do not open the modular `index.html` using `file://`.
+
+The source modules and Court images are versioned; the generated HTML is ignored by Git. CI verifies that rebuilding produces the same bytes and publishes the HTML as the `standalone-build` artifact. The static preview's dependency-install step builds the current source before its existing build command copies the HTML into `preview/index.html`. Node.js 24 is selected through `.node-version`, matching CI.
 
 The suite covers game rules, local UI startup, HTTP asset/privacy/admin boundaries, transactional failures, ambiguous commit reconciliation, concurrent capacity, recovery, pending Harvest and Quarter restart, publication, compact Undo and independent archives. SQL tests use embedded PostgreSQL through PGlite locally. Set `DENDARV_TEST_DATABASE_URL` to run against a disposable PostgreSQL server; use a test role with permission to create databases, and matching `pg_dump`/`pg_restore` clients. Tests create/remove only their own temporary schemas and randomly named test databases. The GitHub workflow supplies PostgreSQL 17 and runs the clients in its service container. Never point these tests at production.
 

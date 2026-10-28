@@ -28,12 +28,15 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run build:local
       - run: npm test
         env:
           DENDARV_TEST_DATABASE_URL: postgres://test:test@localhost:5432/dendarv_test
           DENDARV_TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
-      - run: git diff --exit-code -- Dendarv_Play.html
+      - name: Verify standalone rebuild reproducibility
+        run: |
+          sha256sum Dendarv_Play.html > "$RUNNER_TEMP/dendarv-standalone.sha256"
+          npm run build:local
+          sha256sum --check "$RUNNER_TEMP/dendarv-standalone.sha256"
   browser:
     runs-on: ubuntu-latest
     steps:
@@ -43,7 +46,6 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run build:local
       - run: npm install --no-save --package-lock=false playwright@1.62.1
       - run: npx playwright install --with-deps --only-shell chromium
       - run: node scripts/browser-presentation.mjs
@@ -56,3 +58,4 @@ jobs:
         with:
           name: standalone-build
           path: Dendarv_Play.html
+          if-no-files-found: error
