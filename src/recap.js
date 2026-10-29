@@ -1,6 +1,6 @@
 import { ACTIVE_SUIT_BY_PHASE, SEASON_BY_PHASE, SUIT_GLYPH, NOBLE_DISPLAY_CODE, PHASE } from './constants.js';
 import { title, formatResource } from './format.js';
-import { escapeMarkup, pieceIcon, nobleCardHtml } from './presentation.js';
+import { escapeMarkup, pieceIcon, nobleCardHtml, cardBackHtml } from './presentation.js';
 import { combatFromEvent, combatHTML, COMBAT_BEATS, COMBAT_DURATION, KING_COMBAT_DURATION } from './event-presentation.js';
 
 const PHASE_LESSONS = Object.freeze({
@@ -195,7 +195,7 @@ export function reconnectRecap(state, viewer, {afterSequence = null} = {}) {
 }
 
 function storyCards(step) {
-  return `<div class="story-cards">${step.cards.map((card,i)=>`<span class="story-card ${['DIAMONDS','HEARTS'].includes(card.suit)?'red-card':''}" style="--story-index:${i}"><strong>${formatResource({...card,has_counter:false})}</strong>${card.has_counter?'<i class="card-counter" aria-label="One Counter adds one"></i>':''}</span>`).join('')}${step.rejects?`<span class="story-rejects"><i class="story-back">◇</i><small>${step.rejects} face down</small></span>`:''}</div>`;
+  return `<div class="story-cards">${step.cards.map((card,i)=>`<span class="story-card ${['DIAMONDS','HEARTS'].includes(card.suit)?'red-card':''}" style="--story-index:${i}"><strong>${formatResource({...card,has_counter:false})}</strong>${card.has_counter?'<i class="card-counter" aria-label="One Counter adds one"></i>':''}</span>`).join('')}${step.rejects?`<span class="story-rejects">${cardBackHtml('story-back')}<small>${step.rejects} face down</small></span>`:''}</div>`;
 }
 export function recapStepHTML(step,{combatStage='complete'}={}) {
   if(step.kind==='combat')return `<div class="recap-combat combat-${combatStage}${step.combat.victory?' ceremonial-victory':''}">${combatHTML(step.combat,combatStage,'This is the recorded outcome. Continue the recap to see its actual consequences.').replace(/<button[\s\S]*?<\/button>/g,'')}</div>`;
@@ -204,7 +204,7 @@ export function recapStepHTML(step,{combatStage='complete'}={}) {
   if(step.kind==='move')visual=`<div class="story-travel"><span>${step.origin}</span><div class="travel-line"><i class="story-traveller">${pieces}</i><b>→</b></div><span>${step.destination}</span></div>`;
   if(['build','upgrade','casualty'].includes(step.kind))visual=`<div class="story-pieces">${step.oldUnit?`${pieceIcon(step.oldUnit)}<b>→</b>`:''}<span class="story-piece">${pieces}</span>${step.destination?`<strong>${step.destination}</strong>`:''}</div>`;
   if(step.kind==='noble' && step.noble)visual=`<div class="story-noble">${nobleCardHtml(step.noble,{illustrated:true})}</div>`;
-  if(step.kind==='private')visual=`<div class="story-private"><i class="story-back">◇</i><span>${escapeMarkup(step.privateLabel??'Face-down Court')}</span></div>`;
+  if(step.kind==='private')visual=`<div class="story-private">${cardBackHtml('story-back')}<span>${escapeMarkup(step.privateLabel??'Face-down Court')}</span></div>`;
   if(step.kind==='payment')visual+=`<div class="story-pool">+${step.value} ${SUIT_GLYPH[step.suit]} <small>seasonal pool</small></div>`;
   return `${suitFrieze(step.suit)}<h2>${escapeMarkup(step.heading)}</h2><div class="story-visual story-${step.kind}" aria-hidden="true">${visual}</div><p class="story-explanation">${escapeMarkup(step.text)}</p>${step.order?`<p class="story-order">${escapeMarkup(step.order)}</p>`:''}`;
 }

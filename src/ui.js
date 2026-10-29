@@ -25,7 +25,7 @@ import {
   upgradeToV15,
 } from "./engine.js";
 import { actionCostDescription, harvestCardDetails, formatNoble, formatResource, formatUnit, title } from "./format.js";
-import { pieceIcon, nobleCardHtml, harvestListHtml, HARVEST_COORDINATE_GUIDE } from "./presentation.js";
+import { pieceIcon, nobleCardHtml, cardBackHtml, harvestListHtml, HARVEST_COORDINATE_GUIDE } from "./presentation.js";
 import { PresentationTracker, CombatPresenter, combatHTML, combatConsequence } from "./event-presentation.js";
 import { reconnectRecap, RecapPresenter, recapStepHTML, phaseTransition, phaseTransitionHTML, phaseLesson, describePublishedAction } from './recap.js';
 import { calendarHtml, constantsHtml, tabletopRegionsHtml, unitInspectionHtml, nobleInspectionHtml } from "./tabletop.js";
@@ -702,7 +702,7 @@ function renderBoard() {
           ${fileIndex === 0 ? `<span class="coordinate rank">${rank}</span>` : ""}
           ${rank === 1 ? `<span class="coordinate file">${file}</span>` : ""}
           ${unitHtml}
-          ${rejectCount ? `<span class="harvest-rejects" title="${rejectCount} rejected cards held until personal Harvest ends" aria-label="${rejectCount} face-down rejected cards">▧ ${rejectCount}</span>` : ''}
+          ${rejectCount ? `<span class="harvest-rejects" title="${rejectCount} rejected cards held until personal Harvest ends" aria-label="${rejectCount} face-down rejected cards">${cardBackHtml('card-back-small')} ${rejectCount}</span>` : ''}
         </button>${vassal ? `<button class="vassal-badge ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(vassal.suit) ? 'red' : ''}" data-inspect-noble="${vassal.noble_id}" aria-label="Inspect ${escapeHtml(formatNoble(vassal))}">${formatNoble(vassal, true, false)}</button>` : ''}</div>
       `);
     }

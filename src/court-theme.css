@@ -26,8 +26,14 @@ body { background:repeating-linear-gradient(14deg,#61421805 0 1px,transparent 1p
 .realm-hand header { border-bottom:1px solid #ae9151; padding-bottom:9px; }
 .online-strip { color:#433b29; background:#e9dab7; border-color:#6b5b39; }
 .online-strip strong { color:#2e3823; }
-.court-back,.hostage-card,.reserve-group { border-color:#5c603a; }
-.court-back { background:repeating-linear-gradient(45deg,#405536 0 2px,#66754c 2px 5px); box-shadow:inset 0 0 0 3px #d3b572,inset 0 0 0 4px #273822; color:#f6e8bd; }
+.hostage-card,.reserve-group { border-color:#5c603a; }
+.card-back { display:inline-grid; place-items:center; vertical-align:middle; flex-shrink:0; box-sizing:border-box; width:44px; height:60px; overflow:hidden; border:3px solid #fff; border-radius:4px; background:#8250ad; box-shadow:0 1px 3px #24162e33; }
+.card-back > .card-back-emblem { display:block; width:90%; height:auto; fill:#000; stroke:none; }
+.card-back-small { width:20px; height:28px; border-width:2px; border-radius:3px; }
+.harvest-rejects { display:inline-flex; align-items:center; gap:3px; }
+.harvest-rejects .card-back-small { width:12px; height:18px; border-width:1px; border-radius:2px; }
+.court-back { padding:0; border:0; background:transparent; box-shadow:none; }
+.court-back > .card-back { width:100%; height:100%; }
 .board-frame { border:6px double #2c3425; background:#b58c45; box-shadow:0 2px 0 #ae8540,0 8px 18px #30271433; }
 .board { border-color:#373829; }
 .square.dark { background:repeating-linear-gradient(0deg,#ffffff08 0 1px,transparent 1px 4px),var(--dark-square); }
@@ -91,7 +97,7 @@ body { background:repeating-linear-gradient(14deg,#61421805 0 1px,transparent 1p
 .story-card.red-card { color:#9b3022; }
 .story-card .card-counter { width:21px; height:21px; bottom:-5px; right:-5px; }
 .story-rejects { display:flex; gap:8px; align-items:center; font-size:11px; }
-.story-back { display:grid; place-items:center; width:60px; height:90px; background:repeating-linear-gradient(45deg,#46603e 0 2px,#73804d 2px 6px); border:4px double #e4bc66; border-radius:5px; outline:1px solid #283820; color:#efe2b7; font:900 34px Georgia,serif; box-shadow:2px 3px 0 #b99c56; }
+.story-back { width:60px; height:90px; }
 .story-private { display:flex; align-items:center; gap:20px; color:#685a39; }
 .story-pool { font:900 32px Georgia,serif; color:#576d3c; }
 .story-pool small { display:block; margin:5px; font:12px system-ui,sans-serif; color:#5b533e; }

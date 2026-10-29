@@ -1,6 +1,6 @@
 import { ACTIVE_SUIT_BY_PHASE, PHASE, PHASE_ORDER, SUITS, SUIT, SUIT_GLYPH, UNIT_TYPE, LEVEL_BY_TYPE, STORAGE_TYPE } from "./constants.js";
 import { deriveConstants, sortResourceCards, liveUnits, drawCountOf, isLevy, actionCost } from "./rules.js";
-import { escapeMarkup, pieceIcon, nobleCardHtml } from "./presentation.js";
+import { escapeMarkup, pieceIcon, nobleCardHtml, cardBackHtml } from "./presentation.js";
 import { formatNoble, formatResource, title } from "./format.js";
 
 export function calendarHtml(state) {
@@ -41,7 +41,7 @@ export function tabletopRegionsHtml(state, { viewer = null, names = {}, resource
       ${privateOwner && stockpileHtml ? stockpileHtml(player) : ''}
       <div class="suit-groups">${SUITS.map(group => `<div class="suit-group" aria-label="${title(group)} Resources"><span class="suit-heading ${[SUIT.DIAMONDS, SUIT.HEARTS].includes(group) ? 'red-suit' : ''}">${SUIT_GLYPH[group]}</span><div class="suit-cards">${hand.filter(card => card.suit === group).map(card => resourceHtml ? resourceHtml(card, mode, player) : `<span class="card-token">${formatResource(card)}</span>`).join('') || '<span class="empty-suit">—</span>'}</div></div>`).join('')}</div>
       ${actionable && suit ? '<div class="resource-actions"><button id="tap-selected" class="button" disabled>Select cards to tap</button><span id="tap-preview" class="payment-preview" aria-live="polite"></span></div>' : ''}</div>
-      <div class="realm-side"><div class="court-heading"><h3>Court</h3><span>${p.court_noble_ids.length} private</span></div><div class="court-fan" aria-label="${title(player)} face-down Court">${p.court_noble_ids.map((id, i) => `<button class="court-back" ${privateOwner ? `data-inspect-court="${escapeMarkup(id)}"` : 'disabled'} aria-label="${privateOwner ? 'Privately inspect' : 'Face-down'} ${title(player)} Court card ${i + 1}"><span aria-hidden="true">◇</span></button>`).join('') || '<span class="empty-state">No Court cards</span>'}</div>
+      <div class="realm-side"><div class="court-heading"><h3>Court</h3><span>${p.court_noble_ids.length} private</span></div><div class="court-fan" aria-label="${title(player)} face-down Court">${p.court_noble_ids.map((id, i) => `<button class="court-back" ${privateOwner ? `data-inspect-court="${escapeMarkup(id)}"` : 'disabled'} aria-label="${privateOwner ? 'Privately inspect' : 'Face-down'} ${title(player)} Court card ${i + 1}">${cardBackHtml()}</button>`).join('') || '<span class="empty-state">No Court cards</span>'}</div>
       <h3>Dungeon</h3><div class="dungeon-slot ${hostage && !hostage.hidden ? 'occupied' : ''}">${hostage && !hostage.hidden ? `<button class="hostage-card" data-inspect-noble="${escapeMarkup(hostage.noble_id)}" aria-label="Inspect Hostage ${escapeMarkup(formatNoble(hostage))}">${nobleCardHtml(hostage)}</button>` : '<span>Empty</span>'}</div>
       <h3>Reserve</h3><div class="reserve-pieces">${Object.values(UNIT_TYPE).filter(type => p.reserve[type] > 0).map(type => `<div class="reserve-group" aria-label="${p.reserve[type]} ${title(type)} pieces">${Array.from({length: p.reserve[type]}, () => pieceIcon({owner: player, unit_type: type})).join('')}</div>`).join('') || '<span class="empty-state">No pieces in reserve</span>'}</div></div>
     </section>`;

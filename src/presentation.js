@@ -42,6 +42,11 @@ export function escapeMarkup(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
+// One anonymous back for Courts, rejected Resources and reconnect illustrations.
+export function cardBackHtml(className = "") {
+  return `<span class="card-back ${escapeMarkup(className)}" aria-hidden="true"><svg class="card-back-emblem" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><path d="M50 28C42 26 35 27 30 31C19 30 10 24 5 9C2 27 9 42 26 43L20 46L29 53L34 52L37 69L40 79Q50 88 60 79L63 69L66 52L71 53L80 46L74 43C91 42 98 27 95 9C90 24 81 30 70 31C65 27 58 26 50 28Z"/></svg></span>`;
+}
+
 export function pieceIcon(unit) {
   const color = unit.piece_color ?? unit.owner;
   return `<span class="realm-piece ${color.toLowerCase()}" role="img" aria-label="${title(unit.unit_type)}">${chessPieceSvg(unit.unit_type)}</span>`;
@@ -65,7 +70,7 @@ export function chessPieceSvg(type) {
 }
 
 export function nobleCardHtml(noble, { illustrated = false } = {}) {
-  if (!noble || noble.hidden) return '<span class="concealed-court">Hidden Court card</span>';
+  if (!noble || noble.hidden) return `<span class="concealed-court">${cardBackHtml('card-back-small')} Hidden Court card</span>`;
   const red = [SUIT.DIAMONDS, SUIT.HEARTS].includes(noble.suit);
   const art = illustrated ? COURT_ART[`${noble.face}:${noble.suit}`] : null;
   const caption = `<strong>${NOBLE_DISPLAY_CODE[noble.face]}${SUIT_GLYPH[noble.suit]}</strong><span>${escapeMarkup(NOBLE_NAME[noble.face]?.[noble.suit] ?? noble.name)}</span>`;
@@ -92,7 +97,7 @@ export function realmComparisonHtml(state, viewer, playerNames = {}) {
     ${row("Court", (player) => {
       const ids = state.players[player].court_noble_ids;
       if (!ids.length) return '<span class="empty-state">Empty</span>';
-      return player === viewer ? `<div class="court-cards">${ids.map((id) => nobleCardHtml(state.nobles_by_id[id])).join("")}</div>` : `<span class="concealed-court" aria-label="${ids.length} hidden Court cards"><span aria-hidden="true">▧</span> ${ids.length} hidden card${ids.length === 1 ? "" : "s"}</span>`;
+      return player === viewer ? `<div class="court-cards">${ids.map((id) => nobleCardHtml(state.nobles_by_id[id])).join("")}</div>` : `<span class="concealed-court" aria-label="${ids.length} hidden Court cards">${cardBackHtml('card-back-small')} ${ids.length} hidden card${ids.length === 1 ? "" : "s"}</span>`;
     })}
     ${row("Dungeon", (player) => {
       const id = state.players[player].dungeon_noble_id;
