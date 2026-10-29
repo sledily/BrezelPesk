@@ -141,7 +141,7 @@ try {
     assert.equal(await target.locator('.current-action #action-controls').count(),1);
     const start=await target.locator('.current-action').evaluate(el=>el.getBoundingClientRect().top+scrollY);
     await target.evaluate(top=>scrollTo(0,top+400),start);
-    const card=target.locator('[data-resource-id]:enabled').first();
+    const card=target.locator('.card-choice:has([data-resource-id]:enabled)').first();
     await card.click();
     assert.equal(await target.locator('[data-resource-id]:checked').count(),1,'a table card remains selectable while actions are pinned');
     const finish=target.getByRole('button',{name:'Finish Mobilize and publish',exact:true});
