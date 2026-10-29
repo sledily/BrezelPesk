@@ -52,7 +52,7 @@ test("each Harvest piece needs its own draw command, even if an old client asks 
 
 test("declining the Harvest failsafe does not draw for any piece", () => {
   let state = modern();
-  state.units_by_id["U-W-001"].square = "a8";
+  state.units_by_id["U-W-001"].square = "a2";
   state.harvest.failsafe_pending = true;
   state = must(state, { type: "RESOLVE_HARVEST_FAILSAFE", player: PLAYER.WHITE, use: false, auto_harvest: true });
   assert.equal(state.players.WHITE.resource_hand_ids.length, 0);
@@ -192,11 +192,11 @@ test("the shared realm panel shows pieces, Vassals and Dungeons without leaking 
   addUnit(state, PLAYER.WHITE, UNIT_TYPE.PAWN, "b2");
   putInCourt(state, PLAYER.WHITE, "NC-J-C");
   const publicHtml = realmComparisonHtml(state, PLAYER.BLACK);
-  assert.match(publicHtml, /♙/);
-  assert.match(publicHtml, /Cleopatra/);
+  assert.match(publicHtml, /aria-label="Pawn"/);
+  assert.match(publicHtml, /CLEOPATRA/);
   assert.match(publicHtml, /1 hidden card/);
-  assert.doesNotMatch(publicHtml, /Margaret of Parma|NC-J-C/);
-  assert.match(realmComparisonHtml(state, PLAYER.WHITE), /Margaret of Parma/);
+  assert.doesNotMatch(publicHtml, /COLBERT|NC-J-C/);
+  assert.match(realmComparisonHtml(state, PLAYER.WHITE), /COLBERT/);
   assert.doesNotMatch(publicHtml, /Rank|rank-pips|physical-rank/);
 });
 

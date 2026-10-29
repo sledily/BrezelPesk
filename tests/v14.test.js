@@ -123,8 +123,8 @@ test("Recruit costs stay visible while private identities remain redacted until 
   assert.equal(actionCostDescription(opponent, "RECRUIT"), "2 × 3 Nobles outside the deck = 6 ◇");
   state.status = "COMPLETE";
   assert.equal(projectForPlayer(state, PLAYER.BLACK, { revealComplete: false }).nobles_by_id[event.payload.noble_id], undefined);
-  assert.ok(projectSpectator(state).nobles_by_id[event.payload.noble_id]);
-  assert.equal(projectSpectator(state).event_log.find((e) => e.event_id === event.event_id).payload.chronicle.text, event.payload.chronicle.text);
+  assert.equal(projectSpectator(state).nobles_by_id[event.payload.noble_id], undefined);
+  assert.equal(projectSpectator(state).event_log.find((e) => e.event_id === event.event_id).payload.chronicle.text, "Rec(4) [XX]");
 });
 
 test("a full Year records empty phases and Stockpiles, rotates player lines and replays exactly", () => {
@@ -152,7 +152,7 @@ test("a full Year records empty phases and Stockpiles, rotates player lines and 
   assert.doesNotMatch(log, /Tap|Resource Cards Tapped|♧|◇|♤|♡/);
 });
 
-test("a completed online draft still requires Pass and does not reveal the opponent's Court", () => {
+test("final victory publishes immediately; only authenticated participants receive full records", () => {
   const store = new RoomStore({ codeFactory: () => "V14ABC" });
   const host = store.create({ playerCount: 2, playerName: "White", seat: PLAYER.WHITE, seed: "finish" });
   const black = store.join(host.code, { playerName: "Black", seat: PLAYER.BLACK });
@@ -174,13 +174,12 @@ test("a completed online draft still requires Pass and does not reveal the oppon
     if (draft.game.status === "COMPLETE") break;
   }
   assert.equal(draft.game.status, "COMPLETE");
-  assert.equal(draft.viewer.waiting_for_pass, true);
-  assert.equal(draft.game.chronicle_complete, false);
-  assert.equal(draft.game.nobles_by_id[secret], undefined);
-  assert.equal(store.view(host.code, black.token).game.status, "ACTIVE");
-  const committed = store.pass(host.code, host.token);
-  assert.equal(committed.room.status, "COMPLETE");
-  assert.equal(committed.game.chronicle_complete, true);
+  assert.equal(draft.viewer.waiting_for_pass, false);
+  assert.equal(draft.game.chronicle_complete, true);
+  assert.equal(store.view(host.code, black.token).game.status, "COMPLETE");
+  assert.equal(store.view(host.code, null).game.nobles_by_id[secret], undefined);
+  assert.throws(() => store.pass(host.code, host.token), error => error.code === "MATCH_NOT_ACTIVE");
+  const committed = store.view(host.code, host.token);
   assert.ok(committed.game.nobles_by_id[secret]);
   const log = formatChronicle(committed.game);
   assert.match(log, /Kd4[xyz]Ke5\(4\)/);

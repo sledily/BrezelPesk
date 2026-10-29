@@ -4,6 +4,7 @@ import { UNIT_TYPE } from "../src/constants.js";
 import { nextRandom, shuffleWithState } from "../src/rng.js";
 import {
   isBlackSquare,
+  canUseHarvestFailsafe,
   isCenter,
   legalMovementDestinations,
   legalMovementPaths,
@@ -20,6 +21,21 @@ test("board coordinates use the authoritative a1 dark convention", () => {
   assert.equal(isBlackSquare("a2"), false);
   assert.equal(isCenter("d4"), true);
   assert.equal(isCenter("c4"), false);
+});
+
+test('the special Harvest depends on the player’s live Units and excludes all black-deck access', () => {
+  const state = setUpMatch('special-harvest-access');
+  state.units_by_id['U-W-001'].square = 'a2';
+  assert.equal(canUseHarvestFailsafe(state, 'WHITE'), true, 'an opponent’s corner does not block the offer');
+  const pawn = addUnit(state, 'WHITE', UNIT_TYPE.PAWN, 'h1');
+  assert.equal(canUseHarvestFailsafe(state, 'WHITE'), false, 'any owned piece on a white corner blocks the offer');
+  state.units_by_id[pawn].square = 'c3';
+  assert.equal(canUseHarvestFailsafe(state, 'WHITE'), false, 'a normal black square also blocks the offer');
+  state.units_by_id[pawn].defeated = true;
+  state.units_by_id[pawn].square = null;
+  assert.equal(canUseHarvestFailsafe(state, 'WHITE'), true, 'defeated pieces do not block the offer');
+  state.rules.harvest_failsafe_enabled = false;
+  assert.equal(canUseHarvestFailsafe(state, 'WHITE'), false);
 });
 
 test("seeded randomness and shuffling are reproducible", () => {

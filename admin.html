@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow"><title>BrezelPesk · Administration</title>
+  <link rel="stylesheet" href="/src/admin.css">
+  <script type="module" src="/src/admin.js"></script>
+</head>
+<body>
+  <header><div><a href="/">BrezelPesk</a><h1>Administration</h1></div><button id="logout" hidden>Sign out</button></header>
+  <main>
+    <p id="message" role="status" aria-live="polite"></p>
+    <section id="login-panel" class="panel">
+      <p class="eyebrow">Private access</p><h2>Administrator sign in</h2>
+      <p>Inspect online games, help players recover a seat and manage the central archive.</p>
+      <form id="login"><label for="password">Administrator password</label>
+        <input id="password" type="password" autocomplete="current-password" required maxlength="1024">
+        <button type="submit">Sign in</button>
+      </form>
+    </section>
+    <div id="workspace" hidden>
+      <section class="panel">
+        <div class="section-heading"><div><p class="eyebrow">Online collection</p><h2>Games &amp; archives</h2></div>
+          <div class="actions"><button id="refresh">Refresh</button><button id="download">Download all archives · ZIP</button></div></div>
+        <p id="capacity"></p>
+        <p class="muted">Downloads include complete and abandoned online games. Downloading never deletes a record or starts an expiry countdown. Local games stay on their device.</p>
+        <label for="filter">Show</label><select id="filter"><option value="all">All games</option><option value="live">Lobby &amp; active</option><option value="archive">Complete &amp; abandoned</option><option value="closed">Cancelled &amp; deleted</option></select>
+        <div id="collection"></div>
+      </section>
+      <section id="pending-panel" class="panel" hidden><h2>Action awaiting confirmation</h2><p id="pending-description"></p>
+        <p>The connection may have failed after the action was saved. Retry to confirm the outcome before taking another action.</p><button id="retry">Retry same action</button>
+      </section>
+      <section id="recovery-panel" class="panel" hidden><h2>Replacement recovery code</h2><p id="recovery-description"></p>
+        <label for="recovery-code">Give this code privately to the player</label><input id="recovery-code" readonly autocomplete="off" spellcheck="false">
+        <p>The former recovery code and controlling session are invalid. The player can use Recover seat on the game page. Save this code before leaving or signing out.</p><button id="copy-code">Copy code</button>
+      </section>
+      <section id="inspection" class="panel" hidden></section>
+    </div>
+  </main>
+  <footer>Administrator information is private. Operational audit entries are separate from game Chronicles.</footer>
+</body>
+</html>

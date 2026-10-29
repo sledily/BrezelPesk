@@ -63,16 +63,17 @@ test("final setup publishes when the next phase has the same actor", () => {
   assert.equal(store.view(host.code, null, "watcher").game.status, "ACTIVE");
 });
 
-test("Undo restores an unpublished Harvest offer without rerolling", () => {
+test("revealed Harvest cannot be undone or used to inspect another deck", () => {
   const { store, host, black } = createTwoPlayerRoom();
   finishRoomSetup(store, host, black);
   const command = { type: "DRAW_HARVEST", unit_id: "U-W-001", deck: DECK.BLACK };
   const before = store.view(host.code, null, "watcher").game;
   const first = store.command(host.code, host.token, command);
-  assert.equal(first.viewer.can_undo, true);
+  assert.equal(first.viewer.can_undo, false);
   assert.deepEqual(store.view(host.code, null, "watcher").game, before, "an unresolved offer is still in the unpublished turn");
-  store.undo(host.code, host.token);
-  const second = store.command(host.code, host.token, command);
+  assert.throws(() => store.undo(host.code, host.token), error => error.code === "NOTHING_TO_UNDO");
+  assert.throws(() => store.command(host.code, host.token, { ...command, deck: DECK.RED }));
+  const second = store.view(host.code, host.token);
   assert.deepEqual(second.game.harvest.offer_ids, first.game.harvest.offer_ids);
   const kept = second.game.harvest.offer_ids[0];
   store.command(host.code, host.token, { type: "KEEP_HARVEST_CARD", card_id: kept });
@@ -83,7 +84,7 @@ test("Undo restores an unpublished Harvest offer without rerolling", () => {
   assert.equal(store.view(host.code, host.token).viewer.can_undo, false);
 });
 
-test("active rooms and unpublished Harvest Undo history survive restart", () => {
+test("active rooms and irreversible pending Harvest offers survive restart", () => {
   const directory = mkdtempSync(join(tmpdir(), "dendarv-rooms-"));
   const filePath = join(directory, "rooms.json");
   const { store, host, black } = createTwoPlayerRoom({ filePath });
@@ -91,8 +92,9 @@ test("active rooms and unpublished Harvest Undo history survive restart", () => 
   const first = store.command(host.code, host.token, { type: "DRAW_HARVEST", unit_id: "U-W-001", deck: DECK.RED });
   const restored = new RoomStore({ filePath });
   const view = restored.view(host.code, host.token);
-  assert.equal(view.viewer.can_undo, true);
+  assert.equal(view.viewer.can_undo, false);
   assert.equal(view.viewer.waiting_for_pass, false);
   assert.deepEqual(view.game.harvest.offer_ids, first.game.harvest.offer_ids);
-  assert.deepEqual(restored.undo(host.code, host.token).game.harvest.offer_ids, []);
+  assert.throws(() => restored.undo(host.code, host.token), error => error.code === "NOTHING_TO_UNDO");
+  assert.deepEqual(restored.view(host.code, host.token).game.harvest.offer_ids, first.game.harvest.offer_ids);
 });

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DECK, PHASE, PLAYER, SUIT, UNIT_TYPE } from "../src/constants.js";
-import { dispatch, newMatch, replayCommandLog } from "../src/engine.js";
+import { DECK, PHASE, PLAYER, SUIT, UNIT_TYPE, V2_RULES } from "../src/constants.js";
+import { dispatch, newMatch, replayCommandLog, legalCommandSummary } from "../src/engine.js";
 import { projectForPlayer } from "../src/projection.js";
 import { validateInvariants } from "../src/rules.js";
 import {
@@ -58,6 +58,37 @@ test("the color-lock failsafe sacrifices normal Harvest for one Black card", () 
   assert.equal(state.players[PLAYER.WHITE].resource_hand_ids.length, 1);
   assert.equal(state.decks[DECK.BLACK].length, before - 1);
   assert.equal(state.current_actor, PLAYER.BLACK);
+});
+
+for (const square of ['a1', 'a8', 'h1', 'h8']) test(`a Unit on ${square} starts normal Harvest without the special offer`, () => {
+  let state = newMatch({seed: `corner-harvest-${square}`, rules: V2_RULES});
+  state.units_by_id['U-B-001'].square = 'f6';
+  state.units_by_id['U-W-001'].square = square;
+  state = must(state, {type: 'CHOOSE_SOVEREIGN', player: PLAYER.BLACK, noble_id: 'NC-K-S'});
+  state = must(state, {type: 'CHOOSE_SOVEREIGN', player: PLAYER.WHITE, noble_id: 'NC-K-H'});
+  assert.equal(state.harvest.failsafe_pending, false);
+  const choices = legalCommandSummary(state);
+  assert.deepEqual(choices.map(command => command.deck).sort(), [DECK.BLACK, DECK.RED]);
+  assert.ok(choices.every(command => command.type === 'DRAW_HARVEST'));
+});
+
+test('an old pending offer on a white corner cannot grant the special card or block normal Harvest', () => {
+  const state = setUpMatch('old-corner-offer');
+  state.units_by_id['U-W-001'].square = 'h1';
+  state.harvest.failsafe_pending = true;
+  const before = state.decks.BLACK.length;
+  const rejected = dispatch(state, {type: 'RESOLVE_HARVEST_FAILSAFE', player: PLAYER.WHITE, use: true});
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.error.code, 'NO_FAILSAFE_DECISION');
+  assert.equal(state.decks.BLACK.length, before);
+  const choices = legalCommandSummary(state);
+  assert.ok(choices.every(command => command.type === 'DRAW_HARVEST'));
+  const next = must(state, choices.find(command => command.deck === DECK.BLACK));
+  assert.equal(next.harvest.failsafe_pending, false);
+  assert.equal(next.harvest.offer_ids.length, 3);
+  assert.equal(next.decks.BLACK.length, before - 3);
+  assert.equal(next.players.WHITE.resource_hand_ids.length, 0);
+  assert.ok(!next.event_log.some(event => event.type === 'HarvestFailsafeUsed'));
 });
 
 test("tapped Counter value enters a persistent seasonal pool and dynamic Build costs increase", () => {

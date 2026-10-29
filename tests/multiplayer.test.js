@@ -258,8 +258,8 @@ test("a captured Queen is permanently removed and its defeated player stops advi
   assert.equal(resolved.players[PLAYER.GREEN].advice_until_unit_id, null);
 });
 
-test("the match completes only after conquest leaves a single surviving King", () => {
-  let state = findKingDefeat("ATTACKER_WIN", (candidate) => {
+for (const finalOutcome of ["ATTACKER_WIN","DEFENDER_WIN"]) test(`the final King defeat (${finalOutcome}) ends immediately without spoils or Conquest`, () => {
+  let state = findKingDefeat(finalOutcome, (candidate) => {
     for (const player of [PLAYER.BLACK, PLAYER.RED]) {
       const king = liveUnits(candidate, player).find((unit) => unit.unit_type === UNIT_TYPE.KING);
       king.defeated = true;
@@ -269,10 +269,10 @@ test("the match completes only after conquest leaves a single surviving King", (
     }
     candidate.phase_actor_order = [PLAYER.WHITE, PLAYER.GREEN];
   });
-  assert.equal(state.status, "ACTIVE");
-  state = must(state, { type: "CHOOSE_CONQUEST", player: PLAYER.WHITE, choice: "CARD" });
+  assert.equal(state.pending_conquest,null);
+  assert.equal(state.event_log.some(e=>e.type==="DefeatedResourcesClaimed"),false);
   assert.equal(state.status, "COMPLETE");
-  assert.equal(state.winner, PLAYER.WHITE);
+  assert.equal(state.winner, finalOutcome==="ATTACKER_WIN"?PLAYER.WHITE:PLAYER.GREEN);
   assert.equal(state.victory_reason, "LAST_KING_STANDING");
   assert.equal(liveUnits(state).filter((unit) => unit.unit_type === UNIT_TYPE.KING).length, 1);
   assert.deepEqual(validateInvariants(state), []);
