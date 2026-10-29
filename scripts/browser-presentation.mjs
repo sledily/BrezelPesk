@@ -192,9 +192,10 @@ try {
     assert.ok(await target.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${name}: Harvest choices fit the viewport`);
     await target.screenshot({path:join(artifacts,`${name}-harvest-panel.png`)});
     await choices.locator('#keep-harvest-selection').click();
-    assert.equal(await choices.isVisible(),false);
+    await target.locator(`[data-resource-id="${selected}"]`).waitFor({state:'attached'});
     assert.equal(await target.locator(`[data-resource-id="${selected}"]`).count(),1,'Keep retains the selected physical card');
-    assert.equal(await target.getByRole('button',{name:'Finish Poker',exact:true}).isVisible(),true);
+    for(const rejected of offer.filter(id=>id!==selected))assert.equal(await target.locator(`[data-resource-id="${rejected}"]`).count(),0,'rejected cards do not enter the hand');
+    assert.equal(await choices.locator('[data-harvest-card]').count(),0,'the completed offer closes, including when an empty Poker window is skipped');
   }
   assert.deepEqual(errors,[]);
   await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['modular and offline-bundle startup','native local setup and Court reveal handover','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds','pinned action controls and table-card selection on desktop and portrait/landscape phones','Harvest deck choice, card selection, Cancel and Keep in the pinned panel on desktop and portrait/landscape phones'],battleEvent:battle.event_id},null,2));
