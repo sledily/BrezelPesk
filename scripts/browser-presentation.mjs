@@ -185,6 +185,9 @@ try {
     await choices.locator('[data-harvest-card]').nth(1).click();
     const selected=await choices.locator('[data-harvest-card][aria-pressed="true"]').getAttribute('data-harvest-card');
     assert.equal(selected,offer[1]);
+    // Native click targeting can scroll the document back toward the controls.
+    // Check pinning after an explicit page scroll, independently of that targeting.
+    await target.evaluate(top=>scrollTo(0,top+200),start);
     assert.ok(Math.abs(await target.locator('.current-action').evaluate(el=>el.getBoundingClientRect().top))<1,`${name}: Harvest choices remain pinned`);
     assert.ok(await target.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${name}: Harvest choices fit the viewport`);
     await target.screenshot({path:join(artifacts,`${name}-harvest-panel.png`)});
