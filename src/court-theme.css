@@ -1,5 +1,16 @@
 /* The Court's printed ink, warm paper and suit borders continue onto the table. */
 :root { --ink:#24251b; --muted:#665a43; --surface:#f5e9cc; --surface-2:#e9dab7; --surface-3:#ead9ae; --line:#ab9363; --gold:#976324; --gold-soft:#bf9348; --black:#d4bc8e; --dark-square:#49647a; --light-square:#ead8ae; --woodcut-green:#58653b; --woodcut-red:#972f25; --woodcut-blue:#194765; --woodcut-gold:#a9762e; }
+.suit-icon[role="img"] { display:inline-flex; position:relative; width:1em; height:1.08em; vertical-align:-.16em; flex-shrink:0; color:var(--symbol-ink); }
+.suit-icon.suit-clovers { --symbol-ink:#22251f; --symbol-edge:#10140f; }
+.suit-icon.suit-diamonds { --symbol-ink:#b63839; --symbol-edge:#78262d; }
+.suit-icon.suit-spades { --symbol-ink:#22251f; --symbol-edge:#10140f; }
+.suit-icon.suit-hearts { --symbol-ink:#b63839; --symbol-edge:#78262d; }
+.suit-icon[role="img"] > svg { display:block; width:100%; height:100%; max-width:none; flex:none; overflow:visible; }
+.suit-icon .suit-fill { fill:var(--symbol-ink); stroke:var(--symbol-edge); stroke-width:1; stroke-linejoin:round; }
+.suit-icon .suit-shine { fill:none; stroke:#fff4d6; stroke-opacity:.55; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+.suit-icon .suit-fallback { display:none; }
+.noble-rank { white-space:nowrap; }
+.noble-rank > sub { font-size:.6em; line-height:0; vertical-align:sub; }
 body { background:repeating-linear-gradient(14deg,#61421805 0 1px,transparent 1px 5px),radial-gradient(ellipse at top,#f7ecd0,#dac599 85%); }
 .app-shell { --season-ink:var(--woodcut-green); }
 .app-shell[data-suit="DIAMONDS"] { --season-ink:var(--woodcut-red); }

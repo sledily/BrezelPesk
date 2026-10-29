@@ -19,6 +19,7 @@ const sourceOrder = [
   "src/online.js",
   "src/browser-notifications.js",
   "src/court-art.js",
+  "src/symbols.js",
   "src/presentation.js",
   "src/tabletop.js",
   "src/event-presentation.js",

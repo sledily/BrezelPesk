@@ -30,6 +30,14 @@ try {
   assert.equal(await page.locator('#board .square').count(),64);
   assert.equal(await page.locator('.realm-hand').count(),4);
   assert.equal(await page.locator('#review-turns').isVisible(),true);
+  await page.locator('.suit-heading .suit-icon').first().waitFor({state:'visible'});
+  const suitFills=await page.locator('.realm-hand').first().locator('.suit-heading .suit-fill').evaluateAll(paths=>paths.map(p=>getComputedStyle(p).fill));
+  assert.equal(suitFills.length,4);
+  assert.equal(suitFills[0],suitFills[2],'Clubs and Spades use the same black');
+  assert.equal(suitFills[1],suitFills[3],'Diamonds and Hearts use the same red');
+  assert.notEqual(suitFills[0],suitFills[1]);
+  assert.ok(Math.max(...suitFills[0].match(/\d+/g).map(Number))<60,'the black suits stay black');
+  const red=suitFills[1].match(/\d+/g).map(Number);assert.ok(red[0]>red[1]*2&&red[0]>red[2]*2,'the red suits stay red');
   await page.screenshot({path:join(artifacts,'four-player-table.png'),fullPage:true});
   // Inspect all six approved miniatures with the app's actual SVG and colour rules.
   const pieceTypes=['PAWN','ROOK','KNIGHT','BISHOP','QUEEN','KING'];
@@ -42,6 +50,25 @@ try {
   assert.ok(paints.every(p=>p.viewBox==='0 0 64 80'&&p.colour!=='none'&&p.gold!=='none'));
   await page.locator('#miniature-art-qa').screenshot({path:join(artifacts,'painted-miniatures.png')});
   await page.locator('#miniature-art-qa').evaluate(el=>el.remove());
+  await page.evaluate(()=>{
+    const study=document.createElement('section');study.id='symbol-art-qa';
+    study.style.cssText='position:absolute;left:20px;top:20px;z-index:10000;padding:18px;background:#f5e9cc;color:#24251b;font:36px Georgia,serif';
+    const label=document.createElement('p');label.textContent='Rx♧  Dx◇  Vz♤  Rx♡';study.append(label);
+    const select=document.createElement('select'),option=document.createElement('option');option.textContent='Rx♧ · BOUDICA';select.append(option);study.append(select);
+    const record=document.createElement('pre');record.textContent='Saved notation: Rx♧';study.append(record);
+    const literal=document.createElement('p');literal.textContent='<img src=x onerror=alert(1)> Dx◇';study.append(literal);
+    document.body.append(study);
+  });
+  await page.locator('#symbol-art-qa .noble-rank sub').last().waitFor({state:'visible'});
+  assert.equal(await page.locator('#symbol-art-qa .noble-rank sub').count(),5);
+  const subs=await page.locator('#symbol-art-qa .noble-rank sub').evaluateAll(nodes=>nodes.map(el=>({size:parseFloat(getComputedStyle(el).fontSize),parent:parseFloat(getComputedStyle(el.parentElement).fontSize),align:getComputedStyle(el).verticalAlign})));
+  assert.ok(subs.every(sub=>sub.size<sub.parent*.8&&sub.align==='sub'));
+  assert.equal(await page.locator('#symbol-art-qa option').textContent(),'Rex of Clubs · BOUDICA');
+  assert.equal(await page.locator('#symbol-art-qa pre').textContent(),'Saved notation: Rx♧');
+  assert.equal(await page.locator('#symbol-art-qa img').count(),0,'literal text never becomes HTML');
+  assert.match(await page.locator('#symbol-art-qa').textContent(),/<img src=x onerror=alert\(1\)>/);
+  await page.locator('#symbol-art-qa').screenshot({path:join(artifacts,'suits-and-noble-ranks.png')});
+  await page.locator('#symbol-art-qa').evaluate(el=>el.remove());
   await page.getByRole('button',{name:'New',exact:true}).click();await page.locator('#new-game-form').getByLabel('Players',{exact:true}).selectOption('2');
   await page.locator('#new-game-form button[value="start"]').click();await page.getByRole('button',{name:'Ready',exact:true}).click();
   await page.locator('.sovereign-choice[data-noble-id="NC-K-C"]').click();assert.match(await page.locator('#inspection-dialog img.noble-art').getAttribute('alt'),/BOUDICA/i);
@@ -138,6 +165,18 @@ try {
     await target.goto(`${origin}/Dendarv_Play.html?room=XYZ345`);
     await target.locator('#recap-dialog').waitFor({state:'visible'});
     await target.getByRole('button',{name:'Skip to current board',exact:true}).click();
+    await target.locator('.vassal-badge .noble-rank sub').first().waitFor({state:'visible'});
+    const badgePositions=await target.locator('.vassal-badge').evaluateAll(badges=>badges.map(badge=>{
+      const piece=badge.parentElement.querySelector('.square .piece').getBoundingClientRect(),card=badge.getBoundingClientRect();
+      return {upperRight:card.x+card.width/2>piece.x+piece.width/2&&card.y+card.height/2<piece.y+piece.height/2,smallSub:parseFloat(getComputedStyle(badge.querySelector('sub')).fontSize)<parseFloat(getComputedStyle(badge).fontSize)};
+    }));
+    assert.ok(badgePositions.length>0&&badgePositions.every(p=>p.upperRight&&p.smallSub),`${name}: every Levy badge is above and right of its piece, with a smaller subscript`);
+    const recordBeforeInspection=await target.locator('#history').textContent();
+    await target.locator('.vassal-badge').first().click();
+    await target.locator('#inspection-dialog img.noble-art').waitFor({state:'visible'});
+    await target.getByRole('button',{name:'Return to table',exact:true}).click();
+    assert.equal(await target.locator('#history').textContent(),recordBeforeInspection,'badge inspection does not play a move');
+    await target.evaluate(()=>scrollTo(0,0));
     assert.equal(await target.locator('.current-action #action-controls').count(),1);
     const start=await target.locator('.current-action').evaluate(el=>el.getBoundingClientRect().top+scrollY);
     await target.evaluate(top=>scrollTo(0,top+400),start);
@@ -198,7 +237,7 @@ try {
     assert.equal(await choices.locator('[data-harvest-card]').count(),0,'the completed offer closes, including when an empty Poker window is skipped');
   }
   assert.deepEqual(errors,[]);
-  await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['modular and offline-bundle startup','native local setup and Court reveal handover','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds','pinned action controls and table-card selection on desktop and portrait/landscape phones','Harvest deck choice, card selection, Cancel and Keep in the pinned panel on desktop and portrait/landscape phones'],battleEvent:battle.event_id},null,2));
+  await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['modular and offline-bundle startup','native local setup and Court reveal handover','red/black SVG suits and smaller Noble subscripts','safe text decoration and native option labels','upper-right Levy badges and read-only inspection at all three viewport sizes','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds','pinned action controls and table-card selection on desktop and portrait/landscape phones','Harvest deck choice, card selection, Cancel and Keep in the pinned panel on desktop and portrait/landscape phones'],battleEvent:battle.event_id},null,2));
   console.log('Browser presentation checks passed; screenshots in browser-artifacts.');
 } catch(error) {
   if(activePage){

@@ -34,6 +34,7 @@ import { deserializeMatch, loadFromBrowser, saveToBrowser, serializeMatch } from
 import { matchPlayers } from "./model.js";
 import {notificationConfiguration,enableGameNotifications,disableGameNotifications} from './browser-notifications.js';
 import { OnlineClient, onlineShareUrl, roomCodeFromLocation } from "./online.js";
+import { installGameSymbols } from "./symbols.js";
 import { playerName, projectForPlayer } from "./projection.js";
 import {
   actionCost,
@@ -1981,6 +1982,7 @@ updateOnlineCreateSeats();
 dom.onlineCreateName.value = OnlineClient.rememberedName();
 dom.onlineJoinName.value = OnlineClient.rememberedName();
 
+installGameSymbols(document.body);
 render();
 const initialRoomCode = roomCodeFromLocation();
 if (initialRoomCode) {
