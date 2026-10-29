@@ -39,6 +39,7 @@ import {
   actionCost,
   availableHoldingUnits,
   availablePokerHands,
+  canUseHarvestFailsafe,
   courtNobles,
   deriveConstants,
   deckSize,
@@ -574,7 +575,7 @@ function renderActionSummary() {
     const harvesting = state.units_by_id[h.unit_id ?? h.remaining_unit_ids[0]];
     const ids = [...selectedResourceIds];
     const choice = state.resources_by_id[harvestChoice];
-    const detail = h.stage === 'POKER' ? ids.length ? `${pokerKindForCards(state, ids) ? title(pokerKindForCards(state, ids)) : 'Candidate'} · ${pokerSelectionError(state, actor, ids) ?? 'Ready to Declare Hand'}` : 'Select an exact proposal or choose cards, then Declare Hand or Pass'
+    const detail = h.stage === 'POKER' ? ids.length ? `${pokerKindForCards(state, ids) ? title(pokerKindForCards(state, ids)) : 'Candidate'} · ${pokerSelectionError(state, actor, ids) ?? 'Ready to Declare Hand'}` : 'Select an exact proposal or choose cards, then Declare Hand or Finish Poker'
       : harvesting ? `${title(harvesting.unit_type)} at ${harvesting.square} · Draw ${drawCountOf(harvesting)} from ${isCorner(harvesting.square) ? 'Black ♧ ♤ or Red ◇ ♡' : title(deckForSquare(harvesting.square))}${h.offer_ids.length ? choice ? ` · Selected ${formatResource(choice)} · Keep to commit` : ' · Select a card beside the Unit' : ''}` : 'Harvest complete';
     dom.actionSummary.textContent = `${playerName(actor)} · ${h.stage === 'POKER' ? 'Poker' : 'Harvest'} · ${detail}`;
   } else dom.actionSummary.textContent = `${playerName(actor)} · ${state.status === 'SETUP' ? 'Choose Sovereign' : state.status === 'COMPLETE' ? 'Match complete' : title(state.phase)}${pool}${selection}`;
@@ -855,10 +856,10 @@ function renderActionControls() {
     if (onlinePayload.viewer.waiting_for_pass) {
       dom.actionControls.innerHTML = `
         <p class="eyebrow">Private draft complete</p><h2>Publish your turn</h2>
-        <div class="online-waiting">Other players still see the position from before your turn. Undo to revise it, or Pass to commit every action together.</div>
+        <div class="online-waiting">Other players still see the position from before your turn. Undo to revise it, or finish to publish every action together.</div>
         <div class="choice-grid">
           <button id="online-undo" class="button" ${onlinePayload.viewer.can_undo ? "" : "disabled"}>Undo latest action</button>
-          <button id="online-pass" class="button primary">Pass and publish</button>
+          <button id="online-pass" class="button primary">Finish ${title(onlinePayload.room.summary?.phase ?? state.phase)} and publish</button>
         </div>`;
       return;
     }
@@ -893,7 +894,7 @@ function renderActionControls() {
   }
   if (state.phase_notice) {
     dom.actionControls.innerHTML = onlinePayload
-      ? `<p class="eyebrow">${title(state.phase)}</p><h2>Phase unavailable</h2><div class="empty-state">${escapeHtml(state.phase_notice.reason)}</div><button id="online-pass" class="button primary full">Pass ${title(state.phase)} and publish</button>`
+      ? `<p class="eyebrow">${title(state.phase)}</p><h2>Phase unavailable</h2><div class="empty-state">${escapeHtml(state.phase_notice.reason)}</div><button id="online-pass" class="button primary full">Finish ${title(state.phase)} and publish</button>`
       : `<p class="eyebrow">${title(state.phase)}</p><h2>Phase unavailable</h2><div class="empty-state">A short explanation is awaiting acknowledgement.</div>`;
     return;
   }
@@ -951,9 +952,9 @@ function renderHarvestActions() {
       : hands.some(hand => hand.card_ids.length === selected.length && hand.card_ids.every(id => selected.includes(id))) ? null : 'Select a legal hand.';
     const declared = h.poker_used_ids.length > 0;
     dom.actionControls.innerHTML = `<div class="phase-heading"><p class="eyebrow">Personal Harvest complete</p><h2>Poker</h2><p>Choose a proposal or select cards in your Resource hand. Printed values qualify; suits and Counters do not. Each physical card can be declared once this Year.</p></div>
-      <div class="poker-proposals" aria-label="Exact Poker proposals">${hands.map((hand, index) => `<button class="button poker-proposal" data-poker-proposal="${index}"><strong>${title(hand.kind)}</strong><span>${hand.card_ids.map(id => physicalResourceLabel(state.resources_by_id[id])).join(' · ')}</span></button>`).join('') || '<p class="empty-state">No further proposals. You may Undo a declaration or Pass.</p>'}</div>
+      <div class="poker-proposals" aria-label="Exact Poker proposals">${hands.map((hand, index) => `<button class="button poker-proposal" data-poker-proposal="${index}"><strong>${title(hand.kind)}</strong><span>${hand.card_ids.map(id => physicalResourceLabel(state.resources_by_id[id])).join(' · ')}</span></button>`).join('') || '<p class="empty-state">No further proposals. You may Undo a declaration or finish Poker.</p>'}</div>
       <div class="poker-candidate" aria-live="polite"><strong>${selected.length ? selected.map(id => physicalResourceLabel(state.resources_by_id[id])).join(' + ') : 'No candidate selected'}</strong><p>${escapeHtml(error ?? `${title(pokerKindForCards(state, selected))} · adds missing Counters; all selected cards must be spent or returned this Year.`)}</p></div>
-      <div class="choice-grid"><button id="declare-poker" class="button primary" ${error ? 'disabled' : ''}>Declare Hand</button><button id="cancel-poker" class="button" ${selected.length ? '' : 'disabled'}>Cancel selection</button><button id="poker-undo" class="button" ${(onlinePayload ? onlinePayload.viewer.can_undo : undoStack.length) ? '' : 'disabled'}>Undo</button><button id="finish-poker" class="button ${declared && !hands.length ? 'primary pass-ready' : ''}">Pass${onlinePayload ? ' and publish' : ''}</button></div>`;
+      <div class="choice-grid"><button id="declare-poker" class="button primary" ${error ? 'disabled' : ''}>Declare Hand</button><button id="cancel-poker" class="button" ${selected.length ? '' : 'disabled'}>Cancel selection</button><button id="poker-undo" class="button" ${(onlinePayload ? onlinePayload.viewer.can_undo : undoStack.length) ? '' : 'disabled'}>Undo</button><button id="finish-poker" class="button ${declared && !hands.length ? 'primary pass-ready' : ''}">Finish Poker${onlinePayload ? ' and publish' : ''}</button></div>`;
     return;
   }
   const ids = h.ordered_unit_ids ?? h.remaining_unit_ids;
@@ -963,8 +964,8 @@ function renderHarvestActions() {
     return `<li class="${done ? 'done' : h.remaining_unit_ids[0] === id ? 'current' : ''}" ${!done && h.remaining_unit_ids[0] === id ? 'aria-current="step"' : ''}><span>${done ? '✓' : index + 1}</span>${pieceIcon(unit)}<strong>${unit.square}</strong><small>${title(unit.unit_type)}</small></li>`;
   }).join('')}</ol>`;
   let decision = "";
-  if (h.failsafe_pending) {
-    decision = `<div><h3>Forgo normal Harvest?</h3><p>You have no Units on black squares. You may replace your entire Harvest with one available Black Resource Card.</p><div class="choice-grid"><button id="use-failsafe" class="button primary" ${deckSize(state, DECK.BLACK) ? '' : 'disabled'}>Take one Black card · ♧ ♤</button><button id="decline-failsafe" class="button quiet">Harvest normally</button></div></div>`;
+  if (h.failsafe_pending && canUseHarvestFailsafe(state, activePlayer())) {
+    decision = `<div><h3>Forgo normal Harvest?</h3><p>You have no Units on black or corner squares. You may replace your entire Harvest with one available Black Resource Card.</p><div class="choice-grid"><button id="use-failsafe" class="button primary" ${deckSize(state, DECK.BLACK) ? '' : 'disabled'}>Take one Black card · ♧ ♤</button><button id="decline-failsafe" class="button quiet">Harvest normally</button></div></div>`;
   }
   const shortage = [...state.event_log].reverse().find(event => event.type === 'HarvestSupplyShortage' && event.year === state.year_number && event.payload.player === state.current_actor);
   dom.actionControls.innerHTML = `<div class="phase-heading"><p class="eyebrow">${playerName(state.current_actor)} · Harvest</p><h2>${ids.length - h.remaining_unit_ids.length} of ${ids.length} Units harvested</h2><p>Select a card near the highlighted Unit; double-click or double-tap that same card to keep it. The Keep button also commits. A one-card offer is kept automatically.</p></div>${queue}${decision}${shortage ? `<p class="supply-notice" role="status">${escapeHtml(shortage.payload.message ?? 'The Resource supply could not fill an offer.')}</p>` : ''}<details class="harvest-order-guide"><summary>Harvest order and bonuses</summary><p>Holdings before Levies, then Level 1 → 2 → 3. ${HARVEST_COORDINATE_GUIDE[activePlayer()]} Pawns and Knights draw 1; Rooks and Bishops 2; Queens and Kings 3. Keep one actual card. A center square or matching Vassal adds one Counter; these bonuses do not stack.</p></details>`;
@@ -988,7 +989,7 @@ function duplicateCardLabel(card) {
 function renderHarvestTable() {
   const h = state.phase === PHASE.HARVEST ? state.harvest : null;
   const unit = h && h.stage === 'DRAW' ? state.units_by_id[h.unit_id ?? h.remaining_unit_ids[0]] : null;
-  const visible = unit && !h.failsafe_pending;
+  const visible = unit && !(h.failsafe_pending && canUseHarvestFailsafe(state, state.current_actor));
   dom.harvestTable.hidden = !visible;
   if (!visible) { dom.harvestTable.innerHTML = ''; harvestChoice = null; lastHarvestTap = null; return; }
   if (!h.offer_ids.includes(harvestChoice)) harvestChoice = null;
@@ -1169,7 +1170,7 @@ function passButton() {
   const plan = state.rules.resource_flow_v2 && lastFall ? stockpilePlan(state, activePlayer()) : null;
   const hasActed = state.v2_acted?.[`${state.year_number}:${state.phase}:${activePlayer()}`];
   const passReady = hasActed && !phaseAvailability(state,activePlayer()).available;
-  return `<div class="choice-grid">${onlinePayload?.viewer.can_undo ? `<button id="online-undo" class="button quiet">Undo latest action</button>` : ""}<button id="pass-phase" class="button ${passReady ? 'primary pass-ready' : 'quiet'} full">Pass ${title(state.phase)}${onlinePayload ? " and publish" : ""}</button>${plan?.mode === 'MANUAL' && !plan.submitted ? '<button id="open-stockpile-action" class="button">Plan Stockpile · optional</button>' : ''}</div>`;
+  return `<div class="choice-grid">${onlinePayload?.viewer.can_undo ? `<button id="online-undo" class="button quiet">Undo latest action</button>` : ""}<button id="pass-phase" class="button ${passReady ? 'primary pass-ready' : 'quiet'} full">Finish ${title(state.phase)}${onlinePayload ? " and publish" : ""}</button>${plan?.mode === 'MANUAL' && !plan.submitted ? '<button id="open-stockpile-action" class="button">Plan Stockpile · optional</button>' : ''}</div>`;
 }
 
 function renderPlayerSummary() {

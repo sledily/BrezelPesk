@@ -5,7 +5,7 @@ import { combatFromEvent, combatHTML, COMBAT_BEATS, COMBAT_DURATION, KING_COMBAT
 
 const PHASE_LESSONS = Object.freeze({
   HARVEST: 'Each Unit draws Resources. Keep one card; a matching Vassal or a Center square adds one Counter.',
-  POKER: 'Your Harvest is complete. Declare exact, non-overlapping groups now, or Pass. Declared cards must be spent or returned this Year.',
+  POKER: 'Your Harvest is complete. Declare exact, non-overlapping groups now, or finish Poker. Declared cards must be spent or returned this Year.',
   BUILD: 'Spend Clubs to place a Pawn beside a suitable friendly General.',
   UPGRADE: 'Spend Clubs to raise a Holding’s Level. Your physical reserve limits the available pieces.',
   RANSOM: 'Diamonds can release a Hostage. The price depends on the Noble’s rank and the current Diamond constant.',

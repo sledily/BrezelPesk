@@ -52,7 +52,7 @@ test("each Harvest piece needs its own draw command, even if an old client asks 
 
 test("declining the Harvest failsafe does not draw for any piece", () => {
   let state = modern();
-  state.units_by_id["U-W-001"].square = "a8";
+  state.units_by_id["U-W-001"].square = "a2";
   state.harvest.failsafe_pending = true;
   state = must(state, { type: "RESOLVE_HARVEST_FAILSAFE", player: PLAYER.WHITE, use: false, auto_harvest: true });
   assert.equal(state.players.WHITE.resource_hand_ids.length, 0);

@@ -571,7 +571,7 @@ select, input[type="text"], .game-dialog input {
 }
 /* V2 Tabletop: fixed board orientation, corner hands and outward-facing side arms. */
 body { background: radial-gradient(ellipse at top, #f5eedf, #d9ccb2); }
-.topbar { padding: 14px max(18px, calc((100vw - 1380px) / 2)); background: #eee4ce; grid-template-columns: auto 1fr auto; gap: 20px; border-bottom: 3px double var(--line); }
+.topbar { position: static; padding: 14px max(18px, calc((100vw - 1380px) / 2)); background: #eee4ce; grid-template-columns: auto 1fr auto; gap: 20px; border-bottom: 3px double var(--line); }
 .brand-lockup { grid-column: 1; }
 .brand-lockup h1 { font-size: 29px; }
 .brand-lockup .eyebrow { font-size: 10px; letter-spacing: .12em; }
@@ -611,8 +611,8 @@ button:disabled { opacity: .6; }
 .phase-key summary { cursor: pointer; }
 .phase-key ol { position: absolute; z-index: 40; background: var(--surface); padding: 15px 24px; border: 1px solid var(--line); line-height: 1.8; box-shadow: var(--shadow); }
 .phase-key li[aria-current] { color: #843c30; font-weight: bold; }
-.current-action { position: sticky; top: 0; z-index: 35; background: #f8efdb; border-bottom: 1px solid #a9946a; box-shadow: 0 4px 14px #3e291114; }
-.action-rubric { display: flex; align-items: center; gap: 16px; max-width: 1380px; margin: auto; padding: 9px 18px; }
+.current-action { position: sticky; top: 0; z-index: 35; max-height: 50vh; max-height: 50dvh; overflow-y: auto; overscroll-behavior-y: contain; scroll-padding-block: 3rem 10px; background: #f8efdb; border-bottom: 1px solid #a9946a; box-shadow: 0 4px 14px #3e291114; }
+.action-rubric { position: sticky; top: 0; z-index: 1; background: inherit; display: flex; align-items: center; gap: 16px; max-width: 1380px; margin: auto; padding: 9px 18px; }
 .action-rubric > .eyebrow { color: #874434; font: small-caps 16px Georgia, serif; white-space: nowrap; }
 .action-rubric > strong { flex: 1; font-size: 14px; line-height: 1.4; font-weight: 500; }
 .action-panel { max-width: 1240px; margin: 0 auto; border-radius: 0; border: 0; box-shadow: none; padding: 12px 18px; }

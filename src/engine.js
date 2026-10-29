@@ -34,7 +34,7 @@ import {
   deriveConstants,
   drawCountOf,
   effectiveCardValue,
-  hasBlackSquareUnit,
+  canUseHarvestFailsafe,
   hasUpgradeSupport,
   isCenter,
   isCorner,
@@ -272,7 +272,7 @@ function initializeHarvestActor(state, player) {
   state.harvest.offer_ids = [];
   state.harvest.unit_id = null;
   state.harvest.deck = null;
-  state.harvest.failsafe_pending = state.rules.harvest_failsafe_enabled && !hasBlackSquareUnit(state, player);
+  state.harvest.failsafe_pending = canUseHarvestFailsafe(state, player);
 }
 
 function startHarvest(state) {
@@ -1539,6 +1539,11 @@ export function dispatch(state, command) {
   const beforeSequence = state.event_sequence;
   const working = deepClone(state);
   try {
+    // Older saves can still contain an offer for a Unit on a white corner.
+    // Clear only that unavailable decision; keep the normal Harvest untouched.
+    if (working.harvest?.failsafe_pending && !canUseHarvestFailsafe(working, working.current_actor)) {
+      working.harvest.failsafe_pending = false;
+    }
     requireCondition(command && typeof command.type === "string", "INVALID_COMMAND", "Command type is required");
     requireCondition(!(working.status === "COMPLETE" && !["NEW_MATCH", "APPLY_V15_USABILITY"].includes(command.type)), "MATCH_COMPLETE", "No commands are accepted after victory");
     if (working.pending_resignation && !['RESIGNATION_VOTE','EXPIRE_RESIGNATION'].includes(command.type)) fail('NEGOTIATION_PENDING','Play is paused for the resignation ballot');
@@ -1639,7 +1644,7 @@ export function legalCommandSummary(state, player = state.current_actor) {
       ...availablePokerHands(state, player).map((hand) => ({ type: "DECLARE_POKER", player, card_ids: hand.card_ids })),
       { type: "FINISH_POKER", player },
     ];
-    if (state.harvest.failsafe_pending) {
+    if (state.harvest.failsafe_pending && canUseHarvestFailsafe(state, player)) {
       return [
         { type: "RESOLVE_HARVEST_FAILSAFE", player, use: true },
         { type: "RESOLVE_HARVEST_FAILSAFE", player, use: false },

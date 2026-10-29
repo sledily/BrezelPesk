@@ -349,14 +349,27 @@ test('reduced-motion combat displays the final comparison immediately and reconn
   assert.equal(ui.combatPresenter.busy,false);assert.match(elements.get('combat-presentation').className,/resolved/);
 });
 
-test('the final affordable ordinary action makes Pass prominent while keeping Undo',async()=>{
+test('the final affordable ordinary action makes Finish prominent while keeping Undo',async()=>{
   const {ui,elements}=loadUI();ui.hideHandoff();
   const s=forcePhase(setUpMatch('last-build',V2_RULES),PHASE.BUILD);
   s.players.WHITE.seasonal_pools.CLOVERS=2;s.automatic_notices=[];ui.setState(s);
   assert.equal(await ui.run({type:'BUILD_UNIT',player:'WHITE',square:'b1'}),true);
   assert.match(elements.get('action-controls').innerHTML,/id="pass-phase" class="button primary pass-ready full"/);
+  assert.match(elements.get('action-controls').innerHTML,/>Finish Build<\/button>/);
   assert.equal(elements.get('undo-action').disabled,false);
   assert.equal(ui.getState().current_actor,'WHITE');
+});
+
+test('an older pending special Harvest offer on a corner shows normal deck choices', () => {
+  const {ui, elements} = loadUI();
+  const state = setUpMatch('old-corner-harvest-ui', V2_RULES);
+  state.units_by_id['U-W-001'].square = 'h1';
+  state.harvest.failsafe_pending = true;
+  ui.setState(state);
+  assert.doesNotMatch(elements.get('action-controls').innerHTML, /use-failsafe|Forgo normal Harvest/);
+  assert.equal(elements.get('harvest-table').hidden, false);
+  assert.match(elements.get('harvest-table').innerHTML, /data-deck="BLACK"/);
+  assert.match(elements.get('harvest-table').innerHTML, /data-deck="RED"/);
 });
 
 

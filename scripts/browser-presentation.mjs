@@ -120,8 +120,43 @@ try {
   await phone.getByRole('button',{name:'Skip to current board',exact:true}).click();
   assert.ok(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'landscape table has no horizontal overflow');
   await phone.screenshot({path:join(artifacts,'phone-landscape-table.png'),fullPage:true});
+
+  // The complete action area must remain usable beside the table after scrolling,
+  // including when the available height is a phone's landscape viewport.
+  const actionPayload=structuredClone(payload);
+  actionPayload.game.current_actor='WHITE';
+  actionPayload.game.players.WHITE.seasonal_pools.SPADES=99;
+  actionPayload.room.code='XYZ345';
+  actionPayload.room.summary={year:1,phase:PHASE.MOBILIZE,actor:'WHITE'};
+  actionPayload.viewer.is_your_turn=true;
+  const portrait=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
+  const portraitPage=await portrait.newPage();portraitPage.on('pageerror',e=>errors.push(e.message));
+  for(const [target,name] of [[page,'desktop'],[phone,'phone-landscape'],[portraitPage,'phone-portrait']]) {
+    activePage=target;
+    await target.route('**/Dendarv_Play.html*',route=>route.fulfill({contentType:'text/html',body:testBundle}));
+    await target.route('**/api/rooms/XYZ345',route=>route.fulfill({json:actionPayload}));
+    await target.goto(`${origin}/Dendarv_Play.html?room=XYZ345`);
+    await target.locator('#recap-dialog').waitFor({state:'visible'});
+    await target.getByRole('button',{name:'Skip to current board',exact:true}).click();
+    assert.equal(await target.locator('.current-action #action-controls').count(),1);
+    const start=await target.locator('.current-action').evaluate(el=>el.getBoundingClientRect().top+scrollY);
+    await target.evaluate(top=>scrollTo(0,top+400),start);
+    const card=target.locator('[data-resource-id]:enabled').first();
+    await card.click();
+    assert.equal(await target.locator('[data-resource-id]:checked').count(),1,'a table card remains selectable while actions are pinned');
+    const finish=target.getByRole('button',{name:'Finish Mobilize and publish',exact:true});
+    await finish.scrollIntoViewIfNeeded();
+    const bounds=await target.locator('.current-action').evaluate(el=>{const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:innerHeight,scrollY};});
+    assert.ok(bounds.scrollY>start+10,`${name}: the document actually scrolled`);
+    assert.ok(Math.abs(bounds.top)<1,`${name}: the full action area stays at the top`);
+    assert.ok(bounds.bottom<=bounds.height/2+1,`${name}: at least half the viewport remains available for the table`);
+    const button=await finish.boundingBox();
+    assert.ok(button&&button.y>=0&&button.y+button.height<=bounds.bottom,`${name}: Finish remains reachable inside the pinned panel`);
+    assert.ok(await target.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${name}: no horizontal overflow`);
+    await target.screenshot({path:join(artifacts,`${name}-pinned-actions.png`)});
+  }
   assert.deepEqual(errors,[]);
-  await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['modular and offline-bundle startup','native local setup and Court reveal handover','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds'],battleEvent:battle.event_id},null,2));
+  await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['modular and offline-bundle startup','native local setup and Court reveal handover','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds','pinned action controls and table-card selection on desktop and portrait/landscape phones'],battleEvent:battle.event_id},null,2));
   console.log('Browser presentation checks passed; screenshots in browser-artifacts.');
 } catch(error) {
   if(activePage){

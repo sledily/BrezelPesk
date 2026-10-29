@@ -382,6 +382,11 @@ export function hasBlackSquareUnit(state, player) {
   return liveUnits(state, player).some((unit) => isBlackSquare(unit.square));
 }
 
+export function canUseHarvestFailsafe(state, player) {
+  return state.rules.harvest_failsafe_enabled
+    && !liveUnits(state, player).some((unit) => isBlackSquare(unit.square) || isCorner(unit.square));
+}
+
 export function validateInvariants(state) {
   const errors = [];
   const players = state.player_order ?? Object.keys(state.players);
