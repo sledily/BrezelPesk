@@ -703,11 +703,7 @@ button:disabled { opacity: .6; }
 .harvest-progress .piece-art { width: 27px; height: 31px; }
 .harvest-progress li.current { border: 2px solid #90652c; background: #f6e6b8; }
 .harvest-progress li.done { opacity: .6; }
-.harvest-table { position: absolute; z-index: 5; width: min(330px, calc(100% - 18px)); padding: 12px; border: 2px solid #967849; border-radius: 5px; background: #f5ecd8; box-shadow: 0 8px 20px #241b1352; color: #312c22; }
-.harvest-table.from-left { left: 8px; }
-.harvest-table.from-right { right: 8px; }
-.harvest-table.below-unit { top: calc(8px + var(--harvest-row) * (100% - 22px) / 8); }
-.harvest-table.above-unit { bottom: calc(8px + var(--harvest-row) * (100% - 22px) / 8); }
+.harvest-table { width: min(640px, calc(100% - 24px)); margin: 0 auto 12px; padding: 12px; border: 2px solid #967849; border-radius: 5px; background: #f5ecd8; box-shadow: 0 3px 8px #241b1320; color: #312c22; }
 .harvest-tray-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px; font-size: 12px; margin-bottom: 10px; }
 .harvest-tray-heading strong { font: 700 17px Georgia, serif; }
 .harvest-cards { display: flex; gap: 9px; }

@@ -968,7 +968,7 @@ function renderHarvestActions() {
     decision = `<div><h3>Forgo normal Harvest?</h3><p>You have no Units on black or corner squares. You may replace your entire Harvest with one available Black Resource Card.</p><div class="choice-grid"><button id="use-failsafe" class="button primary" ${deckSize(state, DECK.BLACK) ? '' : 'disabled'}>Take one Black card · ♧ ♤</button><button id="decline-failsafe" class="button quiet">Harvest normally</button></div></div>`;
   }
   const shortage = [...state.event_log].reverse().find(event => event.type === 'HarvestSupplyShortage' && event.year === state.year_number && event.payload.player === state.current_actor);
-  dom.actionControls.innerHTML = `<div class="phase-heading"><p class="eyebrow">${playerName(state.current_actor)} · Harvest</p><h2>${ids.length - h.remaining_unit_ids.length} of ${ids.length} Units harvested</h2><p>Select a card near the highlighted Unit; double-click or double-tap that same card to keep it. The Keep button also commits. A one-card offer is kept automatically.</p></div>${queue}${decision}${shortage ? `<p class="supply-notice" role="status">${escapeHtml(shortage.payload.message ?? 'The Resource supply could not fill an offer.')}</p>` : ''}<details class="harvest-order-guide"><summary>Harvest order and bonuses</summary><p>Holdings before Levies, then Level 1 → 2 → 3. ${HARVEST_COORDINATE_GUIDE[activePlayer()]} Pawns and Knights draw 1; Rooks and Bishops 2; Queens and Kings 3. Keep one actual card. A center square or matching Vassal adds one Counter; these bonuses do not stack.</p></details>`;
+  dom.actionControls.innerHTML = `<div class="phase-heading"><p class="eyebrow">${playerName(state.current_actor)} · Harvest</p><h2>${ids.length - h.remaining_unit_ids.length} of ${ids.length} Units harvested</h2><p>Choose your deck and card here in Current Action. Select a card, then Keep it, or double-click or double-tap that same card to keep it. A one-card offer is kept automatically.</p></div>${queue}${decision}${shortage ? `<p class="supply-notice" role="status">${escapeHtml(shortage.payload.message ?? 'The Resource supply could not fill an offer.')}</p>` : ''}<details class="harvest-order-guide"><summary>Harvest order and bonuses</summary><p>Holdings before Levies, then Level 1 → 2 → 3. ${HARVEST_COORDINATE_GUIDE[activePlayer()]} Pawns and Knights draw 1; Rooks and Bishops 2; Queens and Kings 3. Keep one actual card. A center square or matching Vassal adds one Counter; these bonuses do not stack.</p></details>`;
 }
 
 function physicalResourceLabel(card) {
@@ -994,10 +994,6 @@ function renderHarvestTable() {
   if (!visible) { dom.harvestTable.innerHTML = ''; harvestChoice = null; lastHarvestTap = null; return; }
   if (!h.offer_ids.includes(harvestChoice)) harvestChoice = null;
   const actionable = onlinePlayerCanAct() && privateViewer() === state.current_actor;
-  const row = 8 - Number(unit.square[1]);
-  const file = unit.square.charCodeAt(0) - 97;
-  dom.harvestTable.className = `harvest-table ${file < 4 ? 'from-left' : 'from-right'} ${row < 4 ? 'below-unit' : 'above-unit'}`;
-  dom.harvestTable.style?.setProperty('--harvest-row', row < 4 ? row + 1 : 8 - row);
   const decks = isCorner(unit.square) ? [DECK.BLACK, DECK.RED] : [deckForSquare(unit.square)];
   dom.harvestTable.innerHTML = `<div class="harvest-tray-heading"><strong>${title(unit.unit_type)} · ${unit.square}</strong><span>Draw ${drawCountOf(unit)} · keep 1</span></div>${h.offer_ids.length ? `<div class="harvest-cards">${h.offer_ids.map(id => {
     const card = state.resources_by_id[id];

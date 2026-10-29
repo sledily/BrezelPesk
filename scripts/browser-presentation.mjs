@@ -155,8 +155,46 @@ try {
     assert.ok(await target.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${name}: no horizontal overflow`);
     await target.screenshot({path:join(artifacts,`${name}-pinned-actions.png`)});
   }
+  // Exercise the real local Harvest flow with every choice inside Current Action.
+  for(const [target,name,deck] of [[page,'desktop','BLACK'],[phone,'phone-landscape','RED'],[portraitPage,'phone-portrait','BLACK']]) {
+    activePage=target;
+    await target.goto(origin);
+    if(await target.locator('#handoff').isVisible())await target.getByRole('button',{name:'Ready',exact:true}).click();
+    await target.getByRole('button',{name:'New',exact:true}).click();
+    await target.locator('#new-game-form').getByLabel('Players',{exact:true}).selectOption('2');
+    await target.locator('#new-game-form button[value="start"]').click();
+    await target.getByRole('button',{name:'Ready',exact:true}).click();
+    for(const noble of ['NC-K-C','NC-K-S']) {
+      await target.locator(`.sovereign-choice[data-noble-id="${noble}"]`).click();
+      await target.getByRole('button',{name:'Return to table',exact:true}).click();
+      if(await target.locator('#handoff').isVisible())await target.getByRole('button',{name:'Ready',exact:true}).click();
+    }
+    const choices=target.locator('.current-action #harvest-table');
+    assert.equal(await choices.locator('.harvest-draw').count(),2,'a corner offers both decks in Current Action');
+    assert.equal(await target.locator('.board-frame #harvest-table').count(),0,'the board is clear of Harvest choices');
+    const start=await target.locator('.current-action').evaluate(el=>el.getBoundingClientRect().top+scrollY);
+    await target.evaluate(top=>scrollTo(0,top+200),start);
+    await choices.locator(`[data-deck="${deck}"]`).click();
+    assert.equal(await choices.locator('[data-harvest-card]').count(),3);
+    const offer=await choices.locator('[data-harvest-card]').evaluateAll(cards=>cards.map(card=>card.dataset.harvestCard));
+    await choices.locator('[data-harvest-card]').first().click();
+    assert.equal(await choices.locator('#keep-harvest-selection').isEnabled(),true);
+    await choices.locator('#cancel-harvest-selection').click();
+    assert.deepEqual(await choices.locator('[data-harvest-card]').evaluateAll(cards=>cards.map(card=>card.dataset.harvestCard)),offer,'Cancel preserves the drawn offer');
+    assert.equal(await choices.locator('#keep-harvest-selection').isEnabled(),false);
+    await choices.locator('[data-harvest-card]').nth(1).click();
+    const selected=await choices.locator('[data-harvest-card][aria-pressed="true"]').getAttribute('data-harvest-card');
+    assert.equal(selected,offer[1]);
+    assert.ok(Math.abs(await target.locator('.current-action').evaluate(el=>el.getBoundingClientRect().top))<1,`${name}: Harvest choices remain pinned`);
+    assert.ok(await target.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${name}: Harvest choices fit the viewport`);
+    await target.screenshot({path:join(artifacts,`${name}-harvest-panel.png`)});
+    await choices.locator('#keep-harvest-selection').click();
+    assert.equal(await choices.isVisible(),false);
+    assert.equal(await target.locator(`[data-resource-id="${selected}"]`).count(),1,'Keep retains the selected physical card');
+    assert.equal(await target.getByRole('button',{name:'Finish Poker',exact:true}).isVisible(),true);
+  }
   assert.deepEqual(errors,[]);
-  await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['modular and offline-bundle startup','native local setup and Court reveal handover','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds','pinned action controls and table-card selection on desktop and portrait/landscape phones'],battleEvent:battle.event_id},null,2));
+  await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['modular and offline-bundle startup','native local setup and Court reveal handover','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds','pinned action controls and table-card selection on desktop and portrait/landscape phones','Harvest deck choice, card selection, Cancel and Keep in the pinned panel on desktop and portrait/landscape phones'],battleEvent:battle.event_id},null,2));
   console.log('Browser presentation checks passed; screenshots in browser-artifacts.');
 } catch(error) {
   if(activePage){
