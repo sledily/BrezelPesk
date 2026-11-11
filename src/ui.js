@@ -1558,7 +1558,7 @@ function renderOnlineChrome() {
     ? `You are <strong>${viewer.seat ? playerName(viewer.seat) : "a participant"}</strong> · ${escapeHtml(onlineRoomName(viewer.seat))}`
     : "<strong>Spectator view</strong>";
   dom.onlineStripText.innerHTML = `<strong>${escapeHtml(room.name ?? 'BrezelPesk')}</strong> · Room <strong>${room.code}</strong> · ${identity} · ${room.spectator_count} spectator${room.spectator_count === 1 ? "" : "s"}${onlineClient.token && viewer.role !== 'PLAYER' ? ' · This browser no longer controls the seat. Use Recover seat to take control again.' : ''}`;
-  if(room.last_published_undo?.revision === room.revision) {
+  if(room.last_published_undo && room.last_published_undo.revision === room.revision) {
     dom.onlineStripText.innerHTML += ` · ${escapeHtml(onlineRoomName(room.last_published_undo.actor))} took back a published step; this is the restored position.`;
   }
   for (const id of ['rename-online-game', 'lobby-rename-game']) document.querySelector(`#${id}`).hidden = !viewer.is_host || !['LOBBY', 'ACTIVE'].includes(room.status);
