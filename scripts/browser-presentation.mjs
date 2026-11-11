@@ -9,6 +9,8 @@ import {recordEvent} from '../src/model.js';
 import {projectForPlayer} from '../src/projection.js';
 import {V2_RULES,PHASE,SUIT} from '../src/constants.js';
 import {pieceIcon} from '../src/presentation.js';
+import {publishedUndoFixture} from '../test-support/published-undo.js';
+import {cloneForStorage} from '../src/rooms.js';
 import {forcePhase,giveResource} from '../tests/helpers.js';
 
 const require=createRequire(import.meta.url);
@@ -236,8 +238,58 @@ try {
     for(const rejected of offer.filter(id=>id!==selected))assert.equal(await target.locator(`[data-resource-id="${rejected}"]`).count(),0,'rejected cards do not enter the hand');
     assert.equal(await choices.locator('[data-harvest-card]').count(),0,'the completed offer closes, including when an empty Poker window is skipped');
   }
+  // Exercise a legacy saved online room through the real HTTP service and UI.
+  for (const [name, viewport, code] of [
+    ['desktop', {width:1440,height:1050}, 'UND234'],
+    ['portrait', {width:390,height:844}, 'UND235'],
+    ['landscape', {width:812,height:375}, 'UND236'],
+  ]) {
+    const fixture=publishedUndoFixture(2,{code});
+    await writeFile(join(temporary,`${code}.json`),JSON.stringify({
+      room:cloneForStorage(fixture.core.get(code)),receipts:{},audit:[],archive:null,
+    }));
+    const context=await browser.newContext({viewport,reducedMotion:'reduce',...(name==='desktop'?{}:{isMobile:true,hasTouch:true})});
+    await context.addInitScript(({origin,code,token})=>{
+      if(location.origin===origin)localStorage.setItem(`dendarv.online.room.${code}`,token);
+    },{origin,code,token:fixture.host.token});
+    const target=await context.newPage();activePage=target;target.on('pageerror',e=>errors.push(e.message));
+    const confirmations=[];target.on('dialog',async dialog=>{confirmations.push(dialog.message());await dialog.accept();});
+    await target.goto(`${origin}/?room=${code}`);
+    await target.locator('#online-strip').waitFor({state:'visible'});
+    if(await target.locator('#recap-dialog').isVisible())await target.getByRole('button',{name:'Skip to current board',exact:true}).click();
+    await target.locator('.current-action #online-undo').click();
+    await target.locator('#pass-phase').waitFor({state:'visible'});
+    let saved=JSON.parse(await readFile(join(temporary,`${code}.json`),'utf8'));
+    assert.deepEqual(saved.room.committed_state,fixture.beforePass,'Undo publication restores the exact pre-Finish save');
+    assert.equal(saved.room.last_published_undo.actor,'WHITE');
+    assert.equal(await target.locator('#recap-dialog').isVisible(),false,'deleted history does not keep animating');
+    await target.locator('#undo-action').click();
+    await target.locator('#board [data-square="a1"] .piece').waitFor({state:'visible'});
+    saved=JSON.parse(await readFile(join(temporary,`${code}.json`),'utf8'));
+    assert.deepEqual(saved.room.committed_state,fixture.beforeMove,'the next Undo takes back the published move');
+    assert.equal(saved.audit.filter(entry=>entry.action==='UNDO_PUBLICATION').length,2);
+    assert.equal(confirmations.length,2);
+    assert.ok(confirmations.every(message=>message.includes('Everyone will see the restored position')));
+    await target.screenshot({path:join(artifacts,`${name}-published-undo.png`),fullPage:true});
+    await target.locator('#pass-phase').click();
+    await target.locator('#action-controls h2').filter({hasText:'Waiting'}).waitFor({state:'visible'});
+    const published=JSON.parse(await readFile(join(temporary,`${code}.json`),'utf8'));
+    assert.equal(published.room.committed_state.units_by_id['U-W-001'].square,'a1');
+    assert.equal(published.room.draft_state,null);
+    const actor=published.room.committed_state.current_actor;
+    const cards=published.room.committed_state.players[actor].resource_hand_ids
+      .filter(id=>published.room.committed_state.resources_by_id[id].suit==='SPADES');
+    const accepted=await fetch(`${origin}/api/rooms/${code}/command`,{method:'POST',headers:{
+      'Content-Type':'application/json','Authorization':`Bearer ${fixture.players[actor].token}`,
+      'Idempotency-Key':`browser-published-undo-${code}-opponent`,
+    },body:JSON.stringify({expectedRevision:published.room.revision,command:{type:'TAP_RESOURCES',card_ids:cards}})});
+    assert.equal(accepted.ok,true);
+    await target.waitForFunction(()=>document.querySelector('#undo-action').disabled);
+    assert.equal(await target.locator('.current-action #online-undo').count(),0,'polling removes takeback when another player starts a private action');
+    await context.close();
+  }
   assert.deepEqual(errors,[]);
-  await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['modular and offline-bundle startup','native local setup and Court reveal handover','red/black SVG suits and smaller Noble subscripts','safe text decoration and native option labels','upper-right Levy badges and read-only inspection at all three viewport sizes','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds','pinned action controls and table-card selection on desktop and portrait/landscape phones','Harvest deck choice, card selection, Cancel and Keep in the pinned panel on desktop and portrait/landscape phones'],battleEvent:battle.event_id},null,2));
+  await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['published Undo in legacy saved online rooms, exact positions, confirmation, republishing and opponent-draft polling at three viewport sizes','modular and offline-bundle startup','native local setup and Court reveal handover','red/black SVG suits and smaller Noble subscripts','safe text decoration and native option labels','upper-right Levy badges and read-only inspection at all three viewport sizes','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds','pinned action controls and table-card selection on desktop and portrait/landscape phones','Harvest deck choice, card selection, Cancel and Keep in the pinned panel on desktop and portrait/landscape phones'],battleEvent:battle.event_id},null,2));
   console.log('Browser presentation checks passed; screenshots in browser-artifacts.');
 } catch(error) {
   if(activePage){

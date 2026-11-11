@@ -153,7 +153,7 @@ export class OnlineClient {
   async recover(recoveryCode){return this.mutate('recover',{recoveryCode:String(recoveryCode).trim(),token:randomId()});}
   start(){return this.mutate('start');}
   command(command){return this.mutate('command',{command});}
-  undo(){return this.mutate('undo');}
+  undo({published=false}={}){return this.mutate('undo',published?{published:true}:{});}
   pass(){return this.mutate('pass');}
   abandon(){return this.mutate('abandon',{confirmed:true});}
   rename(name){return this.mutate('rename',{name});}

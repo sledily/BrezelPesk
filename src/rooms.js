@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomInt } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { FOUR_PLAYER_COUNTERCLOCKWISE, PLAYER, TWO_PLAYER_ORDER, V2_RULES } from "./constants.js";
 import { dispatch, newMatch, resignationBlock, preserveStockpileInstructions, reversibleAction, turnBoundaryCrossed, upgradeToV15 } from "./engine.js";
 import { deepClone } from "./model.js";
@@ -121,6 +122,64 @@ function restoreUndoSnapshot(snapshot, current) {
     state[key] = deepClone(current[key].slice(0, length));
   }
   return state;
+}
+
+// Publication used to discard the private Undo stack. Older saves still have
+// the complete deterministic command log, so verify it before restoring a step.
+const PUBLISHED_UNDO_TYPES = new Set([
+  "PASS_PHASE", "ACKNOWLEDGE_PHASE_NOTICE", "FINISH_POKER",
+  "TAP_RESOURCES", "BUILD_UNIT", "UPGRADE_UNIT", "MOBILIZE_UNIT",
+  "VASSALIZE_NOBLE", "DECLARE_POKER",
+]);
+const publishedUndoCache = new Map();
+
+function verifiedPublishedUndo(room, seat) {
+  const current = room.committed_state;
+  const command = current?.command_log?.at(-1);
+  if (!seat || room.status !== "ACTIVE" || current?.status !== "ACTIVE"
+    || current.pending_combat || current.pending_conquest || current.pending_resignation
+    || !command || command.player !== seat || !PUBLISHED_UNDO_TYPES.has(command.type)) return null;
+  // Never overwrite another participant's accepted private work. An empty draft
+  // left by this player's ordinary Undo can still return to the published step.
+  if (room.draft_state && (room.draft_owner !== seat || !isDeepStrictEqual(room.draft_state, current))) return null;
+  const key = createHash("sha256").update(JSON.stringify(current)).digest("hex");
+  if (publishedUndoCache.has(key)) return publishedUndoCache.get(key);
+  let entry;
+  try {
+    const creation = current.event_log?.find(event => event.type === "MatchCreated");
+    if (!creation?.payload.rules || creation.payload.seed !== current.seed) throw new Error("Missing original match");
+    let replay = newMatch({
+      seed: current.seed, rules: creation.payload.rules, matchId: current.match_id,
+      playerCount: creation.payload.player_count ?? current.player_order?.length,
+    });
+    let restored, finalEvents;
+    for (let index = 0; index < current.command_log.length; index += 1) {
+      if (index === current.command_log.length - 1) restored = replay;
+      const result = dispatch(replay, current.command_log[index]);
+      if (!result.ok) throw new Error("Command history cannot be reproduced");
+      replay = result.state;
+      finalEvents = result.events;
+    }
+    if (!restored || !isDeepStrictEqual(replay, current) || validateInvariants(restored).length) {
+      throw new Error("Saved position does not match its history");
+    }
+    const revealed = finalEvents.some(event => [
+      "HarvestCardsDrawn", "HarvestCardKept", "NobleRecruited",
+      "CombatResolved", "ResourceStockpileCommitted",
+    ].includes(event.type));
+    // Finishing a season may shuffle returned cards without revealing any.
+    // Reopening it is safe: finishing unchanged reproduces the same saved shuffle.
+    const finishing = ["PASS_PHASE", "ACKNOWLEDGE_PHASE_NOTICE", "FINISH_POKER"].includes(command.type);
+    entry = revealed || (!finishing && !isDeepStrictEqual(restored.rng_state, current.rng_state))
+      ? { error: "UNDO_REVEALED_OUTCOME", message: "A revealed draw, battle or completed Stockpile cannot be undone." }
+      : { state: restored, command: command.type };
+  } catch {
+    entry = { error: "PUBLISHED_UNDO_UNVERIFIED", message: "The saved history could not be verified. Nothing was changed." };
+  }
+  // Polling can reuse a verified checkpoint without growing the stored game.
+  if (publishedUndoCache.size >= 8) publishedUndoCache.delete(publishedUndoCache.keys().next().value);
+  publishedUndoCache.set(key, entry);
+  return entry;
 }
 
 export class RoomStore {
@@ -344,6 +403,8 @@ export class RoomStore {
     const game = canonical ? browserProjection(canonical, canonical.players[seat]?.eliminated || canonical.pending_resignation?.player === seat ? null : seat, Boolean(seat) && ["COMPLETE", "ABANDONED"].includes(room.status)) : null;
     const publicActor = room.committed_state?.current_actor ?? null;
     const draftAdvanced = Boolean(seat && room.draft_owner === seat && room.draft_turn_complete);
+    const draftUndo = Boolean(room.status === "ACTIVE" && seat && room.draft_owner === seat && room.draft_history.length);
+    const publishedUndo = draftUndo ? null : verifiedPublishedUndo(room, seat);
     return {
       room: {
         code: room.code,
@@ -360,6 +421,7 @@ export class RoomStore {
         seats: hiddenSeats ? {} : publicSeats(room, now.getTime()),
         spectator_count: recentSpectators?.size ?? 0,
         revision: room.revision,
+        last_published_undo: room.last_published_undo ?? null,
       },
       viewer: {
         role: seat ? "PLAYER" : "SPECTATOR",
@@ -371,7 +433,9 @@ export class RoomStore {
         can_start: isHost && room.seating_mode !== 'RANDOM' && room.status === "LOBBY" && room.seat_order.every((player) => room.seats[player]),
         is_your_turn: Boolean(seat && room.status === "ACTIVE" && !room.committed_state?.pending_resignation && (room.draft_state?.current_actor ?? publicActor) === seat),
         waiting_for_pass: draftAdvanced,
-        can_undo: Boolean(room.status === "ACTIVE" && seat && room.draft_owner === seat && room.draft_history.length),
+        can_undo: draftUndo || Boolean(publishedUndo?.state),
+        undo_scope: draftUndo ? "DRAFT" : publishedUndo?.state ? "PUBLISHED" : null,
+        undo_unavailable_reason: publishedUndo?.message ?? null,
         private_revision: seat && room.draft_state && (room.draft_owner === seat || room.draft_state.current_actor === seat) ? room.draft_revision : room.revision,
       },
       terminal_record: seat && ['COMPLETE','ABANDONED'].includes(room.status) ? {
@@ -446,10 +510,21 @@ export class RoomStore {
     return this.view(room.code, token);
   }
 
-  undo(code, token) {
+  undo(code, token, { published = false } = {}) {
     const room = this.get(code);
     if (room.status !== "ACTIVE") roomFail("MATCH_NOT_ACTIVE", "The online match is not active", 409);
     const seat = identifySeat(room, token);
+    if (published === true) {
+      const rollback = verifiedPublishedUndo(room, seat);
+      if (!rollback?.state) roomFail(rollback?.error ?? "NOTHING_TO_UNDO",
+        rollback?.message ?? "Only your latest published step can be taken back, before another action is accepted.", 409);
+      room.last_published_undo = {
+        actor: seat, command: rollback.command, year: rollback.state.year_number, phase: rollback.state.phase,
+        revision: Math.max(room.revision, room.draft_revision) + 1, at: this.now().toISOString(),
+      };
+      this.commit(room, deepClone(rollback.state));
+      return this.view(room.code, token);
+    }
     if (!seat || room.draft_owner !== seat) roomFail("NOTHING_TO_UNDO", "There is no unpublished action to undo", 409);
     const snapshot = room.draft_history.pop();
     if (!snapshot) roomFail("NOTHING_TO_UNDO", "There is no unpublished action to undo", 409);

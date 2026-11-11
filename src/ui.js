@@ -375,16 +375,31 @@ async function run(command, { keepSelection = false } = {}) {
 function applyOnlinePayload(payload, { resetSelection = false, force = false, retainedInteraction = null, reconnect = false } = {}) {
   const oldContext=onlinePayload?`${onlinePayload.room.code}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`:null;
   const newContext=`${payload.room.code}:${payload.viewer.role}:${payload.viewer.seat}`;
-  if(oldContext!==newContext)clearPresentation();
+    const publicationRewound = oldContext === newContext
+    && (payload.room.last_published_undo?.revision ?? 0) > (onlinePayload?.room.last_published_undo?.revision ?? 0);
+  if(oldContext!==newContext || publicationRewound)clearPresentation();
+  if(publicationRewound) {
+    resetSelection = true; boardCandidate = null; harvestChoice = null; lastHarvestTap = null;
+    vassalSelection = { nobleId: null, unitId: null };
+    stockpileEditor = { key: null, open: false, dirty: false, instructions: null, cards: [] };
+  }
   if((reconnect||oldContext!==newContext)&&payload.viewer.role==='PLAYER'&&payload.game)pendingReconnectRecap=true;
   const previousSignature = onlinePayload
     ? `${onlinePayload.room.status}:${onlinePayload.room.revision}:${onlinePayload.viewer.private_revision}:${onlinePayload.viewer.role}:${onlinePayload.viewer.seat}`
     : null;
   const nextSignature = `${payload.room.status}:${payload.room.revision}:${payload.viewer.private_revision}:${payload.viewer.role}:${payload.viewer.seat}`;
   if (previousSignature !== nextSignature) closeInspection();
+  const undoChanged = onlinePayload?.viewer.can_undo !== payload.viewer.can_undo
+    || onlinePayload?.viewer.undo_scope !== payload.viewer.undo_scope;
   onlinePayload = payload;
-  if (payload.game && (force || reconnect || previousSignature !== nextSignature)) {
+  if (payload.game && (force || reconnect || previousSignature !== nextSignature || undoChanged)) {
     state = payload.game;
+    if (publicationRewound) {
+      dismissedOnlineNotice = null;
+      const key = noticeStorageKey(), through = state.event_sequence ?? 0;
+      acknowledgedNotices.set(key, through);
+      try { localStorage.setItem(key, String(through)); } catch { /* The restored game remains usable. */ }
+    }
     if (resetSelection) {
       selectedResourceIds = new Set();
       interaction = retainedInteraction && state.current_actor === payload.viewer.seat && !payload.viewer.waiting_for_pass
@@ -397,6 +412,7 @@ function applyOnlinePayload(payload, { resetSelection = false, force = false, re
     maybeShowPhaseNotice();
   }
   renderOnlineChrome();
+  if(publicationRewound) showToast(`${onlineRoomName(payload.room.last_published_undo.actor)} took back a publication. The table now shows the restored position.`, true);
 }
 
 function newLocalMatch(seed, playerCount = 4) {
@@ -543,6 +559,10 @@ function render() {
   renderPhaseNotice();
   renderActionSummary();
   dom.undoAction.disabled = onlinePayload ? !onlinePayload.viewer.can_undo : undoStack.length === 0;
+  const publishedUndo = onlinePayload?.viewer.undo_scope === 'PUBLISHED';
+  dom.undoAction.textContent = publishedUndo ? 'Undo publication' : 'Undo';
+  dom.undoAction.title = onlinePayload?.viewer.undo_unavailable_reason ?? (publishedUndo
+    ? 'Take back your latest published step before another action is accepted.' : 'Undo your latest action.');
   bindDynamicControls();
   renderEventPresentation(anchors);
 }
@@ -851,7 +871,7 @@ function renderActionControls() {
     }
     if (!onlinePayload.viewer.is_your_turn) {
       const actingName = onlinePayload.room.seats[state.current_actor]?.name ?? playerName(state.current_actor);
-      dom.actionControls.innerHTML = `<p class="eyebrow">Online table</p><h2>Waiting for ${escapeHtml(actingName)}</h2><div class="online-waiting">${playerName(state.current_actor)} is deciding. Their unpublished actions will appear together when their turn ends.</div>`;
+      dom.actionControls.innerHTML = `<p class="eyebrow">Online table</p><h2>Waiting for ${escapeHtml(actingName)}</h2><div class="online-waiting">${playerName(state.current_actor)} is deciding. Their unpublished actions will appear together when their turn ends.</div>${onlinePayload.viewer.undo_scope === 'PUBLISHED' ? '<p>You can take back your latest publication until another action is accepted.</p><button id="online-undo" class="button">Undo publication</button>' : ''}`;
       return;
     }
     if (onlinePayload.viewer.waiting_for_pass) {
@@ -1167,7 +1187,7 @@ function passButton() {
   const plan = state.rules.resource_flow_v2 && lastFall ? stockpilePlan(state, activePlayer()) : null;
   const hasActed = state.v2_acted?.[`${state.year_number}:${state.phase}:${activePlayer()}`];
   const passReady = hasActed && !phaseAvailability(state,activePlayer()).available;
-  return `<div class="choice-grid">${onlinePayload?.viewer.can_undo ? `<button id="online-undo" class="button quiet">Undo latest action</button>` : ""}<button id="pass-phase" class="button ${passReady ? 'primary pass-ready' : 'quiet'} full">Finish ${title(state.phase)}${onlinePayload ? " and publish" : ""}</button>${plan?.mode === 'MANUAL' && !plan.submitted ? '<button id="open-stockpile-action" class="button">Plan Stockpile · optional</button>' : ''}</div>`;
+  return `<div class="choice-grid">${onlinePayload?.viewer.can_undo ? `<button id="online-undo" class="button quiet">${onlinePayload.viewer.undo_scope === 'PUBLISHED' ? 'Undo publication' : 'Undo latest action'}</button>` : ""}<button id="pass-phase" class="button ${passReady ? 'primary pass-ready' : 'quiet'} full">Finish ${title(state.phase)}${onlinePayload ? " and publish" : ""}</button>${plan?.mode === 'MANUAL' && !plan.submitted ? '<button id="open-stockpile-action" class="button">Plan Stockpile · optional</button>' : ''}</div>`;
 }
 
 function renderPlayerSummary() {
@@ -1466,13 +1486,16 @@ async function undoLastAction() {
   if(combatPresenter.busy||recapPresenter.busy)return;
   if (onlineClient) {
     if (!onlinePayload?.viewer.can_undo || onlineRequestPending) return;
-    if (!window.confirm("Undo your latest unpublished action?")) return;
+    const published = onlinePayload.viewer.undo_scope === "PUBLISHED";
+    if (!window.confirm(published
+      ? "Take back your latest published step? Everyone will see the restored position. You can then revise it and finish again."
+      : "Undo your latest unpublished action?")) return;
     onlineRequestPending = true;
     try {
-      const payload = await onlineClient.undo();
+      const payload = await onlineClient.undo({published});
       dismissedOnlineNotice = null;
       applyOnlinePayload(payload, { resetSelection: true, force: true });
-      showToast("Unpublished action restored.", true);
+      showToast(published ? "Published step taken back. You can revise it and finish again." : "Unpublished action restored.", true);
     } catch (error) {
       showToast(`${error.code ?? "ONLINE_ERROR"}: ${error.message}`);
     } finally {
@@ -1535,6 +1558,9 @@ function renderOnlineChrome() {
     ? `You are <strong>${viewer.seat ? playerName(viewer.seat) : "a participant"}</strong> · ${escapeHtml(onlineRoomName(viewer.seat))}`
     : "<strong>Spectator view</strong>";
   dom.onlineStripText.innerHTML = `<strong>${escapeHtml(room.name ?? 'BrezelPesk')}</strong> · Room <strong>${room.code}</strong> · ${identity} · ${room.spectator_count} spectator${room.spectator_count === 1 ? "" : "s"}${onlineClient.token && viewer.role !== 'PLAYER' ? ' · This browser no longer controls the seat. Use Recover seat to take control again.' : ''}`;
+  if(room.last_published_undo?.revision === room.revision) {
+    dom.onlineStripText.innerHTML += ` · ${escapeHtml(onlineRoomName(room.last_published_undo.actor))} took back a published step; this is the restored position.`;
+  }
   for (const id of ['rename-online-game', 'lobby-rename-game']) document.querySelector(`#${id}`).hidden = !viewer.is_host || !['LOBBY', 'ACTIVE'].includes(room.status);
   const notifyButton=document.querySelector('#notifications-online');
   notifyButton.hidden=viewer.role!=='PLAYER';

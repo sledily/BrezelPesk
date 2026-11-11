@@ -162,13 +162,17 @@ export class PersistentRooms {
           }
           else if (['resign','vote'].includes(action)) core.lifecycle(code,token,action,body);
           else if (action === 'rename') core.rename(code, token, body);
-          else if (['start','undo','pass'].includes(action)) core[action](code, token);
+          else if (action === 'undo') core.undo(code, token, body);
+          else if (['start','pass'].includes(action)) core[action](code, token);
           else fail('UNKNOWN_ACTION', 'Unknown room action', 404);
           const room = cloneForStorage(core.get(code));
           data ??= { room, receipts: {}, archive: null, audit: [] };
           data.room = room;
           syncNotifications(stored?.room,data,this.now().getTime());
           if (action === 'abandon') data.audit.push({ action: 'ABANDON', actor: 'HOST', at: room.ended_at });
+          if (action === 'undo' && body.published === true) data.audit.push({
+            action: 'UNDO_PUBLICATION', ...room.last_published_undo,
+          });
           data.receipts[receiptId] = { fingerprint, accepted_at: this.now().toISOString() };
           if (['COMPLETE','ABANDONED'].includes(room.status) && !data.archive) {
             data.archive = { status: 'pending', record: gameRecord(room), attempts: 0, next_attempt: 0 };
