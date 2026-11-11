@@ -1,4 +1,4 @@
-name: Verify published Undo deployment
+name: Verify unlimited Undo deployment
 on:
   push:
     branches: [codex/verify-published-undo-2026-11-11]
@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 952401287f3e6ca5404c205d279a1643f420aacf
+          ref: c3bc635bf4024415d443bd8dbefea68ccca37b06
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -30,14 +30,14 @@ jobs:
           const health=JSON.parse((await get('api/health')).toString('utf8'));
           assert.equal(health.ok,true);assert.equal(health.saving_paused,false);
           console.log('Live health:',JSON.stringify(health));
-          await Promise.all(['index.html','src/ui.js','src/online.js'].map(async path=>{
+          await Promise.all(['index.html','src/ui.js','src/online.js','src/history.js'].map(async path=>{
             const [live,checked]=await Promise.all([get(path==='index.html'?'':path),readFile(path)]);
             assert.deepEqual(live,checked,path+' must match the checked release');
             console.log('Live source verified:',path,live.length);
           }));
           const standalone=await get('Dendarv_Play.html');
           const sha256=createHash('sha256').update(standalone).digest('hex');
-          assert.equal(standalone.length,13033882);
-          assert.equal(sha256,'a578c37774ea9b361e50818077b433252f3011e68226beeda6cc25f2b60b7ace');
+          assert.equal(standalone.length,13037290);
+          assert.equal(sha256,'11be23afd3f1170421477c725cbacae4aff2cc7222e02caef3d4e5a0d63c0bf4');
           console.log('Live standalone verified:',standalone.length,sha256);
           NODE
