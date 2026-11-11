@@ -47,8 +47,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm install --no-save --package-lock=false playwright@1.62.1
-      - run: npx playwright install --with-deps --only-shell chromium
       - run: node scripts/browser-presentation.mjs
+        env:
+          DENDARV_BROWSER_CHANNEL: chrome
       - uses: actions/upload-artifact@v4
         if: always()
         with:

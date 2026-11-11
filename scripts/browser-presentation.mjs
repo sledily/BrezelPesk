@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile,writeFile,mkdir,mkdtemp,rm} from 'node:fs/promises';
 import {createRequire} from 'node:module';
+import {createHash} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -25,7 +26,8 @@ let browser,activePage;
 const errors=[];
 try {
   for(let i=0;i<100;i++){try{const response=await fetch(`${origin}/api/health`);if(response.ok)break;}catch{}await new Promise(resolve=>setTimeout(resolve,100));}
-  browser=await playwright.chromium.launch({headless:true,args:['--no-sandbox']});
+  browser=await playwright.chromium.launch({headless:true,args:['--no-sandbox'],
+    ...(process.env.DENDARV_BROWSER_CHANNEL?{channel:process.env.DENDARV_BROWSER_CHANNEL}:{})});
   const desktop=await browser.newContext({viewport:{width:1440,height:1050},reducedMotion:'no-preference'});
   const page=await desktop.newPage();activePage=page;page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin);await page.getByRole('button',{name:'Ready',exact:true}).click();
@@ -290,6 +292,8 @@ try {
   }
   assert.deepEqual(errors,[]);
   await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['published Undo in legacy saved online rooms, exact positions, confirmation, republishing and opponent-draft polling at three viewport sizes','modular and offline-bundle startup','native local setup and Court reveal handover','red/black SVG suits and smaller Noble subscripts','safe text decoration and native option labels','upper-right Levy badges and read-only inspection at all three viewport sizes','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds','pinned action controls and table-card selection on desktop and portrait/landscape phones','Harvest deck choice, card selection, Cancel and Keep in the pinned panel on desktop and portrait/landscape phones'],battleEvent:battle.event_id},null,2));
+  const checkedStandalone=await readFile('Dendarv_Play.html');
+  console.log('Tested standalone:',JSON.stringify({bytes:checkedStandalone.length,sha256:createHash('sha256').update(checkedStandalone).digest('hex')}));
   console.log('Browser presentation checks passed; screenshots in browser-artifacts.');
 } catch(error) {
   if(activePage){
