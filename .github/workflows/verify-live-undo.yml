@@ -1,0 +1,43 @@
+name: Verify published Undo deployment
+on:
+  push:
+    branches: [codex/verify-published-undo-2026-11-11]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 952401287f3e6ca5404c205d279a1643f420aacf
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify public health, source and standalone bytes
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFile} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          const base='https://brezelpesk-online.onrender.com/';
+          async function get(path) {
+            const response=await fetch(new URL(path,base),{cache:'no-store',signal:AbortSignal.timeout(45000)});
+            assert.equal(response.status,200,path+' must respond successfully');
+            return Buffer.from(await response.arrayBuffer());
+          }
+          const health=JSON.parse((await get('api/health')).toString('utf8'));
+          assert.equal(health.ok,true);assert.equal(health.saving_paused,false);
+          console.log('Live health:',JSON.stringify(health));
+          await Promise.all(['index.html','src/ui.js','src/online.js'].map(async path=>{
+            const [live,checked]=await Promise.all([get(path==='index.html'?'':path),readFile(path)]);
+            assert.deepEqual(live,checked,path+' must match the checked release');
+            console.log('Live source verified:',path,live.length);
+          }));
+          const standalone=await get('Dendarv_Play.html');
+          const sha256=createHash('sha256').update(standalone).digest('hex');
+          assert.equal(standalone.length,13033882);
+          assert.equal(sha256,'a578c37774ea9b361e50818077b433252f3011e68226beeda6cc25f2b60b7ace');
+          console.log('Live standalone verified:',standalone.length,sha256);
+          NODE
