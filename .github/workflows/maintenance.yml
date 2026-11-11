@@ -1,0 +1,25 @@
+name: Optional maintenance wake-up
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: maintenance-wake
+  cancel-in-progress: false
+jobs:
+  wake:
+    # No live requests until explicitly enabled after deployment configuration.
+    if: vars.DENDARV_MAINTENANCE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/wake-maintenance.mjs
+        env:
+          DENDARV_MAINTENANCE_URL: ${{ vars.DENDARV_MAINTENANCE_URL }}
+          DENDARV_MAINTENANCE_TOKEN: ${{ secrets.DENDARV_MAINTENANCE_TOKEN }}

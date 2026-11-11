@@ -1,0 +1,9 @@
+node_modules/
+.dendarv-data/
+.env
+.env.*
+!.env.example
+coverage/
+/Dendarv_Play.html
+/browser-artifacts/
+/preview/
