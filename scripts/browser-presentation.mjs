@@ -27,7 +27,8 @@ const errors=[];
 try {
   for(let i=0;i<100;i++){try{const response=await fetch(`${origin}/api/health`);if(response.ok)break;}catch{}await new Promise(resolve=>setTimeout(resolve,100));}
   browser=await playwright.chromium.launch({headless:true,args:['--no-sandbox'],
-    ...(process.env.DENDARV_BROWSER_CHANNEL?{channel:process.env.DENDARV_BROWSER_CHANNEL}:{})});
+    ...(process.env.DENDARV_BROWSER_CHANNEL?{channel:process.env.DENDARV_BROWSER_CHANNEL}:{}),
+    ...(process.env.DENDARV_BROWSER_EXECUTABLE?{executablePath:process.env.DENDARV_BROWSER_EXECUTABLE}:{})});
   const desktop=await browser.newContext({viewport:{width:1440,height:1050},reducedMotion:'no-preference'});
   const page=await desktop.newPage();activePage=page;page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin);await page.getByRole('button',{name:'Ready',exact:true}).click();
@@ -259,20 +260,20 @@ try {
     await target.goto(`${origin}/?room=${code}`);
     await target.locator('#online-strip').waitFor({state:'visible'});
     if(await target.locator('#recap-dialog').isVisible())await target.getByRole('button',{name:'Skip to current board',exact:true}).click();
-    await target.locator('.current-action #online-undo').click();
+    await target.locator('#current-action-undo').click();
     await target.locator('#pass-phase').waitFor({state:'visible'});
     let saved=JSON.parse(await readFile(join(temporary,`${code}.json`),'utf8'));
     assert.deepEqual(saved.room.committed_state,fixture.beforePass,'Undo publication restores the exact pre-Finish save');
-    assert.equal(saved.room.last_published_undo.actor,'WHITE');
+    assert.equal(saved.room.last_game_undo.actor,'WHITE');
     assert.equal(await target.locator('#recap-dialog').isVisible(),false,'deleted history does not keep animating');
     await target.locator('#undo-action').click();
     await target.locator('#board [data-square="a1"] .piece').waitFor({state:'visible'});
     saved=JSON.parse(await readFile(join(temporary,`${code}.json`),'utf8'));
     assert.deepEqual(saved.room.committed_state,fixture.beforeMove,'the next Undo takes back the published move');
-    assert.equal(saved.audit.filter(entry=>entry.action==='UNDO_PUBLICATION').length,2);
+    assert.equal(saved.audit.filter(entry=>entry.action==='UNDO_GAME').length,2);
     assert.equal(confirmations.length,2);
     assert.ok(confirmations.every(message=>message.includes('Everyone will see the restored position')));
-    await target.screenshot({path:join(artifacts,`${name}-published-undo.png`),fullPage:true});
+    await target.screenshot({path:join(artifacts,`${name}-unlimited-undo.png`),fullPage:true});
     await target.locator('#pass-phase').click();
     await target.locator('#action-controls h2').filter({hasText:'Waiting'}).waitFor({state:'visible'});
     const published=JSON.parse(await readFile(join(temporary,`${code}.json`),'utf8'));
@@ -286,12 +287,30 @@ try {
       'Idempotency-Key':`browser-published-undo-${code}-opponent`,
     },body:JSON.stringify({expectedRevision:published.room.revision,command:{type:'TAP_RESOURCES',card_ids:cards}})});
     assert.equal(accepted.ok,true);
-    await target.waitForFunction(()=>document.querySelector('#undo-action').disabled);
-    assert.equal(await target.locator('.current-action #online-undo').count(),0,'polling removes takeback when another player starts a private action');
+    await target.reload();
+    await target.locator('#online-strip').waitFor({state:'visible'});
+    if(await target.locator('#recap-dialog').isVisible())await target.getByRole('button',{name:'Skip to current board',exact:true}).click();
+    assert.equal(await target.locator('#current-action-undo').isEnabled(),true,'Undo remains available after another player acts');
+    const response=target.waitForResponse(r=>r.url().endsWith('/undo')&&r.request().method()==='POST');
+    await target.locator('#current-action-undo').click();await response;
+    await target.waitForFunction(()=>!document.querySelector('#current-action-undo').disabled);
+    let rewound=JSON.parse(await readFile(join(temporary,code+'.json'),'utf8'));
+    assert.equal(rewound.room.draft_state,null,'Undo can rewind another player’s unfinished action');
+    assert.deepEqual(rewound.room.committed_state,published.room.committed_state);
+    const steps=rewound.room.committed_state.command_log.length;
+    for(let remaining=steps-1;remaining>=0;remaining--){
+      const response=target.waitForResponse(r=>r.url().endsWith('/undo')&&r.request().method()==='POST');
+      await target.locator('#current-action-undo').click();await response;
+      if(remaining)await target.waitForFunction(()=>!document.querySelector('#current-action-undo').disabled);
+      rewound=JSON.parse(await readFile(join(temporary,code+'.json'),'utf8'));
+      assert.equal(rewound.room.committed_state.command_log.length,remaining);
+    }
+    await target.waitForFunction(()=>document.querySelector('#current-action-undo').disabled);
+    assert.equal(rewound.room.committed_state.status,'SETUP');
     await context.close();
   }
   assert.deepEqual(errors,[]);
-  await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['published Undo in legacy saved online rooms, exact positions, confirmation, republishing and opponent-draft polling at three viewport sizes','modular and offline-bundle startup','native local setup and Court reveal handover','red/black SVG suits and smaller Noble subscripts','safe text decoration and native option labels','upper-right Levy badges and read-only inspection at all three viewport sizes','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds','pinned action controls and table-card selection on desktop and portrait/landscape phones','Harvest deck choice, card selection, Cancel and Keep in the pinned panel on desktop and portrait/landscape phones'],battleEvent:battle.event_id},null,2));
+  await writeFile(join(artifacts,'checks.json'),JSON.stringify({result:'passed',checks:['unlimited Undo to setup in legacy saved online rooms, exact positions, confirmation, republishing, refresh and other players’ private actions at three viewport sizes','modular and offline-bundle startup','native local setup and Court reveal handover','red/black SVG suits and smaller Noble subscripts','safe text decoration and native option labels','upper-right Levy badges and read-only inspection at all three viewport sizes','Year/phase arrival','complete reconnect queue','saved combat dice and arithmetic','CSS dice motion','pause/next/skip without state changes','refresh and manual replay','private Court redaction','native reduced-motion preference','touch landscape bounds','pinned action controls and table-card selection on desktop and portrait/landscape phones','Harvest deck choice, card selection, Cancel and Keep in the pinned panel on desktop and portrait/landscape phones'],battleEvent:battle.event_id},null,2));
   const checkedStandalone=await readFile('Dendarv_Play.html');
   console.log('Tested standalone:',JSON.stringify({bytes:checkedStandalone.length,sha256:createHash('sha256').update(checkedStandalone).digest('hex')}));
   console.log('Browser presentation checks passed; screenshots in browser-artifacts.');

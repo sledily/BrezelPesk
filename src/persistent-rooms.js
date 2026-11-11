@@ -133,6 +133,10 @@ export class PersistentRooms {
         if (!old) {
           if (action !== 'create' && !['join','recover'].includes(action)) {
             const view = core.view(code, token);
+            if (action === 'undo' && body.unlimited === true
+              && (!Number.isSafeInteger(body.expectedGameRevision) || body.expectedGameRevision !== view.viewer.game_revision)) {
+              fail('STALE_VIEW', 'The game changed. Refresh before using Undo.', 409);
+            }
             if (!Number.isSafeInteger(body.expectedRevision) || body.expectedRevision !== view.viewer.private_revision) {
               fail('STALE_VIEW', 'The game changed. Refresh before acting.', 409);
             }
@@ -168,6 +172,10 @@ export class PersistentRooms {
           const room = cloneForStorage(core.get(code));
           data ??= { room, receipts: {}, archive: null, audit: [] };
           data.room = room;
+          if (action === 'undo' && body.unlimited === true) {
+            data.archive = null;
+            data.audit.push({ action: 'UNDO_GAME', ...room.last_game_undo });
+          }
           syncNotifications(stored?.room,data,this.now().getTime());
           if (action === 'abandon') data.audit.push({ action: 'ABANDON', actor: 'HOST', at: room.ended_at });
           if (action === 'undo' && body.published === true) data.audit.push({

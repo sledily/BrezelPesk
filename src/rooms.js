@@ -7,6 +7,7 @@ import { dispatch, newMatch, resignationBlock, preserveStockpileInstructions, re
 import { deepClone } from "./model.js";
 import { projectForPlayer, projectSpectator } from "./projection.js";
 import { validateInvariants } from "./rules.js";
+import { gameUndoStep } from "./history.js";
 
 const ROOM_SCHEMA_VERSION = 2;
 const NAME_LIMIT = 40;
@@ -405,6 +406,8 @@ export class RoomStore {
     const draftAdvanced = Boolean(seat && room.draft_owner === seat && room.draft_turn_complete);
     const draftUndo = Boolean(room.status === "ACTIVE" && seat && room.draft_owner === seat && room.draft_history.length);
     const publishedUndo = draftUndo ? null : verifiedPublishedUndo(room, seat);
+    const gameUndo = seat && ['ACTIVE','COMPLETE'].includes(room.status)
+      ? gameUndoStep(room.draft_state ?? room.committed_state) : null;
     return {
       room: {
         code: room.code,
@@ -422,6 +425,7 @@ export class RoomStore {
         spectator_count: recentSpectators?.size ?? 0,
         revision: room.revision,
         last_published_undo: room.last_published_undo ?? null,
+        last_game_undo: room.last_game_undo ?? null,
       },
       viewer: {
         role: seat ? "PLAYER" : "SPECTATOR",
@@ -436,6 +440,9 @@ export class RoomStore {
         can_undo: draftUndo || Boolean(publishedUndo?.state),
         undo_scope: draftUndo ? "DRAFT" : publishedUndo?.state ? "PUBLISHED" : null,
         undo_unavailable_reason: publishedUndo?.message ?? null,
+        can_undo_game: Boolean(gameUndo?.state),
+        game_undo_reason: gameUndo?.message ?? null,
+        game_revision: seat ? Math.max(room.revision, room.draft_revision) : null,
         private_revision: seat && room.draft_state && (room.draft_owner === seat || room.draft_state.current_actor === seat) ? room.draft_revision : room.revision,
       },
       terminal_record: seat && ['COMPLETE','ABANDONED'].includes(room.status) ? {
@@ -510,7 +517,8 @@ export class RoomStore {
     return this.view(room.code, token);
   }
 
-  undo(code, token, { published = false } = {}) {
+  undo(code, token, { published = false, unlimited = false } = {}) {
+    if (unlimited === true) return this.undoGame(code, token);
     const room = this.get(code);
     if (room.status !== "ACTIVE") roomFail("MATCH_NOT_ACTIVE", "The online match is not active", 409);
     const seat = identifySeat(room, token);
@@ -544,6 +552,48 @@ export class RoomStore {
     room.updated_at = this.now().toISOString();
     this.persist();
     return this.view(room.code, token);
+  }
+
+  undoGame(code, token) {
+    const room = this.get(code);
+    if (!["ACTIVE", "COMPLETE"].includes(room.status)) roomFail("MATCH_NOT_ACTIVE", "This game is not available for Undo", 409);
+    const seat = identifySeat(room, token);
+    if (!seat) roomFail("PLAYER_TOKEN_REQUIRED", "A player seat is required", 403);
+    const working = room.draft_state ?? room.committed_state;
+    const rollback = gameUndoStep(working);
+    if (!rollback.state) roomFail(rollback.error ?? "NOTHING_TO_UNDO",
+      rollback.message ?? "The game is already at its starting position.", 409);
+    const restored = deepClone(rollback.state);
+    const revision = Math.max(room.revision, room.draft_revision) + 1;
+    room.last_game_undo = { actor: seat, revision, at: this.now().toISOString() };
+    if (room.draft_state) {
+      // Stockpile planning is saved in both views. Undo it in both views without
+      // publishing the rest of another player's unfinished turn.
+      if (rollback.command.type === "SET_STOCKPILE_INSTRUCTIONS"
+        && isDeepStrictEqual(working.command_log.at(-1), room.committed_state.command_log.at(-1))) {
+        const published = gameUndoStep(room.committed_state);
+        if (!published.state) roomFail(published.error ?? "UNDO_HISTORY_UNVERIFIED",
+          published.message ?? "The published history could not be verified. Nothing was changed.", 409);
+        room.committed_state = deepClone(published.state);
+      }
+      if (isDeepStrictEqual(restored, room.committed_state)) {
+        room.draft_state = null; room.draft_owner = null; room.draft_turn_complete = false;
+      } else {
+        room.draft_state = restored;
+        room.draft_owner ??= room.committed_state.current_actor;
+        room.draft_turn_complete = !restored.pending_combat && !restored.pending_conquest
+          && turnBoundaryCrossed(room.committed_state, restored,
+            restored.event_log.filter(event => event.sequence > room.committed_state.event_sequence));
+      }
+      room.draft_history = [];
+      room.revision = revision; room.draft_revision = revision;
+      room.updated_at = this.now().toISOString();
+      this.persist();
+    } else {
+      if (restored.status !== "COMPLETE") delete room.ended_at;
+      this.commit(room, restored);
+    }
+    return this.view(code, token);
   }
 
   pass(code, token) {
@@ -611,7 +661,7 @@ export class RoomStore {
 
 // The synchronous reducer must never retain an unaccepted mutation after an error.
 // PersistentRooms stages this reducer inside a database transaction for online use.
-for (const method of ["create", "join", "start", "command", "undo", "pass", "recover", "rename", "lobby", "lifecycle", "expireBallot"]) {
+for (const method of ["create", "join", "start", "command", "undo", "undoGame", "pass", "recover", "rename", "lobby", "lifecycle", "expireBallot"]) {
   const original = RoomStore.prototype[method];
   RoomStore.prototype[method] = function (...args) {
     const before = deepClone(this.rooms);

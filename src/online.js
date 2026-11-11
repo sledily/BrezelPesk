@@ -153,7 +153,8 @@ export class OnlineClient {
   async recover(recoveryCode){return this.mutate('recover',{recoveryCode:String(recoveryCode).trim(),token:randomId()});}
   start(){return this.mutate('start');}
   command(command){return this.mutate('command',{command});}
-  undo({published=false}={}){return this.mutate('undo',published?{published:true}:{});}
+  undo({published=false,unlimited=false}={}){return this.mutate('undo',unlimited
+    ?{unlimited:true,expectedGameRevision:this.lastView?.viewer.game_revision}:published?{published:true}:{});}
   pass(){return this.mutate('pass');}
   abandon(){return this.mutate('abandon',{confirmed:true});}
   rename(name){return this.mutate('rename',{name});}

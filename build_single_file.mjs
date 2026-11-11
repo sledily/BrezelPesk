@@ -13,6 +13,7 @@ const sourceOrder = [
   "src/model.js",
   "src/rules.js",
   "src/engine.js",
+  "src/history.js",
   "src/projection.js",
   "src/persistence.js",
   "src/format.js",

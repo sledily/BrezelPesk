@@ -5,6 +5,7 @@ import { Script, createContext } from "node:vm";
 import { PHASE, PLAYER, SUIT, V2_RULES } from "../src/constants.js";
 import { settleAutomaticPhases, dispatch, newMatch } from "../src/engine.js";
 import { forcePhase, giveResource, setUpMatch, addUnit } from "./helpers.js";
+import { publishedUndoFixture } from "../test-support/published-undo.js";
 
 // A lightweight DOM host runs the real standalone UI. These are interaction
 // and rendered-content checks, not a replacement for a browser layout test.
@@ -46,6 +47,30 @@ function loadUI({motion=false}={}) {
   new Script(code.replace(/\}\)\(\);\s*$/, `${expose}\n})();`)).runInContext(context);
   return { ui: context.ui, elements, app, html, timers };
 }
+
+test("local Undo remains in Current Action and rewinds the complete saved history through every handover", async () => {
+  const {ui,elements}=loadUI();
+  const fixture=publishedUndoFixture(4);
+  const saved=JSON.parse(JSON.stringify(fixture.core.get(fixture.host.code).committed_state));
+  ui.setState(saved);ui.hideHandoff();
+  for(let remaining=saved.command_log.length-1;remaining>=0;remaining--){
+    assert.equal(elements.get("current-action-undo").disabled,false);
+    await ui.undoLastAction();
+    assert.equal(ui.getState().command_log.length,remaining);
+    if(!elements.get("handoff").hidden)ui.hideHandoff();
+  }
+  assert.equal(ui.getState().status,"SETUP");
+  assert.equal(elements.get("current-action-undo").disabled,true);
+});
+
+test("local Undo can continue after loading a saved position without a session Undo stack", async () => {
+  const fixture=publishedUndoFixture(),saved=JSON.parse(JSON.stringify(fixture.core.get(fixture.host.code).committed_state));
+  const first=loadUI();first.ui.setState(saved);first.ui.hideHandoff();await first.ui.undoLastAction();
+  const loaded=JSON.parse(JSON.stringify(first.ui.getState()));
+  const second=loadUI();second.ui.setState(loaded);second.ui.hideHandoff();await second.ui.undoLastAction();
+  assert.equal(second.ui.getState().command_log.length,saved.command_log.length-2);
+  assert.equal(second.ui.getState().units_by_id["U-W-001"].square,"a1");
+});
 
 test("the standalone places Current Action above the corner table and constants below the board", () => {
   const { elements, html } = loadUI();
@@ -222,9 +247,10 @@ test("a cancelled movement preview leaves state intact", () => {
 });
 
 
-test("Harvest selection can be cancelled without keeping or redrawing, and revealed cards cannot be undone", async () => {
+test("Harvest selection can be cancelled without redrawing, and full Undo can rewind the draw", async () => {
   const { ui, elements } = loadUI();
   let state = setUpMatch('ui-resource-cancel', V2_RULES);
+  const beforeDraw = JSON.stringify(state);
   state = dispatch(state, {type:'DRAW_HARVEST', player:PLAYER.WHITE, unit_id:'U-W-001', deck:'BLACK'}).state;
   ui.setState(state);
   ui.hideHandoff();
@@ -235,7 +261,7 @@ test("Harvest selection can be cancelled without keeping or redrawing, and revea
   assert.match(elements.get('harvest-table').innerHTML, /id="keep-harvest-selection"[^>]*disabled/);
   assert.equal(JSON.stringify(ui.getState()), before);
   await ui.undoLastAction();
-  assert.equal(JSON.stringify(ui.getState()), before);
+  assert.equal(JSON.stringify(ui.getState()), beforeDraw);
 });
 
 test("a local Stockpile plan closes at handover and does not reveal the incoming player's instructions", async () => {

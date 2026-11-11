@@ -3,9 +3,9 @@ import { PHASE, SUIT } from '../src/constants.js';
 import { actionCost } from '../src/rules.js';
 
 // Reach a real, replayable mid-game position without editing pieces, pools or logs.
-export function publishedUndoFixture(playerCount = 2, { publish = true, phase = PHASE.MOBILIZE, code = 'ABC234' } = {}) {
+export function publishedUndoFixture(playerCount = 2, { publish = true, phase = PHASE.MOBILIZE, code = 'ABC234', seed = 'published-undo-existing-save' } = {}) {
   const core = new RoomStore({ codeFactory: () => code });
-  const host = core.create({ playerCount, playerName: 'White', seat: 'WHITE', seed: 'published-undo-existing-save' });
+  const host = core.create({ playerCount, playerName: 'White', seat: 'WHITE', seed });
   const players = { WHITE: host };
   for (const seat of playerCount === 4 ? ['GREEN', 'BLACK', 'RED'] : ['BLACK']) {
     players[seat] = core.join(host.code, { playerName: seat, seat });
